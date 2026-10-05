@@ -103,7 +103,17 @@ Both existed in this form before this task. The before captures at ccff74d show 
 - Sprite crowding on the formation board is a separate, known issue. Don't claim it.
 
 ## How round 1 was run (repeat this for round 2)
-1. **Captures:** `tools/capture_hires_ui.sh` re-creates captures/hires-ui/ (both resolutions, the videos, before_after/, crops/). captures/hires-ui/INDEX.md describes each file. The pre-task "before" frames came from a checkout of ccff74d.
+1. **Captures:** `tools/capture_hires_ui.sh [out_dir] [screen ...]` re-creates captures/hires-ui/ (both resolutions, the videos, before_after/, crops/). Screens: battle crystal monsters setup draft encounter hero_detail videos crops before_after. captures/hires-ui/INDEX.md describes each file.
+   - The before_after step needs four pre-task frames in captures/hires-ui/before/, which are not in git, and skips any that are missing. To re-create them, check out ccff74d (the old 640x360 harness) in a worktree and capture:
+     ```
+     git worktree add --detach ../ed-before ccff74d && cd ../ed-before
+     godot --path game --headless --import
+     OUT=<repo>/captures/hires-ui/before
+     for s in "battle res://scenes/battle/battle.tscn 600" "setup res://scenes/party_setup/formation_setup.tscn 420" \
+              "draft res://scenes/party_setup/draft.tscn 240" "encounter res://scenes/encounter/encounter.tscn 480"; do
+       set -- $s; tools/capture.sh "$2" "$OUT/$1" "$3"; done
+     ```
+     This gives before/<screen>/f00NNN.png. Hero detail has no before frame: it didn't load at ccff74d.
 2. **Pairs:** `tools/blind_pair.py <ours> <ref> captures/hires-ui/critic<N>/pairs/pair<i>_full.png hires-ui-r<N> 1920x1080`, then halve each full pair image (LANCZOS) to make pair<i>_phone.png. Halving keeps A and B in the same order, with one answer key per pair.
    - **Fix for round 2:** pairs 4–5 put a 2340x1080 capture into a 16:9 frame, so our text showed at about 82%. Pass `2340x1080` as the size for the phone pairs instead. Super Auto Pets 015/016 are 960x450, about 2.13:1, so the shapes match.
 3. **Critic:** a fresh general-purpose agent is given the brief in Appendix B, with the round folder substituted.
