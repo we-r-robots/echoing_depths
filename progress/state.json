@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 19:43",
+  "updated": "2026-10-05 19:51",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -753,6 +753,10 @@
     {
       "t": "19:43",
       "msg": "hires-ui round 6 built (f6e2102, 156 tests): label layout solver, Crystal roster cap, equipment chips, phone-size encounter/setup work. Class roster draft in docs/design/. Critic round 6 started."
+    },
+    {
+      "t": "19:51",
+      "msg": "hires-ui critic round 6: 4/7, first majority, but no Sea of Stars pair; open review fails on 2 overlaps only. Round 7 next."
     }
   ],
   "questions": [
