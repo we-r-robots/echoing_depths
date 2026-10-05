@@ -70,3 +70,4 @@ Committed through the Crystal battle presentation. NEXT SESSION, in order:
 3. party-formation round 6 (items listed above), then swap FormationWords.evaluate's stub for core Formation.effective (now shipped, with a parity test); the battle banner shows the locked fallback (state/sub_cells on the banner event).
 4. Then the playable flow: title -> draft -> run (encounter screen, formation setup, battle, Crystal) -> results -> minimal Lanternrest; the PvP splash with team name and crest; the settings screen (Battle Effects Low/Medium/High).
 Open design needs for the user: the advanced/Legendary class roster (only 8 of 36 advanced, 1 Legendary); the art direction for characters.
+- 2026-10-05: cloud setup ready: tools/cloud_setup.sh (env setup script), tools/smoke.sh (passes locally), tools/godot_run.sh (Xvfb fallback), tools/fetch_references.sh, docs/CLOUD.md. Remotes: origin = Gitea (SSH), github = we-r-robots/echoing_depths (SSH key ~/.ssh/github). Both pushed.

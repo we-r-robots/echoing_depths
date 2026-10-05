@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCENE="$1"; OUT="$(realpath -m "$2")"; AT="$3"; SEED="${4:-1}"
 mkdir -p "$OUT"
-timeout 120 godot --path "$ROOT/game" --fixed-fps 60 --disable-vsync --audio-driver Dummy \
+timeout "${CAPTURE_TIMEOUT:-120}" "$ROOT/tools/godot_run.sh" --path "$ROOT/game" --fixed-fps 60 --disable-vsync --audio-driver Dummy \
   --resolution 1920x1080 -- --scene="$SCENE" --shots="$OUT" --at="$AT" --seed="$SEED" --quit 2>&1 \
   | grep -vE "^(Godot Engine|OpenGL API|$)" || true
 ls "$OUT"
