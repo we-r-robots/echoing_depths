@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 16:36",
+  "updated": "2026-10-05 16:40",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -705,6 +705,10 @@
     {
       "t": "16:36",
       "msg": "hires-ui critic round 2: FAIL, ours 2/5 (won both SAP pairs, lost all SoS). Open review FAIL: damage numbers anchor ~1 grid row above target (regression from the r2 anchor change), crystal caption truncation, Fading numbers merging, encounter wide-phone edge. Record: docs/tasks/hires-ui-round2.md"
+    },
+    {
+      "t": "16:40",
+      "msg": "User decision: hero detail ability sentences become icon + short label with the sentence in the tooltip (consistent with intro cards)."
     }
   ],
   "questions": [
