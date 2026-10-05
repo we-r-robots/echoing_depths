@@ -1,8 +1,9 @@
 class_name DraftCard
 extends Control
-## One offered hero in the starting draft: animated sprite on a lit stage, name, class, the
-## class's fixed starting alignment (mini grid + words), base stats, the basic action and the
-## ability. The whole card is the tap target (toggle pick).
+## One offered hero in the starting draft. The hero first (3x sprite on a lit stage, name, class),
+## then the fixed starting alignment in one line, labelled base stats, and one line each for the
+## basic action and the ability (tap either for the full text in the shared Tip). The rest of the
+## card is the tap target (toggle pick).
 
 signal tapped
 
@@ -24,6 +25,33 @@ var _t := 0.0
 var _lift := 0.0
 var _flash := 0.0
 var _motes: Array = []
+var _rows: Array = []
+
+const ACTION_Y := [226, 257]
+## One short plain line per base action, and the full plain sentence for its tooltip.
+const ACTION_SHORT := {
+	"strike": "Hits the front foe", "stab": "A quick hit, front foe", "smite": "Holy hit, front foe",
+	"bolt": "Shoots the back row", "cleave": "Front foe and its sides", "backstab": "Huge hit on the weakest",
+	"mend": "Heals the weakest ally", "firestorm": "Burns every foe",
+}
+const ACTION_FULL := {
+	"strike": "Hits the foe in front for 100% physical damage.",
+	"stab": "A quick hit on the foe in front for 90% physical damage.",
+	"smite": "A holy hit on the foe in front for 70% magic damage.",
+	"bolt": "Shoots the back row first for 80% magic damage.",
+	"cleave": "Hits the foe in front for 190% physical damage and the foes beside it for 80%.",
+	"backstab": "Dashes to the weakest foe and hits it for 320% physical damage.",
+	"mend": "Heals the weakest ally (220% power), then hits the foe in front for 90% magic damage.",
+	"firestorm": "Burns the back row first for 160% magic damage and every other foe for 70%.",
+}
+
+
+static func action_short(id: String) -> String:
+	return String(ACTION_SHORT.get(id, PartyModel.ability_desc(GameData.get_action(id)).trim_suffix(".")))
+
+
+static func action_full(id: String) -> String:
+	return String(ACTION_FULL.get(id, PartyModel.ability_desc(GameData.get_action(id))))
 
 
 func _ready() -> void:
@@ -34,7 +62,7 @@ func _ready() -> void:
 	add_child(_clip)
 	_sprite = AnimatedSprite2D.new()
 	_sprite.centered = false
-	_sprite.scale = Vector2(2, 2)
+	_sprite.scale = Vector2(3, 3)
 	_clip.add_child(_sprite)
 	_over = Control.new()
 	_over.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -43,7 +71,7 @@ func _ready() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
 	for i in 10:
-		_motes.append(Vector3(rng.randi_range(4, 170), rng.randf(), rng.randf_range(0.12, 0.3)))
+		_motes.append(Vector3(rng.randi_range(4, 132), rng.randf(), rng.randf_range(0.12, 0.3)))
 
 
 func setup(hd: Dictionary, width: int, height: int, phase := 0) -> void:
@@ -61,8 +89,17 @@ func setup(hd: Dictionary, width: int, height: int, phase := 0) -> void:
 		_sprite.sprite_frames = frames
 		_sprite.play(&"idle")
 		_sprite.frame = phase % maxi(1, frames.get_frame_count(&"idle"))
-		# feet (origin 32,60 at 1x) on the stage floor, centred
-		_sprite.position = Vector2(roundi(_clip.size.x / 2.0) - 64, _clip.size.y - 12 - 120)
+		# feet (origin 32,60 at 1x) on the stage floor, centred, at 3x
+		_sprite.position = Vector2(roundi(_clip.size.x / 2.0) - 96, _clip.size.y - 8 - 180)
+	var cdef := GameData.get_class_def(base)
+	for k in 2:
+		var aid := String(cdef.get("basic" if k == 0 else "ability", ""))
+		var row := Control.new()
+		row.position = Vector2(4, ACTION_Y[k] - 1)
+		row.size = Vector2(w - 8, 29)
+		add_child(row)
+		_rows.append(row)
+		Tip.attach(row, String(GameData.get_action(aid).get("name", aid)), action_full(aid), Pal.c(info["color"]) if k == 1 else Pal.INK9)
 	queue_redraw()
 
 
@@ -77,7 +114,7 @@ func set_pick(p: int, dim: bool) -> void:
 
 
 func _stage() -> Rect2:
-	return Rect2(6, 6, w - 12, 100)
+	return Rect2(6, 6, w - 12, 140)
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -113,32 +150,21 @@ func _draw() -> void:
 	var r := Rect2(0, 0, w, h)
 	PartyDraw.panel(self, r, 0, &"PanelContainer" if not dimmed else &"DimPanel")
 	_draw_stage(cc)
-	var x := 8
-	# name + class
-	PartyDraw.text(self, Vector2(x, 106), String(hero.get("name", "?")), Pal.AMBER6 if not dimmed else Pal.INK8, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
-	PartyDraw.tint_tex(self, PartyDraw.icon(info["icon"]), Vector2(x, 126), cc)
 	var cls := PartyModel.class_name_of(String(hero["class"]))
-	PartyDraw.text(self, Vector2(x + 10, 124), cls, cc, PartyDraw.BOLD)
 	var cdef := GameData.get_class_def(String(hero["class"]))
-	var pref := "Front" if int(cdef.get("preferred_col", 0)) == 0 else "Back"
-	var lv := "Lv 1"
-	PartyDraw.text(self, Vector2(0, 109), lv, Pal.INK8, PartyDraw.BOLD, 11, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
-	PartyDraw.text(self, Vector2(0, 124), "fights " + pref.to_lower(), Pal.AMBER5 if pref == "Front" else Pal.CRYSTAL4, PartyDraw.BOLD, 11, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
-	# alignment: the fixed start, in words (no unexplained grid on screen one)
+	# the hero: name, class, where they fight
+	BigText.draw(self, Vector2(8, 150), String(hero.get("name", "?")), Pal.AMBER6 if not dimmed else Pal.INK8)
+	PartyDraw.tint_tex(self, PartyDraw.icon(info["icon"]), Vector2(8, 170), cc)
+	PartyDraw.text(self, Vector2(18, 168), cls, cc, PartyDraw.BOLD)
+	var pref := "front" if int(cdef.get("preferred_col", 0)) == 0 else "back"
+	PartyDraw.text(self, Vector2(0, 168), pref, Pal.AMBER5 if pref == "front" else Pal.CRYSTAL4, PartyDraw.BOLD, 11, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
+	# fixed starting alignment, one line (explained once, in the bar below)
 	var a: Array = hero.get("alignment", [0, 0])
-	var narrow := w < 170
-	PartyDraw.text(self, Vector2(8, 140), "ALIGNMENT", Pal.INK7, PartyDraw.BOLD, 11, false)
-	var ey := 151
-	if narrow:
-		PartyDraw.text(self, Vector2(8, 151), _align_words(a), Pal.INK10, PartyDraw.BOLD)
-		ey = 162
-	else:
-		PartyDraw.text(self, Vector2(14 + PartyDraw.text_w("ALIGNMENT", PartyDraw.BOLD), 140), _align_words(a), Pal.INK10, PartyDraw.BOLD)
-	var expl := "Choices shift it; it sets the advanced class." if narrow else "Your choices shift it, and it sets the advanced class."
-	var ay := _para(expl, Vector2(8, ey), w - 16, Pal.INK8)
+	PartyDraw.text(self, Vector2(8, 181), "Starts:", Pal.INK7)
+	PartyDraw.text(self, Vector2(12 + PartyDraw.text_w("Starts:"), 181), _align_words(a), Pal.INK10, PartyDraw.BOLD)
 	# stats, labelled
 	var st := PartyModel.stats({"class": hero["class"], "level": 1, "items": {}})
-	var sy := ay + 3
+	var sy := 195
 	var cw := floori((w - 16) / 5.0)
 	var sx := 8
 	for s: String in ["hp", "atk", "def", "mag", "spd"]:
@@ -148,13 +174,22 @@ func _draw() -> void:
 		PartyDraw.text(self, Vector2(sx, sy + 1), PartyModel.STAT_LABELS[s], STAT_COLORS[s], PartyDraw.SANS, 11, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
 		PartyDraw.text(self, Vector2(sx, sy + 12), str(st[s]), Pal.INK10, PartyDraw.BOLD, 11, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
 		sx += cw
-	# basic + ability
-	var basic := GameData.get_action(String(cdef.get("basic", "")))
-	var ab := PartyModel.ability_of(String(hero["class"]))
-	var y := sy + 30
-	y = _action(y, "Basic", basic, Pal.INK8, false)
-	y = _action(y + 3, "Ability", ab, cc, true)
-
+	# one line each: basic, ability
+	for k in 2:
+		var aid := String(cdef.get("basic" if k == 0 else "ability", ""))
+		var act := GameData.get_action(aid)
+		var y: int = ACTION_Y[k]
+		var lit := k < _rows.size() and Tip.is_open_for(_rows[k])
+		if lit:
+			draw_rect(Rect2(4, y - 1, w - 8, 29), Pal.INK3)
+		var lab := "BASIC" if k == 0 else "ABILITY"
+		PartyDraw.text(self, Vector2(0, y + 3), lab, Pal.INK6, PartyDraw.SANS, 11, false, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
+		var nx := 8
+		if k == 1:
+			PartyDraw.tint_tex(self, ABILITY, Vector2(8, y + 5), cc)
+			nx = 18
+		BigText.draw(self, Vector2(nx, y), String(act.get("name", aid)), Pal.INK10 if not dimmed else Pal.INK7)
+		PartyDraw.text(self, Vector2(8, y + 16), action_short(aid), Pal.INK8 if not dimmed else Pal.INK6, PartyDraw.BOLD)
 	if dimmed:
 		var d := Pal.INK1
 		d.a = 0.45
@@ -166,32 +201,6 @@ func _draw() -> void:
 			var f := Pal.AMBER7
 			f.a = _flash
 			PartyDraw.soft_outline(self, r.grow(roundi((1.0 - _flash) * 3.0)), f)
-
-
-func _action(y: int, label: String, a: Dictionary, color: Color, is_ability: bool) -> int:
-	var lab := label.to_upper()
-	PartyDraw.text(self, Vector2(8, y), lab, Pal.INK7, PartyDraw.BOLD, 11, false)
-	var nx := 12 + PartyDraw.text_w(lab, PartyDraw.BOLD)
-	if is_ability:
-		PartyDraw.tint_tex(self, ABILITY, Vector2(nx, y + 2), color)
-		nx += 10
-	var nm := String(a.get("name", "—"))
-	PartyDraw.text(self, Vector2(nx, y), nm, Pal.INK10, PartyDraw.BOLD)
-	var rx := nx + PartyDraw.text_w(nm, PartyDraw.BOLD) + 4
-	var ry := y + 5
-	draw_rect(Rect2(rx, ry, w - 8 - rx, 1), Pal.INK4)
-	if is_ability and w >= 170:
-		var tag := "when charged"
-		var tw := PartyDraw.text_w(tag) + 4
-		draw_rect(Rect2(w - 9 - tw, y, tw + 1, 11), Pal.INK2 if not dimmed else Pal.INK1)
-		PartyDraw.text(self, Vector2(0, y), tag, Pal.INK6, PartyDraw.SANS, 11, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
-	y += 12
-	if not is_ability:
-		if w < 170:
-			return y - 1
-		return _para(PartyModel.ability_desc(a), Vector2(8, y), w - 16, Pal.INK8 if not dimmed else Pal.INK7)
-	return _para(PartyModel.ability_desc(a), Vector2(8, y), w - 16, Pal.INK9 if not dimmed else Pal.INK7,
-		PartyDraw.BOLD if w >= 170 else PartyDraw.SANS)
 
 
 ## Pick ribbon across the foot of the stage.

@@ -25,20 +25,16 @@ const RUN := {
 	"max_party": 4,
 	"advance_threshold": 3,      # memories at base tier before Advance / Hold Back is offered
 	# --- health ("lanterns") ---
-	"max_health": 6,
+	"max_health": 10,
 	"pvp_loss_health": 1,
 	"monster_loss_health": 1,
-	"guardian_loss_health": [1, 1, 1, 2], # per floor: stakes rise; the party limps on past it
-	"heart_loss_health": 2,      # the Vault Heart can be retried while health remains
 	"rest_heal": 1,              # a rest choice (some encounters): +1 health, no memory at that node
 	# --- fights ---
 	"monster_level_base": 1,     # monster level = base + layer / monster_level_per_layers
 	"monster_level_per_layers": 4,
 	"monster_count_min": 2,      # monster count = party size, clamped to [min, max]
 	"monster_count_max": 4,
-	"guardian_levels": [2, 3, 5, 6], # floor guardian group level, floors 1..4
-	"guardian_count": 4,          # guardian size = party size + 1, clamped to 3..this
-	"heart_level": 7,            # Vault Heart guardian group level
+	# floor guardians and the Vault Heart (name, intro, monsters, level, loss_health): guardians.json
 	"item_drop_chance": 0.5,     # chance a won monster fight drops an item
 	# PvP matching by floor: an opponent is an Echo recorded on the same floor (nearest if thin)
 	"echo_recent_per_floor": 20, # pick among the most recent real Echoes of that floor
@@ -64,6 +60,15 @@ const VAULTS := ["The Drowned Archive", "The Hollow Choir", "The Glass Ossuary",
 
 const HERO_NAMES := ["Brakka", "Ilse", "Moth", "Corin", "Vael", "Tamsin", "Oren", "Sable", "Wren",
 	"Hale", "Ysolde", "Pell", "Dagny", "Fenn", "Liora", "Ash", "Brannoc", "Vesper", "Isolde", "Quill"]
+
+## Team names ("The <epithet> <company>"): a run's party name unless the player picks one, and the
+## names of generated Echoes. 24 x 24 = 576 combinations, all <= 32 characters.
+const TEAM_EPITHETS := ["Ashen", "Gray", "Lantern", "Hollow", "Quiet", "Last", "Drowned", "Unlit",
+	"Crystal", "Faded", "Sleepless", "Oathbound", "Wandering", "Forgotten", "Ember", "Silent",
+	"Mended", "Lumari", "Nameless", "Waning", "Dawnless", "Glass", "Hearth", "Kindled"]
+const TEAM_COMPANIES := ["Pact", "Choir", "Watch", "Oath", "Company", "Wardens", "Lanterns", "Vigil",
+	"Remnant", "Covenant", "Pilgrims", "Bell", "Circle", "Banner", "Wake", "Sworn", "Kin",
+	"Procession", "Candles", "Hounds", "Tide", "Keepers", "Ledger", "Chorus"]
 
 ## Strength score used to match Echoes: base level, advanced 5 + level, legendary 9 + level.
 const TIER_POWER := {"base": 0, "advanced": 5, "legendary": 9}

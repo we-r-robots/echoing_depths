@@ -26,6 +26,7 @@ Super Auto Pets is a bar for readability and punch only. Never copy its structur
 - **Sudden death is time-based only** (user decision 2026-10-04): it starts only when a fight runs past a set time, never because a side is down to its last unit. Most fights should end before it. In the fiction it is the Fading: the memory of the battle is fading, so the arena drains toward Fading grey and the damage escalates as it erodes. Present it that way (no generic "SUDDEN DEATH" label).
 - **Heroes level by memories from encounter choices,** never by buying duplicates. Alignment is a 5x5 grid; only the Relic slot carries alignment.
 - Party of 2 to start, max 4. Each base class has one fixed starting alignment.
+- **Effects are shown as icons, not paragraphs** (user decision 2026-10-05): each stat effect is a small stat icon (Def shield, Atk sword, Mag star, Spd boot, heal, charge, crit) with a green ▲ for a buff or a red ▼ for a cost; each behaviour has its own small glyph. The full text appears in a tooltip on hover (PC) or tap / press-and-hold (touch). The tooltip is the only place long effect text appears, and touch must always reach it (no hover-only info). Use one shared icon set and tooltip component for every screen.
 - Any scene showing heroes in combat or ready for combat uses the formation grid. A sprite showcase is a labelled gallery (one framed cell per character), never two parties facing each other or a single line-up.
 
 ## Capture and judging tools

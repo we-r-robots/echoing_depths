@@ -309,6 +309,15 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 		Move.STAY:
 			if sim_t >= _t_end:
 				_end_move()
+	if _walk_t >= 0.0:
+		_walk_t += vdt
+		var wu := clampf(_walk_t / _walk_dur, 0.0, 1.0)
+		p = _walk_from.lerp(_walk_to, wu * wu * (3.0 - 2.0 * wu))
+		hop = absf(sin(wu * PI * 3.0)) * 3.0
+		_ghosts_on = true
+		if wu >= 1.0:
+			_walk_t = -1.0
+			_ghosts_on = false
 	# knockback (visual time)
 	if _knock_t < 0.24:
 		_knock_t += vdt
@@ -325,8 +334,8 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 	_record_history()
 	for i in _ghosts.size():
 		var g := _ghosts[i]
-		g.visible = (_ghosts_on and _move != Move.NONE and alive) or (_echo_t > 0.0 and alive)
-		if _echo_t > 0.0 and alive and not (_ghosts_on and _move != Move.NONE):
+		g.visible = (_ghosts_on and (_move != Move.NONE or _walk_t >= 0.0) and alive) or (_echo_t > 0.0 and alive)
+		if _echo_t > 0.0 and alive and not (_ghosts_on and (_move != Move.NONE or _walk_t >= 0.0)):
 			g.global_position = position + _sprite_offset() + Vector2(-facing * 6.0 * (i + 1), -2.0 * (i + 1))
 			g.animation = spr.animation
 			g.frame = spr.frame
@@ -387,7 +396,7 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 		if charge_hold <= 0.0:
 			charge_pulse = 0.6
 	else:
-		charge_shown = move_toward(charge_shown, float(charge), vdt * 160.0)
+		charge_shown = move_toward(charge_shown, float(charge), vdt * (60.0 if charge_pulse > 0.0 else 160.0))
 	charge_pulse = maxf(0.0, charge_pulse - vdt)
 	if not acting:
 		z_index = 25 if lit else 0
@@ -405,6 +414,19 @@ func echo_afterimage(dur: float) -> void:
 
 
 var _relocate := false
+var _walk_from := Vector2.ZERO
+var _walk_to := Vector2.ZERO
+var _walk_t := -1.0
+var _walk_dur := 1.0
+
+
+## Walk to a new slot in visual time (works while the battle clock is paused).
+func walk_to(dest: Vector2, dur: float) -> void:
+	_walk_from = position
+	_walk_to = dest
+	_walk_dur = dur
+	_walk_t = 0.0
+	home = dest
 
 
 func _end_move() -> void:

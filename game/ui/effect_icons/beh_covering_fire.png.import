@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://biwf07sn6fgna"
-path="res://.godot/imported/debuff.png-68c3dc00ac1b861ed40b782d0e9abb02.ctex"
+uid="uid://g5fbqbq0ltyp"
+path="res://.godot/imported/beh_covering_fire.png-8780df2b5e09381da3631af474a6e181.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/party_setup/debuff.png"
-dest_files=["res://.godot/imported/debuff.png-68c3dc00ac1b861ed40b782d0e9abb02.ctex"]
+source_file="res://ui/effect_icons/beh_covering_fire.png"
+dest_files=["res://.godot/imported/beh_covering_fire.png-8780df2b5e09381da3631af474a6e181.ctex"]
 
 [params]
 

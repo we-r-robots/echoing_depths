@@ -1,0 +1,193 @@
+{
+ "_doc": "Floor guardians (floors 1-4) and the Vault Heart, in order. Each: name, intro (shown before the fight), level, loss_health (health lost on defeat; the Heart's is lethal), monsters [{class, slot [col,row], name?}]. Levels and costs are placeholders that escalate floor by floor.",
+ "guardians": [
+  {
+   "id": "sentinel_warden",
+   "name": "The Sentinel Warden",
+   "level": 3,
+   "loss_health": 2,
+   "intro": "At the foot of the first stair stands a sentinel older than the stair. Its post was given to it before Lanternrest had a name, and it has not been relieved. Rats nest in the cracks of its feet, and fight for it as if it were their god.",
+   "monsters": [
+    {
+     "class": "stone_sentinel",
+     "slot": [
+      0,
+      1
+     ],
+     "level_offset": 1
+    },
+    {
+     "class": "hollow_rat",
+     "slot": [
+      0,
+      0
+     ]
+    },
+    {
+     "class": "hollow_rat",
+     "slot": [
+      0,
+      2
+     ]
+    },
+    {
+     "class": "hollow_rat",
+     "slot": [
+      0,
+      3
+     ]
+    }
+   ]
+  },
+  {
+   "id": "lantern_thieves",
+   "name": "The Lantern Thieves",
+   "level": 4,
+   "loss_health": 2,
+   "intro": "Wisps gather where lanterns die, and here a hundred lanterns died at once. They wear the last light of every party that fell on this floor, and they would very much like yours.",
+   "monsters": [
+    {
+     "class": "fading_wisp",
+     "slot": [
+      1,
+      0
+     ]
+    },
+    {
+     "class": "fading_wisp",
+     "slot": [
+      1,
+      2
+     ]
+    },
+    {
+     "class": "hollow_rat",
+     "slot": [
+      0,
+      1
+     ]
+    },
+    {
+     "class": "stone_sentinel",
+     "slot": [
+      0,
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "id": "wraith_choir",
+   "name": "The Choir of the Unremembered",
+   "level": 4,
+   "loss_health": 3,
+   "intro": "They sing in the voices of the people they have eaten. You know some of the voices. The [fade]gray[/fade] behind them is listening, and every verse takes something from the room.",
+   "monsters": [
+    {
+     "class": "memory_wraith",
+     "slot": [
+      1,
+      1
+     ],
+     "level_offset": 1
+    },
+    {
+     "class": "hollow_rat",
+     "slot": [
+      0,
+      2
+     ],
+     "level_offset": 1
+    },
+    {
+     "class": "fading_wisp",
+     "slot": [
+      1,
+      0
+     ]
+    },
+    {
+     "class": "stone_sentinel",
+     "slot": [
+      0,
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "gate_of_seals",
+   "name": "The Gate of Seals",
+   "level": 5,
+   "loss_health": 3,
+   "intro": "The Lumari sealed the Heart behind a gate that judges. Two sentinels hold it, and the wraiths that serve it remember every party that was found wanting.",
+   "monsters": [
+    {
+     "class": "stone_sentinel",
+     "slot": [
+      0,
+      1
+     ]
+    },
+    {
+     "class": "stone_sentinel",
+     "slot": [
+      0,
+      2
+     ]
+    },
+    {
+     "class": "memory_wraith",
+     "slot": [
+      1,
+      1
+     ]
+    },
+    {
+     "class": "memory_wraith",
+     "slot": [
+      1,
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "id": "vault_heart",
+   "name": "The Heart of the Vault",
+   "level": 6,
+   "loss_health": 3,
+   "intro": "The [crystal]Crystal of Remembrance[/crystal] wakes. What guards it is made of it: a golem of shards, and the last records of the Lumari, who do not want to be read. The Vault yields its Shard to one party per descent. It is deciding now.",
+   "monsters": [
+    {
+     "class": "shard_golem",
+     "slot": [
+      0,
+      1
+     ]
+    },
+    {
+     "class": "stone_sentinel",
+     "slot": [
+      0,
+      2
+     ]
+    },
+    {
+     "class": "memory_wraith",
+     "slot": [
+      1,
+      1
+     ]
+    },
+    {
+     "class": "fading_wisp",
+     "slot": [
+      1,
+      2
+     ]
+    }
+   ]
+  }
+ ]
+}

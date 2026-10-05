@@ -70,7 +70,7 @@ func _ready() -> void:
 
 func _build() -> void:
 	var n := offered.size()
-	var cw := mini(190, floori((624.0 - (n - 1) * 8) / n))
+	var cw := 150   # same card for 3 or 4 offered heroes
 	var total := n * cw + (n - 1) * 8
 	var x0 := roundi((640 - total) / 2.0)
 	for i in n:
@@ -201,7 +201,7 @@ func _draw() -> void:
 	draw_rect(bb.grow(-1), Pal.INK2)
 	PartyDraw.soft_outline(self, bb, Pal.INK5)
 	draw_rect(Rect2(bb.position.x + 2, bb.position.y + 1, bb.size.x - 4, 1), Pal.INK3)
-	var msg := _msg
-	if msg == "":
-		msg = "Each class starts at its own fixed place on the alignment grid. Tap two heroes."
-	PartyDraw.text(self, Vector2(bb.position.x + 8, bb.position.y + 5), msg, Pal.AMBER6 if _msg != "" else Pal.INK9)
+	# said once for the whole screen: what "Starts at" means
+	PartyDraw.text(self, Vector2(bb.position.x + 8, bb.position.y + 5), "Alignment:", Pal.AMBER6, PartyDraw.BOLD)
+	PartyDraw.text(self, Vector2(bb.position.x + 14 + PartyDraw.text_w("Alignment:", PartyDraw.BOLD), bb.position.y + 5),
+		"every class starts at a fixed place. Your choices shift it and set the advanced class.", Pal.INK9)

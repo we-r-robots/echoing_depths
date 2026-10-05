@@ -100,7 +100,7 @@
      "label": "Comfort the weeping one",
      "shift": {
       "good": 1,
-      "law": -1
+      "law": 0
      },
      "outcome": "It stops weeping. So, briefly, does the Vault."
     },
@@ -227,14 +227,14 @@
      ]
     },
     {
-     "id": "pocket_it",
+     "id": "keep_the_lanterns_rules",
      "class": "rogue",
-     "label": "Pocket the lantern",
+     "label": "Keep the lantern's rules",
      "shift": {
       "good": 0,
-      "law": -1
+      "law": 1
      },
-     "outcome": "It is lighter than it looks. So is your conscience."
+     "outcome": "Blow out neither, touch nothing. Thieves have codes too."
     },
     {
      "id": "leave_it",
@@ -277,7 +277,7 @@
      "label": "Play, and cheat",
      "shift": {
       "good": -1,
-      "law": -1
+      "law": 0
      },
      "item": "shadow_cloak",
      "outcome": [
@@ -321,14 +321,14 @@
      "outcome": "The pips are names. You stop reading."
     },
     {
-     "id": "bless_seat",
+     "id": "take_the_seat_from_the_d",
      "class": "healer",
-     "label": "Bless the empty seat",
+     "label": "Take the seat from the dead",
      "shift": {
-      "good": 0,
-      "law": 1
+      "good": -1,
+      "law": 0
      },
-     "outcome": "The Echo sets its dice down, and is still."
+     "outcome": "The living come first. You sit. The Echo lets you win, and you let it."
     },
     {
      "id": "offer_it_a_fair_game",
@@ -429,7 +429,7 @@
      "label": "Unbind it gently",
      "shift": {
       "good": 1,
-      "law": 1
+      "law": 0
      },
      "outcome": "It fades without fear."
     },
@@ -439,7 +439,7 @@
      "label": "Walk on",
      "shift": {
       "good": -1,
-      "law": 1
+      "law": 0
      },
      "outcome": "Rules are rules. The Vault feeds its own."
     },
@@ -449,7 +449,7 @@
      "label": "Feed it a false memory",
      "shift": {
       "good": -1,
-      "law": -1
+      "law": 0
      },
      "outcome": "It cannot tell the difference. Neither, later, can you."
     },
@@ -489,7 +489,7 @@
      "label": "Learn why she broke it",
      "shift": {
       "good": 1,
-      "law": -1
+      "law": 0
      },
      "outcome": "She broke it to save a village. The village does not remember her."
     },
@@ -520,7 +520,7 @@
      "label": "Break your own oath here",
      "shift": {
       "good": 0,
-      "law": -2
+      "law": -1
      },
      "outcome": "You say it plainly: some oaths are cages. The grave seems to agree.",
      "luck": {
@@ -571,14 +571,14 @@
      "outcome": "It forgets what it guarded. So does the Vault. A coin drops from its chains."
     },
     {
-     "id": "leave_chained",
+     "id": "honour_the_old_lock",
      "class": "rogue",
-     "label": "Leave it and loot its post",
+     "label": "Honour the old lock",
      "shift": {
-      "good": -1,
-      "law": -1
+      "good": 0,
+      "law": 1
      },
-     "outcome": "Nothing worth taking. You take it anyway."
+     "outcome": "You could open it. You don't. Some locks are promises."
     }
    ],
    "rest": {
@@ -679,7 +679,7 @@
      "label": "Shatter their eyes",
      "shift": {
       "good": -1,
-      "law": -1
+      "law": 0
      },
      "outcome": "Blind stone still swings."
     },
@@ -724,7 +724,7 @@
      "label": "Sing with them",
      "shift": {
       "good": 1,
-      "law": -1
+      "law": 0
      },
      "outcome": "For a verse, you are in harmony. Then they notice."
     },
@@ -744,7 +744,7 @@
      "label": "Steal the song",
      "shift": {
       "good": -1,
-      "law": -1
+      "law": 0
      },
      "outcome": "You have it now. They want it back."
     },
@@ -796,14 +796,14 @@
      "outcome": "They stand. They had been waiting for anyone to ask."
     },
     {
-     "id": "take_coins",
+     "id": "settle_their_debts_prope",
      "class": "rogue",
-     "label": "Take the coins",
+     "label": "Settle their debts properly",
      "shift": {
-      "good": -1,
-      "law": 0
+      "good": 0,
+      "law": 1
      },
-     "outcome": "They do not stop you. They do not follow you either."
+     "outcome": "Every coin counted to its owner's name. They watch, and nod."
     },
     {
      "id": "read_past",
@@ -868,7 +868,7 @@
      "label": "Ease their mind and go",
      "shift": {
       "good": 1,
-      "law": 1
+      "law": 0
      },
      "outcome": "They sleep, peaceful, still caged."
     },
@@ -1093,7 +1093,7 @@
      "label": "Carve the name it wants",
      "shift": {
       "good": 0,
-      "law": 2
+      "law": 1
      },
      "outcome": "Your hand writes a name you have never heard. The stones settle, satisfied."
     },
@@ -1113,7 +1113,7 @@
      "label": "Carve a false name",
      "shift": {
       "good": -1,
-      "law": -1
+      "law": 0
      },
      "outcome": "The Vault accepts it. Someone who never lived is now remembered forever.",
      "luck": {
@@ -1202,14 +1202,14 @@
      "outcome": "To a child. To anyone. To you, now."
     },
     {
-     "id": "smudge_it",
+     "id": "copy_it_exactly",
      "class": "rogue",
-     "label": "Smudge it",
+     "label": "Copy it exactly",
      "shift": {
       "good": 0,
-      "law": -1
+      "law": 1
      },
-     "outcome": "The sentence is lost. The scribe begins again, slower."
+     "outcome": "Forgers are faithful copyists. Every stroke is right."
     },
     {
      "id": "guard_it_while_it_writes",
@@ -1994,14 +1994,14 @@
    "text": "A ferryman on a black river. He takes one memory as toll. Any one you choose.",
    "choices": [
     {
-     "id": "pay_with_a_happy_memory",
+     "id": "pay_with_a_patients_memo",
      "class": "healer",
-     "label": "Pay with a happy memory",
+     "label": "Pay with a patient's memory",
      "shift": {
-      "good": 1,
+      "good": -1,
       "law": 0
      },
-     "outcome": "He takes your best summer. He handles it gently."
+     "outcome": "Taken while they slept, for their own good. The ferryman does not ask whose."
     },
     {
      "id": "pay_with_a_stolen_memory",
@@ -2107,14 +2107,14 @@
    "text": "A child-shaped Echo asks if you've seen her parents. You have: two floors up, fighting.",
    "choices": [
     {
-     "id": "take_her_to_them",
+     "id": "quiet_her,_gently",
      "class": "healer",
-     "label": "Take her to them",
+     "label": "Quiet her, gently",
      "shift": {
-      "good": 1,
-      "law": 0
+      "good": -1,
+      "law": 1
      },
-     "outcome": "Three Echoes, together again. They don't fight anymore."
+     "outcome": "A hand on the brow, a word of sleep. She will stop asking. It is kinder, you tell yourself."
     },
     {
      "id": "tell_her_the_truth",
@@ -2132,7 +2132,7 @@
      "label": "Let her forget them",
      "shift": {
       "good": -1,
-      "law": -1
+      "law": 0
      },
      "outcome": "She stops searching. She stops a great many things."
     },
@@ -2216,14 +2216,14 @@
    "text": "A rival party holds a Lanternrest child's memory of her father, and wants your rations for it.",
    "choices": [
     {
-     "id": "pay_the_ransom",
+     "id": "drug_the_rations_you_pay",
      "class": "healer",
-     "label": "Pay the ransom",
+     "label": "Drug the rations you pay with",
      "shift": {
-      "good": 1,
+      "good": -1,
       "law": 0
      },
-     "outcome": "You go hungry. Somewhere, a girl remembers his laugh again."
+     "outcome": "They eat. They sleep, deeply. You take the memory back, and the rations too."
     },
     {
      "id": "demand_it_by_right",
@@ -2437,14 +2437,14 @@
      "outcome": "Teeth on steel. The line holds, mostly."
     },
     {
-     "id": "pick_off_the_stragglers",
+     "id": "hold_to_the_plan",
      "class": "rogue",
-     "label": "Pick off the stragglers",
+     "label": "Hold to the plan",
      "shift": {
-      "good": -1,
-      "law": 0
+      "good": 0,
+      "law": 1
      },
-     "outcome": "The weakest one first. That is how packs are broken."
+     "outcome": "You said you'd take the left flank. You take the left flank."
     },
     {
      "id": "blow_them_apart",
@@ -2561,14 +2561,14 @@
      "outcome": "The names burn with them. Nothing to chew now."
     },
     {
-     "id": "save_the_names_first",
+     "id": "let_the_rats_have_the_na",
      "class": "healer",
-     "label": "Save the names first",
+     "label": "Let the rats have the names",
      "shift": {
-      "good": 1,
+      "good": -1,
       "law": 0
      },
-     "outcome": "You copy what you can. Then the rats notice you."
+     "outcome": "Names are for the living. You save your strength for the fight."
     },
     {
      "id": "bait_them_away",
@@ -2639,14 +2639,14 @@
    "text": "Wisps that look like lanterns lead parties into the dark. Tonight they've chosen you.",
    "choices": [
     {
-     "id": "follow_the_real_light",
+     "id": "let_the_wisps_take_the_s",
      "class": "healer",
-     "label": "Follow the real light",
+     "label": "Let the wisps take the slow",
      "shift": {
-      "good": 1,
+      "good": -1,
       "law": 0
      },
-     "outcome": "You find the true lantern, and the wisps come screaming."
+     "outcome": "Not everyone can be saved. You lead the others the long way round."
     },
     {
      "id": "snuff_them_one_by_one",
@@ -2703,7 +2703,7 @@
      "label": "Out-feed it",
      "shift": {
       "good": -1,
-      "law": -1
+      "law": 0
      },
      "outcome": "You pull the memories into yourself. It is a race now."
     },
@@ -2733,7 +2733,7 @@
      "label": "Offer yourself as bait",
      "shift": {
       "good": -1,
-      "law": -1
+      "law": 0
      },
      "outcome": "It turns to you, hungry. You stand very still while the others strike."
     }
@@ -3171,7 +3171,7 @@
      "class": "rogue",
      "label": "Rob their offering bowl",
      "shift": {
-      "good": -2,
+      "good": -1,
       "law": 0
      },
      "outcome": "They forgive you before you've left. That is worse."

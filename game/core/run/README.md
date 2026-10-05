@@ -65,15 +65,18 @@ and the fight is retried.
   contains routes, layers or upcoming nodes.
 - **Run arc (`RUN.floors`):** 5 floors, `EEEPEG`, `EPEPEG` x3, `EPEPEH` (E encounter, P PvP,
   G floor guardian, H Vault Heart): 30 nodes, 16 encounters, 9 PvP, 4 guardians + the Heart.
-  Guardians are Vault monster groups (party size + 1, 3–4 monsters) at levels 2/3/5/6 per floor,
-  tougher than the floor's PvP; losing one costs 1/1/1/2 health and the party limps on.
-  The Heart (level 7) costs 2 per loss and is retried. Health 6; PvP and monster losses cost 1.
+  Guardians and the Heart are authored in **`guardians.json`** (name, intro shown before the
+  fight, monster composition, level, per-monster `level_offset`, `loss_health`): the Sentinel
+  Warden, the Lantern Thieves, the Choir of the Unremembered, the Gate of Seals, the Heart of the
+  Vault. Losing one costs 2/2/3/3 health (the Heart 3, retried while health remains) against 1 for
+  PvP; the party limps on past a floor guardian. Health 10. Greedy-bot win rates fall floor by
+  floor (~49/47/43/32/25 %) and stay below that floor's PvP rate.
 - **Rest:** 12 encounters carry a party-wide `rest` choice: +1 health, but nobody gains a memory there.
 - **Phases by floor:** Gathering floors 1–2 (recruitment weighted 4×), Advancement 3–4, Legend 5
   (a label; the Legendary gate does not use depth).
 - **Alignment steering:** 23 encounters give one class a second choice pointing another way
   (some with `luck`: a chance the shift and outcome turn out differently; shown as `uncertain`).
-  Measured: ~23 % of encounter nodes give some hero two choices.
+  Measured: ~22 % of encounter nodes give some hero two choices. Strong shifts are ~13 % of choices.
 - **Memories:** a non-PvP choice binds to a party hero of the choice's class (EncounterDB rule; with
   two heroes of a class, the one with fewer memories) and gives +1 level (tier cap) and the shift.
   Strong shifts come from the data (~1 in 6 choices). PvP never grants memories.
@@ -81,7 +84,9 @@ and the fight is retried.
   later memory while held (base cap level 6). The class comes from the *effective* position
   (relic offset included) via `Alignment.advanced_class_for`; when the region's class is not
   authored yet, the nearest authored advanced class of that base stands in (`placeholder_class`).
-- **Legendary gate (`legend_gate.gd`, 05-formations.md):** once a hero reaches advanced level 3,
+- **Legendary gate (`legend_gate.gd`, 05-formations.md):** only offered when the hero's advanced
+  class has an authored Legendary (today only Paladin → Lantern Saint); the other 7 templates in
+  `legend_memories.json` stay dormant until their Legendaries exist. Once a hero reaches advanced level 3,
   each later encounter node rolls 8 %, +8 % after each node where it does not appear, cap 60 %.
   On success that node *becomes* the hero's legend's memory (its own title, text and choices:
   accept the legend, or let it go as an ordinary memory). At most once per run; declining ends it.
@@ -94,6 +99,10 @@ and the fight is retried.
 - **Fights:** monster groups from `PartyGen.monster_group`, count = party size (2–4), level
   1 + layer/4. PvP: an Echo **recorded on the same floor** (seeded pick among that floor's 20 most
   recent real Echoes; generated ones join only while a floor has < 4 real ones; nearest floor if empty).
+- **Team names:** a run's party is "The <epithet> <company>" (576 combinations, `RUN` tuning
+  lists) unless `party_name` is passed; Echo snapshots carry `meta.team_name` and `meta.crest`
+  (option `crest`, "" for now) for the future splash screen. A run never meets the same rival
+  name twice. Pre-fight log lines show no strength numbers.
 - **Echo pool:** JSON at `user://echo_pool.json`, seeded with 6 generated Echoes per floor; every
   finished run (won or fallen) records one snapshot per floor reached (the party as it first met
   rivals on that floor; `core/echo.gd` format, meta: floor, depth, outcome, seed). Max 600.

@@ -116,6 +116,9 @@ func _report(runs: Array, ms: int, policy: String) -> void:
 	var rests := 0
 	var gw := 0
 	var gl := 0
+	var by_floor := {}
+	var g_lost := 0
+	var name_repeats := 0
 	for s: Dictionary in runs:
 		acc["nodes"] += s["nodes_visited"]
 		acc["depth"] += s["depth"]
@@ -166,6 +169,18 @@ func _report(runs: Array, ms: int, policy: String) -> void:
 		enc_nodes += int(s["encounter_nodes"])
 		two_nodes += int(s["two_choice_nodes"])
 		rests += int(s["rests"])
+		g_lost += int(s["guardian_health_lost"])
+		var rv := {}
+		for nm: String in s["rivals"]:
+			if rv.has(nm):
+				name_repeats += 1
+			rv[nm] = true
+		for f: Variant in s["fights_by_floor"]:
+			for kind: String in s["fights_by_floor"][f]:
+				var key := "%s|%s" % [str(f), kind]
+				var cur: Array = by_floor.get(key, [0, 0])
+				var add: Array = s["fights_by_floor"][f][kind]
+				by_floor[key] = [int(cur[0]) + int(add[0]), int(cur[1]) + int(add[1])]
 		gw += int(s["guardian_wins"])
 		gl += int(s["guardian_losses"])
 	var pvp_total: float = acc["pvp_w"] + acc["pvp_l"]
@@ -193,6 +208,16 @@ func _report(runs: Array, ms: int, policy: String) -> void:
 		float(lost["gathering"]) / n, float(lost["advancement"]) / n, float(lost["legend"]) / n, float(rests) / n])
 	print("Deaths by floor (share of all runs): ", _fmt_counts(deaths, n), "; killing blow: ", _fmt_counts(death_nodes, n))
 	print("Guardian (incl. Heart) win rate: %d%% (%.1f fights/run)" % [_pct(gw, gw + gl), float(gw + gl) / n])
+	var rows: Array = []
+	for f in range(1, 6):
+		var parts: Array = []
+		for kind: String in ["pvp", "guardian", "heart"]:
+			var r: Array = by_floor.get("%d|%s" % [f, kind], [0, 0])
+			if int(r[1]) > 0:
+				parts.append("%s %d%% (n=%d)" % [kind, _pct(int(r[0]), int(r[1])), int(r[1])])
+		rows.append("F%d: %s" % [f, ", ".join(parts)])
+	print("Win rate by floor: ", " | ".join(rows))
+	print("Health lost per guardian loss: %.2f; rival Echo name repeats per run: %.2f" % [float(g_lost) / maxi(1, gl), float(name_repeats) / n])
 	print("Encounter nodes with a two-choice hero: %d%%" % _pct(two_nodes, enc_nodes))
 	print("Glimmers per run: %.1f; Shards per run: %.2f; lore items per run: %.2f" % [acc["glimmers"] / n,
 		acc["shards"] / n, acc["lore"] / n])

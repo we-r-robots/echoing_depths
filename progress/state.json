@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 10:52",
+  "updated": "2026-10-05 11:04",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -255,6 +255,15 @@
       "status": "queued",
       "rounds": [],
       "note": "User idea: players name their team and customise a crest (unlocked through Lanternrest, likely the Banner Hall), shown on a splash screen before PvP battles."
+    },
+    {
+      "id": "crystal",
+      "name": "Crystal of Remembrance (final chamber)",
+      "bar": "06-crystal-of-remembrance.md + Sea of Stars boss presentation",
+      "wave": 3,
+      "status": "building",
+      "rounds": [],
+      "note": "User design: chip the Crystal in 4 fragments to free a Shard while it releases story memories; no retreat; fragments become Glimmers on defeat; the story progresses instead of difficulty tiers."
     }
   ],
   "log": [
@@ -541,6 +550,18 @@
     {
       "t": "10:52",
       "msg": "Formation round 2 fixes in: Strays splash rule corrected, Keeper's Ring 43%, monster ability share 26%, all shapes 43-56%. Critic round 2 started."
+    },
+    {
+      "t": "10:54",
+      "msg": "Run loop PASSED (critic round 2), the second piece to beat its bar. Committed. Polish pass running: guardian identities, distinct rival names."
+    },
+    {
+      "t": "10:54",
+      "msg": "User idea adopted: formation effects as icons (stat icon plus green or red arrow, a glyph per behaviour) with tooltips on hover or tap. One shared component for the setup screen and battle banner."
+    },
+    {
+      "t": "11:04",
+      "msg": "User design: the final chamber becomes the Crystal of Remembrance (chip 4 fragments to free a Shard while story memories surface). Spec 06 written; combat core build started."
     }
   ],
   "questions": [

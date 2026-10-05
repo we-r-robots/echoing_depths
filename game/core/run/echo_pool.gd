@@ -2,7 +2,8 @@ extends RefCounted
 ## Local Echo pool: the rival parties PvP nodes draw from. Persisted as JSON (default
 ## user://echo_pool.json). Every finished run (won or lost) adds a snapshot of its party; a fresh
 ## pool is seeded with generated Echoes so a first run has opponents. Entries are core Echo
-## dictionaries (core/echo.gd) whose meta carries {"power", "depth", "outcome", "generated"}.
+## dictionaries (core/echo.gd) whose meta carries {"power", "floor", "depth", "outcome",
+## "generated", "team_name", "crest"} (crest "" until player crests exist).
 ## Matching is by floor: an Echo meets parties on the floor where it was recorded.
 
 const Echo = preload("res://core/echo.gd")
@@ -73,7 +74,8 @@ func add(party: Dictionary, meta: Dictionary) -> Dictionary:
 ## Opponent for a party on `floor`: an Echo recorded on that floor (seeded pick among the most
 ## recent real ones; generated Echoes join only while that floor has few real ones). Falls back to
 ## the nearest floor that has any. Strength is not used: same floor ~ same point in a run.
-func pick(floor_n: int, rng: Rng) -> Dictionary:
+## `exclude`: names already met this run (never picked twice while any alternative exists).
+func pick(floor_n: int, rng: Rng, exclude: Dictionary = {}) -> Dictionary:
 	if echoes.is_empty():
 		return {}
 	for dist in 64:
@@ -81,13 +83,21 @@ func pick(floor_n: int, rng: Rng) -> Dictionary:
 			var real: Array = []
 			var gen: Array = []
 			for e: Dictionary in echoes:
-				if floor_of(e) == f:
+				if floor_of(e) == f and not exclude.has(String(e.get("name", ""))):
 					(gen if bool(e["meta"].get("generated", false)) else real).append(e)
 			real = real.slice(maxi(0, real.size() - int(T.RUN["echo_recent_per_floor"])))
 			var cands: Array = real if real.size() >= int(T.RUN["echo_min_real"]) else real + gen
 			if not cands.is_empty():
 				return (cands[rng.int_range(0, cands.size() - 1)] as Dictionary).duplicate(true)
-	return echoes[0].duplicate(true)
+	return echoes[rng.int_range(0, echoes.size() - 1)].duplicate(true)
+
+
+## "The <epithet> <company>" from a number (seeded by the caller).
+static func team_name(n: int) -> String:
+	var a: Array = T.TEAM_EPITHETS
+	var b: Array = T.TEAM_COMPANIES
+	@warning_ignore("integer_division")
+	return "The %s %s" % [a[n % a.size()], b[(n / a.size()) % b.size()]]
 
 
 ## Floor an Echo was recorded on (older entries without one: from depth, 6 nodes per floor).
@@ -116,7 +126,7 @@ func seed_generated(seed_value: int) -> void:
 	var rng := Rng.new(seed_value)
 	var floors: int = T.RUN["floors"].size()
 	var per := int(T.RUN["echo_seed_per_floor"])
-	var titles := ["Ashen Pact", "Gray Choir", "Lost Lantern", "Hollow Oath", "Quiet Bell", "Last Watch"]
+	var used_names := {}
 	for f in range(1, floors + 1):
 		var stage := float(f - 1) / float(maxi(1, floors - 1))   # 0 = floor 1 .. 1 = last floor
 		for k in per:
@@ -148,8 +158,12 @@ func seed_generated(seed_value: int) -> void:
 				var hname: String = T.HERO_NAMES[(f * 7 + k * 4 + i) % T.HERO_NAMES.size()]
 				heroes.append({"name": hname, "class": cid, "level": lvl, "items": items,
 					"alignment": pos, "slot": _free_slot(used, pref)})
-			add({"name": "Echo of the %s" % titles[(f + k) % titles.size()], "heroes": heroes},
-				{"generated": true, "floor": f, "depth": (f - 1) * 6 + 3, "outcome": "generated"})
+			var tn := team_name(rng.next_u32())
+			while used_names.has(tn):
+				tn = team_name(rng.next_u32())
+			used_names[tn] = true
+			add({"name": tn, "heroes": heroes}, {"generated": true, "floor": f, "depth": (f - 1) * 6 + 3,
+				"outcome": "generated", "team_name": tn, "crest": ""})
 
 
 static func _free_slot(used: Dictionary, pref_col: int) -> Array:

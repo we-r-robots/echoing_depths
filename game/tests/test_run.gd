@@ -192,6 +192,7 @@ func test_set_formation() -> void:
 func test_legend_gate() -> void:
 	var st := {"legendaries": 0, "appeared": false, "misses": 0}
 	check(LegendGate.eligible({"class": "paladin", "level": 3}, st), "eligible at advanced level 3, no depth gate")
+	check(not LegendGate.eligible({"class": "warlock", "level": 4}, st), "no offer while the class has no authored Legendary")
 	check(not LegendGate.eligible({"class": "paladin", "level": 2}, st), "not before advanced level 3")
 	check(not LegendGate.eligible({"class": "fighter", "level": 6}, st), "base heroes not eligible")
 	check(not LegendGate.eligible({"class": "paladin", "level": 3}, {"legendaries": 1}), "1 Legendary per party")
@@ -349,6 +350,58 @@ func test_rest_and_guardians() -> void:
 				guardians += 1
 			RunBot.step(run, rng, "greedy", 0.2)
 	check(rests > 3 and guardians > 20, "saw %d rests, %d guardian fights" % [rests, guardians])
+
+
+func test_guardians_escalate_and_identity() -> void:
+	var defs: Array = Run._guardians()
+	eq(defs.size(), T.RUN["floors"].size(), "one guardian per floor (the last is the Vault Heart)")
+	var prev_cost := 0
+	var prev_level := 0
+	for g: Dictionary in defs:
+		check(String(g["name"]) != "" and String(g["intro"]).length() > 40, "authored name and intro: " + String(g["name"]))
+		check(int(g["loss_health"]) >= prev_cost and int(g["loss_health"]) > int(T.RUN["pvp_loss_health"]), "loss cost rises and beats PvP")
+		check(int(g["level"]) >= prev_level, "levels never fall")
+		prev_cost = int(g["loss_health"])
+		prev_level = int(g["level"])
+	var run := _new_run(1200)
+	var rng := Rng.new(1)
+	for _i in 300:
+		if run.is_over():
+			break
+		var v: Dictionary = run.current_node()
+		if v["step"] == "fight" and v["type"] == "guardian":
+			check(String(v["opponent"]["intro"]) != "", "guardian intro shown before the fight")
+			check(not v["opponent"].has("heroes"), "composition hidden before the fight")
+			var hp := int(v["health"])
+			var r: Dictionary = run.resolve_fight()
+			if not r["run"]["won"]:
+				check(hp - int(r["run"]["health"]) >= 2, "a guardian loss costs more than a PvP loss")
+			return
+		RunBot.step(run, rng, "greedy", 0.2)
+	check(false, "no guardian reached")
+
+
+func test_rivals_and_team_names() -> void:
+	var pool := _fresh_pool()
+	var names := {}
+	for e: Dictionary in pool.echoes:
+		check(e["meta"].has("team_name") and e["meta"].has("crest"), "seed Echo has team_name and crest")
+		names[e["name"]] = true
+	eq(names.size(), pool.echoes.size(), "generated Echo names are distinct")
+	for s in 10:
+		var run: RefCounted = Run.new()
+		run.start_run(1300 + s, {"pool": pool, "log": false})
+		RunBot.play(run, Rng.new(s))
+		var sm: Dictionary = run.summary()
+		var seen := {}
+		for nm: String in sm["rivals"]:
+			check(not seen.has(nm), "rival %s met twice in one run" % nm)
+			seen[nm] = true
+		eq(String(sm["echo"]["meta"]["team_name"]), String(sm["team_name"]), "snapshot carries the team name")
+		check(sm["echo"]["meta"].has("crest"), "snapshot carries a crest field")
+		for line: String in run.log_lines():
+			if line.begins_with("[") and "PvP" in line:
+				check(not "power" in line, "no power shown before the fight: " + line)
 
 
 func test_echo_pool_persistence() -> void:

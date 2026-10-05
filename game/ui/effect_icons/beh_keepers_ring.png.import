@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c641t8nlt6axj"
-path="res://.godot/imported/grow.png-766d0a688138261f7448c59f6085b214.ctex"
+uid="uid://b0jksvjholhml"
+path="res://.godot/imported/beh_keepers_ring.png-5791f5e942d45b2439a8d6e4d59f1c7c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/party_setup/grow.png"
-dest_files=["res://.godot/imported/grow.png-766d0a688138261f7448c59f6085b214.ctex"]
+source_file="res://ui/effect_icons/beh_keepers_ring.png"
+dest_files=["res://.godot/imported/beh_keepers_ring.png-5791f5e942d45b2439a8d6e4d59f1c7c.ctex"]
 
 [params]
 

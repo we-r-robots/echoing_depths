@@ -38,6 +38,9 @@ var _floors: Array = []         # floor (1-based) per layer
 var _snapshots: Dictionary = {} # floor -> party snapshot (Echoes are recorded per floor)
 var _health_lost := {"gathering": 0, "advancement": 0, "legend": 0}
 var _death: Dictionary = {}
+var _fights_by_floor: Dictionary = {}   # floor -> {kind: [wins, fights]}
+var _met_names: Dictionary = {}         # rival Echo names already met this run
+var _rivals: Array = []
 var _choice_done := false
 var _fight_pending := false
 var _fight_kind := ""           # monster | pvp | heart
@@ -49,7 +52,7 @@ var _phase_reached := "gathering"
 var _outcome := ""
 var _stats := {"pvp_wins": 0, "pvp_losses": 0, "monster_wins": 0, "monster_losses": 0, "nodes": 0,
 	"memories": 0, "wasted_memories": 0, "guardian_wins": 0, "guardian_losses": 0, "rests": 0, "healed": 0,
-	"encounter_nodes": 0, "two_choice_nodes": 0}
+	"encounter_nodes": 0, "two_choice_nodes": 0, "guardian_health_lost": 0}
 var _lore: Array = []
 var _items_found: Array = []
 var _legendaries := 0
@@ -137,7 +140,7 @@ func current_node() -> Dictionary:
 			v["type"] = _fight_kind
 			var meta: Dictionary = _opponent.get("meta", {})
 			v["opponent"] = {"name": _opponent.get("name", ""), "title": String(meta.get("title", "")),
-				"banner": String(meta.get("banner", ""))}
+				"crest": String(meta.get("crest", "")), "intro": String(meta.get("intro", ""))}
 			v["attempt"] = _fight_attempt
 		"outcome":
 			v["last"] = _last.duplicate(true)
@@ -231,19 +234,22 @@ func resolve_fight() -> Dictionary:
 					info["item"] = _grant_item(hi, String(ids[drop.int_range(0, ids.size() - 1)]))
 			else:
 				_lose(int(T.RUN["monster_loss_health"]))
-		"guardian":
-			_stats["guardian_wins" if won else "guardian_losses"] += 1
-			if not won:   # the party limps past the guardian, at a rising cost per floor
-				var costs: Array = T.RUN["guardian_loss_health"]
-				_lose(int(costs[mini(_floor() - 1, costs.size() - 1)]))
-		"heart":
+		"guardian", "heart":   # losing costs more than PvP, rising per floor; the Heart is lethal
 			_stats["guardian_wins" if won else "guardian_losses"] += 1
 			if not won:
-				_lose(int(T.RUN["heart_loss_health"]))
-				if _health > 0:
-					_fight_pending = true   # the Heart waits: fight again
-	_say("  %s vs %s: %s (%.1fs) health %d" % [_fight_kind.to_upper(), _opponent.get("name", ""),
-		"WIN" if won else "LOSS", float(result["duration"]), _health])
+				var before := _health
+				_lose(int(_guardian_def().get("loss_health", 2)))
+				info["health_lost"] = before - _health
+				_stats["guardian_health_lost"] += before - _health
+				if _fight_kind == "heart" and _health > 0:
+					_fight_pending = true   # the Heart waits: fight again while health remains
+	var fl: Dictionary = _fights_by_floor.get(_floor(), {})
+	var rec: Array = fl.get(_fight_kind, [0, 0])
+	fl[_fight_kind] = [int(rec[0]) + (1 if won else 0), int(rec[1]) + 1]
+	_fights_by_floor[_floor()] = fl
+	_say("  %s vs %s: %s (%.1fs) health %d%s" % [_fight_kind.to_upper(), _opponent.get("name", ""),
+		"WIN" if won else "LOSS", float(result["duration"]), _health,
+		" (rival power %d vs %d)" % [EchoPool.power(_opponent), EchoPool.power(combat_party())] if _fight_kind == "pvp" else ""])
 	_last = {"type": "fight", "fight": info.duplicate(true), "health": _health}
 	if _health <= 0:
 		_death = {"depth": _layer + 1, "floor": _floor(), "node": _fight_kind, "phase": _phase(_layer)}
@@ -334,7 +340,7 @@ func _say(s: String) -> void:
 func _party_name() -> String:
 	if _opts.has("party_name"):
 		return String(_opts["party_name"]).left(32)
-	return ("Echo of %s's Company" % (_heroes[0]["name"] if not _heroes.is_empty() else "a")).left(32)
+	return EchoPool.team_name(_rng(8).next_u32())
 
 
 func _node() -> Dictionary:
@@ -478,17 +484,18 @@ func _enter(layer: int, idx: int) -> void:
 			_choice_done = true
 			if not _snapshots.has(_floor()):
 				_snapshots[_floor()] = combat_party()   # recorded as it first met rivals on this floor
-			_start_fight("pvp", _pool.pick(_floor(), _rng(100 + layer)))
-			_say("[%d] PvP: %s (floor %d Echo, power %d vs %d)" % [layer + 1, _opponent.get("name", ""),
-				EchoPool.floor_of(_opponent), int(_opponent.get("meta", {}).get("power", 0)), EchoPool.power(combat_party())])
+			_start_fight("pvp", _pool.pick(_floor(), _rng(100 + layer), _met_names))
+			_met_names[String(_opponent.get("name", ""))] = true
+			_rivals.append(String(_opponent.get("name", "")))
+			_say("[%d] PvP: %s" % [layer + 1, _opponent.get("name", "")])
 		"guardian":
 			_choice_done = true
 			_start_fight("guardian", _floor_guardian())
-			_say("[%d] Floor %d guardian" % [layer + 1, _floor()])
+			_say("[%d] Floor %d guardian: %s" % [layer + 1, _floor(), _opponent["name"]])
 		"heart":
 			_choice_done = true
-			_start_fight("heart", _guardian())
-			_say("[%d] The Vault Heart" % (layer + 1))
+			_start_fight("heart", _floor_guardian())
+			_say("[%d] %s" % [layer + 1, _opponent["name"]])
 	_update_step()
 
 
@@ -751,24 +758,41 @@ func _monsters() -> Dictionary:
 	return {"name": "Vault Monsters", "heroes": hs}
 
 
-## Floor guardian: a Vault monster group tougher than the floor's PvP (level per floor).
+## Guardian definition for the current floor (guardians.json; the last entry is the Vault Heart).
+func _guardian_def() -> Dictionary:
+	var gs := _guardians()
+	return gs[-1] if _layer_type(_layer) == "heart" else gs[mini(_floor() - 1, gs.size() - 2)]
+
+
+static var _guardian_cache: Array = []
+
+
+static func _guardians() -> Array:
+	if _guardian_cache.is_empty():
+		var f := FileAccess.open("res://core/run/guardians.json", FileAccess.READ)
+		var d: Variant = JSON.parse_string(f.get_as_text()) if f != null else null
+		if d is Dictionary:
+			_guardian_cache = d.get("guardians", [])
+	return _guardian_cache
+
+
+## Floor guardian / Vault Heart as a monster side: authored name, intro and composition.
 func _floor_guardian() -> Dictionary:
-	var rng := _rng(6000 + _layer)
-	var lv: Array = T.RUN["guardian_levels"]
-	var lvl := int(lv[mini(_floor() - 1, lv.size() - 1)])
-	var g := PartyGen.monster_group(rng, 6)   # depth >= 6: four monsters
-	var hs: Array = g["heroes"].slice(0, clampi(_heroes.size() + 1, 3, int(T.RUN["guardian_count"])))
-	for h: Dictionary in hs:
-		h["level"] = lvl
-	return {"name": "Guardian of Floor %d" % _floor(), "heroes": hs}
-
-
-func _guardian() -> Dictionary:
-	var lvl := int(T.RUN["heart_level"])
-	return {"name": "Heart of the Vault", "heroes": [
-		{"name": "Shard Golem", "class": "shard_golem", "level": lvl, "items": {}, "alignment": [0, 0], "slot": [0, 1]},
-		{"name": "Memory Wraith", "class": "memory_wraith", "level": lvl, "items": {}, "alignment": [0, 0], "slot": [1, 1]},
-		{"name": "Fading Wisp", "class": "fading_wisp", "level": lvl, "items": {}, "alignment": [0, 0], "slot": [1, 2]}]}
+	var g := _guardian_def()
+	var hs: Array = []
+	var counts := {}
+	for m: Dictionary in g["monsters"]:
+		counts[m["class"]] = int(counts.get(m["class"], 0)) + 1
+	var seen := {}
+	for m: Dictionary in g["monsters"]:
+		var cid := String(m["class"])
+		var nm := String(m.get("name", GameData.get_class_def(cid)["name"]))
+		if int(counts[cid]) > 1:
+			nm += " " + "ABCD"[int(seen.get(cid, 0))]
+			seen[cid] = int(seen.get(cid, 0)) + 1
+		hs.append({"name": nm, "class": cid, "level": clampi(int(g["level"]) + int(m.get("level_offset", 0)), 1, 10), "items": {}, "alignment": [0, 0],
+			"slot": [int(m["slot"][0]), int(m["slot"][1])]})
+	return {"name": String(g["name"]), "heroes": hs, "meta": {"title": String(g["name"]), "intro": String(g["intro"])}}
 
 
 func _end(outcome: String) -> void:
@@ -784,6 +808,7 @@ func _end(outcome: String) -> void:
 		keys.sort()
 		for f: int in keys:
 			added.append(_pool.add(_snapshots[f], {"generated": false, "floor": f, "depth": _layer + 1,
+				"team_name": _party_name(), "crest": String(_opts.get("crest", "")),
 				"outcome": outcome, "seed": seed_value, "pvp_wins": _stats["pvp_wins"]}))
 		_pool.save()
 		_summary["echo"] = added[-1]
@@ -816,7 +841,8 @@ func _make_summary() -> Dictionary:
 		"guardian_wins": _stats["guardian_wins"], "guardian_losses": _stats["guardian_losses"],
 		"rests": _stats["rests"], "healed": _stats["healed"], "health_lost_by_phase": _health_lost.duplicate(),
 		"death": _death.duplicate(), "encounter_nodes": _stats["encounter_nodes"],
-		"two_choice_nodes": _stats["two_choice_nodes"]}
+		"two_choice_nodes": _stats["two_choice_nodes"], "fights_by_floor": _fights_by_floor.duplicate(true),
+		"guardian_health_lost": _stats["guardian_health_lost"], "team_name": _party_name(), "rivals": _rivals.duplicate()}
 	if _outcome == "victory":
 		s["shards"] = int(T.RUN["victory_shards"])
 		var party := combat_party()

@@ -109,6 +109,9 @@ var _started_by_api := false
 var _demo_running := false
 var _focus_end := -1.0
 var _seek_to := -1.0
+var _pending_moves: Array = []
+var _move_lit_until := -1.0
+var _ko_settle := 0.0
 var _cam_push := Vector2.ZERO
 var _num_max_dist := 0.0
 var _hits_in_action := 0
@@ -341,6 +344,12 @@ func _process(delta: float) -> void:
 		if frozen and u.uid != _freeze_actor:
 			us = 0.0
 		u.tick(sim_t, 0.0 if (frozen and u.uid != _freeze_actor) else vdt, us)
+	if not _pending_moves.is_empty() and _focus_end < 0.0 and _freeze <= 0.0 and _vclock > _ko_settle:
+		_play_pending_move()
+	if _move_lit_until > 0.0 and _vclock > _move_lit_until:
+		_move_lit_until = -1.0
+		for n in units:
+			n.lit = false
 	if _focus_end >= 0.0 and sim_t > _focus_end + 0.05:
 		_focus_end = -1.0
 		fx.fade_popups()   # numbers never outlive their action
@@ -640,18 +649,30 @@ func _on_formation_move(ev: Dictionary) -> void:
 		u.home = dest
 		u.position = dest
 		return
-	u.step_to(dest, sim_t, 0.9)
-	u.dimmed = false
-	u.lit = true
-	u.buff_glow = 0.9
-	u.buff_color = side_colors[s].lerp(Pal.INK10, 0.4)
-	fx.light(dest + Vector2(0, -12), side_colors[s], 2, 0.6, 1.0)
-	hitstop(0.35, u.uid)
+	_pending_moves.append([u.uid, dest])
+
+
+## Hold the door plays once the KO and the action's focus have settled: its own brief focus,
+## the clock paused while the unit walks (visual time) into the fallen unit's slot.
+func _play_pending_move() -> void:
+	var m: Array = _pending_moves.pop_front()
+	var u = units[int(m[0])]
+	var dest: Vector2 = m[1]
+	var s: int = u.side
 	var sc: Color = side_colors[s].lerp(Pal.INK10, 0.25)
-	fx.cue("Hold the door", dest + Vector2(0, 18), sc, 0.1)
+	for n in units:
+		n.dimmed = false
+		n.lit = n == u
+	u.walk_to(dest, 0.9)
+	hitstop(1.2, u.uid)
+	u.buff_glow = 1.1
+	u.buff_color = side_colors[s].lerp(Pal.INK10, 0.4)
+	fx.light(dest + Vector2(0, -12), side_colors[s], 2, 0.6, 1.2)
+	fx.cue("Hold the door", dest + Vector2(0, 18), sc, 0.0)
 	fx.trail(u.position, dest, sc)
-	stage.slot_pulse[Vector3i(s, u.col, u.row)] = 1.6
+	stage.slot_pulse[Vector3i(s, u.col, u.row)] = 1.8
 	hud.pulse_badge(s, 9)
+	_move_lit_until = _vclock + 1.3
 
 
 func _on_fight_start(ev: Dictionary) -> void:
@@ -1222,6 +1243,7 @@ func _on_ko(ev: Dictionary) -> void:
 		return
 	var u = units[uid]
 	u.knock_out()
+	_ko_settle = _vclock + 0.6
 	stage.alive_cells[u.side].erase(Vector2i(u.col, u.row))
 	if _instant:
 		return

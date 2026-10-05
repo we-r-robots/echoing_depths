@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://xycxejmenyhk"
-path="res://.godot/imported/behaviour.png-eb73099283b819fdb75441f76129fc93.ctex"
+uid="uid://beomio8t5by4c"
+path="res://.godot/imported/cost_no_front.png-a7707a146ca855204ed4e24659701fb6.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/party_setup/behaviour.png"
-dest_files=["res://.godot/imported/behaviour.png-eb73099283b819fdb75441f76129fc93.ctex"]
+source_file="res://ui/effect_icons/cost_no_front.png"
+dest_files=["res://.godot/imported/cost_no_front.png-a7707a146ca855204ed4e24659701fb6.ctex"]
 
 [params]
 

@@ -35,8 +35,6 @@ var board: FormationBoard
 var panel: FormationPanel
 var _confirm: Button
 var _back: Button
-var _toast := ""
-var _toast_t := 0.0
 var _error := ""
 var _t := 0.0
 var _opened := false
@@ -86,15 +84,15 @@ func _ready() -> void:
 	board.position = Vector2(8, 34)
 	add_child(board)
 	panel = FormationPanel.new()
-	panel.position = Vector2(308, 34)
+	panel.position = Vector2(424, 34)
 	add_child(panel)
 	_confirm = Button.new()
 	_confirm.text = "Confirm"
 	_confirm.focus_mode = Control.FOCUS_NONE
-	_confirm.position = Vector2(556, 336)
+	_confirm.position = Vector2(FormationPanel.W - 84, FormationPanel.H - 28)
 	_confirm.size = Vector2(76, 20)
 	_confirm.pressed.connect(confirm)
-	add_child(_confirm)
+	panel.add_child(_confirm)
 	board.changed.connect(_on_changed)
 	board.preview_changed.connect(_refresh)
 	board.held_changed.connect(_refresh)
@@ -107,28 +105,16 @@ func _ready() -> void:
 		_back = Button.new()
 		_back.text = "Back"
 		_back.focus_mode = Control.FOCUS_NONE
-		_back.position = Vector2(500, 336)
-		_back.size = Vector2(50, 20)
+		_back.position = Vector2(FormationPanel.W - 84, FormationPanel.H - 52)
+		_back.size = Vector2(76, 20)
 		_back.pressed.connect(_on_back)
-		add_child(_back)
+		panel.add_child(_back)
 	board.setup(_pending["heroes"], _pending["slots"], _pending["unlocked"])
 	_refresh()
 
 
 func _on_changed() -> void:
-	var ev := FormationWords.evaluate(board.placed_cells(), board.unlocked)
-	var shape: Dictionary = ev["shape"]
 	_error = ""
-	if shape.is_empty():
-		_toast = ""
-	elif String(shape["id"]) == "strays":
-		_toast = "Strays: not every hero is joined edge to edge, so no shape behaviour fires."
-	elif ev["locked"]:
-		_toast = "%s is locked, so it fights as Strays until unlocked at the Training Grounds." % shape["name"]
-	else:
-		var lines := FormationWords.mod_lines(shape.get("bonus", []))
-		_toast = "%s formed: %s, %s." % [shape["name"], lines[0] if not lines.is_empty() else "", String(shape["behaviour"]["name"]).to_lower()]
-	_toast_t = 3.0
 	_refresh()
 
 
@@ -139,8 +125,9 @@ func _refresh() -> void:
 	var bases: Array = []
 	for h: Dictionary in board.heroes:
 		bases.append(PartyModel.base_class(h))
-	panel.placing = board.held_or_dragged() >= 0
-	panel.show_cells(cells, board.unlocked, n_placed, board.heroes.size(), pc is Array, bases)
+	var pp: Variant = board.preview_placement()
+	var names: Array = board.placed_names(pp if pp is Array else board.placement)
+	panel.show_cells(cells, board.unlocked, n_placed, board.heroes.size(), pc is Array, bases, names)
 	_confirm.disabled = not board.all_placed() or _done
 	queue_redraw()
 
@@ -156,13 +143,15 @@ func confirm() -> void:
 		res = {"ok": true, "formation": String(FormationWords.detect(board.placed_cells()).get("id", ""))}
 	if res.has("error"):
 		_error = String(res["error"])
+		board.toast = _error
+		board.toast_t = 4.0
 		queue_redraw()
 		return
 	res["slots"] = slots
 	var shape := FormationWords.evaluate(board.placed_cells(), board.unlocked)
 	var nm := String(shape["effective"].get("name", ""))
-	_toast = "Formation set: %s. Their formation stays hidden until the fight begins." % nm
-	_toast_t = 99.0
+	board.toast = "Set: %s" % nm
+	board.toast_t = 99.0
 	_done = demo
 	_confirm.disabled = true
 	confirmed.emit(res)
@@ -178,7 +167,6 @@ func _on_back() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
-	_toast_t -= delta
 	if demo:
 		_run_demo(delta)
 	queue_redraw()
@@ -192,7 +180,6 @@ func _draw() -> void:
 	dim.a = 0.78
 	draw_rect(Rect2(0, 0, 640, 360), dim)
 	_draw_top_bar()
-	_draw_hint_bar()
 
 
 func _draw_top_bar() -> void:
@@ -233,39 +220,6 @@ func _draw_top_bar() -> void:
 		PartyDraw.text(self, Vector2(right - 220, 15), "Their formation stays hidden until the fight", Pal.INK7, PartyDraw.SANS, 11, true, 220, HORIZONTAL_ALIGNMENT_RIGHT)
 
 
-func _draw_hint_bar() -> void:
-	var bb := Rect2(8, 336, 540 if mode != "review" else 486, 20)
-	draw_rect(bb.grow(-1), Pal.INK2)
-	PartyDraw.soft_outline(self, bb, Pal.INK5)
-	draw_rect(Rect2(bb.position.x + 2, bb.position.y + 1, bb.size.x - 4, 1), Pal.INK3)
-	var msg := _hint()
-	var col := Pal.INK9
-	if _error != "":
-		msg = _error
-		col = Pal.BLOOD4
-	elif _toast_t > 0.0 and _toast != "" and board.held_or_dragged() < 0:
-		msg = _toast
-		col = Pal.AMBER6
-	PartyDraw.text(self, Vector2(bb.position.x + 8, bb.position.y + 5), msg, col)
-
-
-func _hint() -> String:
-	var hl := board.held_or_dragged()
-	if hl >= 0:
-		var nm := String(board.heroes[hl].get("name", ""))
-		if board._dragging >= 0:
-			return "Each slot shows the shape %s would make there. Drop on the party list to take them off." % nm
-		return "%s lifted: tap a slot to place them there, or the party list to take them off." % nm
-	var w := board.waiting_count()
-	if w > 0:
-		var names: Array = []
-		for i in board.heroes.size():
-			if not (board.placement[i] is Array):
-				names.append(board.heroes[i]["name"])
-		return "Place every hero to confirm: %s %s waiting." % [" and ".join(names), "is" if w == 1 else "are"]
-	return "Drag a hero to a slot, or tap a hero and then a slot. Shapes form where heroes touch."
-
-
 # ------------------------------------------------------------------ demo
 
 static func demo_data() -> Dictionary:
@@ -286,16 +240,19 @@ static func demo_data() -> Dictionary:
 ## the 4th over the Keeper's Ring slot (live preview), Keeper's Ring, tap-placed into a locked
 ## Crescent, one hero dragged apart into Strays; then back into Keeper's Ring and Confirm.
 func demo_script() -> Array:
-	var e := func(i: int) -> Vector2: return board._entry_rect(i).get_center()
-	var c := func(col: int, row: int) -> Vector2: return FormationBoard.cell_rect([col, row]).get_center() + Vector2(0, 4)
+	var e := func(_i: int) -> Vector2: return board._bench_rect(0).get_center()
+	var c := func(col: int, row: int) -> Vector2: return FormationBoard.feet_of([col, row]) - Vector2(0, 30)
+	var f := func(col: int, row: int) -> Vector2: return FormationBoard.feet_of([col, row])
 	return [
 		{"t": 0.15, "kind": "drag", "keys": [[0.0, e.call(1)], [0.55, c.call(0, 2)]]},
 		{"t": 1.5, "kind": "add", "hero": {"name": "Holt", "class": "fighter", "level": 2, "items": {}, "alignment": [0, 1]}},
 		{"t": 1.9, "kind": "drag", "keys": [[0.0, e.call(2)], [0.6, c.call(0, 0)]]},
 		{"t": 3.3, "kind": "add", "hero": {"name": "Ilse", "class": "healer", "level": 3, "items": {}, "alignment": [1, 1]}},
 		{"t": 3.7, "kind": "drag", "keys": [[0.0, e.call(3)], [0.55, c.call(1, 3)], [0.95, c.call(1, 3)], [1.3, c.call(1, 1)], [1.9, c.call(1, 1)]]},
+		{"t": 6.6, "kind": "tip", "chip": 2},
+		{"t": 7.3, "kind": "untip"},
 		{"t": 7.4, "kind": "tap", "at": c.call(1, 1)},
-		{"t": 8.2, "kind": "tap", "at": c.call(1, 0)},
+		{"t": 8.2, "kind": "tap", "at": f.call(1, 0)},
 		{"t": 9.4, "kind": "drag", "keys": [[0.0, c.call(0, 2)], [0.7, c.call(1, 3)]]},
 		{"t": 11.4, "kind": "details"},
 		{"t": 12.1, "kind": "details"},
@@ -354,6 +311,10 @@ func _run_demo(delta: float) -> void:
 				_act_t = 0.0
 			"details":
 				panel.toggle_details()
+			"tip":
+				panel.open_tip(int(a["chip"]))
+			"untip":
+				Tip.close()
 			"confirm":
 				_confirm.button_pressed = true
 				get_tree().create_timer(0.15).timeout.connect(func() -> void:

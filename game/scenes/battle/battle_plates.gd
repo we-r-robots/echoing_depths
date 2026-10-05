@@ -55,7 +55,10 @@ func _draw() -> void:
 		var cy := y0 + 2.0
 		var cf: float = clampf(u.charge_shown / float(u.charge_max), 0.0, 1.0)
 		if u.charge_pulse > 0.0:
-			_diamond(cx, cy, 3.0 + roundf(u.charge_pulse * 6.0), Color(Pal.VIOLET4, u.charge_pulse))
+			# the charge landed: a bright ring bursts out of the gem and the fill sweeps up in white
+			var cp: float = u.charge_pulse / 0.6
+			_diamond(cx, cy, 4.0 + roundf((1.0 - cp) * 9.0), Color(Pal.VIOLET4, cp))
+			_diamond(cx, cy, 3.0 + roundf((1.0 - cp) * 5.0), Color(Pal.INK10, cp * 0.8))
 		_diamond(cx, cy, 3.0, Color(Pal.INK1, a))
 		_diamond(cx, cy, 2.0, Color(Pal.VIOLET1, a))
 		if u.is_ready:
@@ -69,7 +72,7 @@ func _draw() -> void:
 				var yy := cy + 2.0 - k
 				var half := 2.0 - absf(yy - cy)
 				if half >= 0.0:
-					draw_rect(Rect2(cx - half, yy, half * 2.0 + 1.0, 1), Color(Pal.VIOLET3, a))
+					draw_rect(Rect2(cx - half, yy, half * 2.0 + 1.0, 1), Color(Pal.VIOLET3.lerp(Pal.INK10, u.charge_pulse / 0.6), a))
 
 
 func _diamond(cx: float, cy: float, r: float, c: Color) -> void:
