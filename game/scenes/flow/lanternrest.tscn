@@ -1,8 +1,8 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scenes/flow/flow.gd" id="1_fl"]
+[ext_resource type="Script" path="res://scenes/flow/lanternrest.gd" id="1_fl"]
 
-[node name="Main" type="Control"]
+[node name="LanternrestScreen" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
