@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 18:52",
+  "updated": "2026-10-05 19:43",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -749,6 +749,10 @@
     {
       "t": "19:41",
       "msg": "hires-ui round-6 build: battle label layout solver (attribution, no label/HUD overlap; tested on every 4-hero shape and the real PvP/monster/Crystal fights), roster cap 4, hero detail stat chips, encounter shared result card + bigger grids, setup header/title/hint fixes; captures in captures/hires-ui/r6 and captures/flow/r6"
+    },
+    {
+      "t": "19:43",
+      "msg": "hires-ui round 6 built (f6e2102, 156 tests): label layout solver, Crystal roster cap, equipment chips, phone-size encounter/setup work. Class roster draft in docs/design/. Critic round 6 started."
     }
   ],
   "questions": [
