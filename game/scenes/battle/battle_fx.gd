@@ -27,6 +27,7 @@ const MAX_POP := 40
 const MAX_LIGHT := 12
 const GLOW = preload("res://assets/battle/glow.png")
 const SHARD = preload("res://assets/battle/shard.png")
+const LabelLayout = preload("res://scenes/battle/label_layout.gd")
 
 # sprite fx pool
 var _sprites: Array[AnimatedSprite2D] = []
@@ -90,6 +91,10 @@ var _pp_small: Array[bool] = []         # head drawn in the light font (formatio
 var _pp_head_col := PackedColorArray()
 var _pp_tag: Array[String] = []         # one annotation under the number
 var _pp_tag_col := PackedColorArray()
+var _pp_ko: Array[bool] = []           # KO! pill beside the number
+var _pp_ko_t := PackedFloat32Array()    # when the pill shows (label time)
+var _pp_unit := PackedInt32Array()      # the unit the label belongs to
+var _pp_box: Array[Rect2] = []          # its laid-out box (world px)
 
 var sim_t := 0.0
 var _pop_node: Control              # UI-layer canvas the numbers draw on
@@ -102,8 +107,6 @@ var _sw_col := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WH
 var _sw_next := 0
 var _pp_link := PackedVector2Array()
 var _last_pop := 0
-var _pp_uid := PackedInt32Array()
-var next_uid := -1   # target uid of the next popup (same-target hits stack)
 var _sh_pos := PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 var _sh_seg := PackedInt32Array([0, 0, 0, 0])
 var _sh_col := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
@@ -149,7 +152,7 @@ func setup(pop_canvas: Control, to_ui: Callable) -> void:
 	_pp_small.resize(MAX_POP)
 	_pp_head.resize(MAX_POP); _pp_head_col.resize(MAX_POP); _pp_tag.resize(MAX_POP); _pp_tag_col.resize(MAX_POP)
 	_pp_link.resize(MAX_POP)
-	_pp_uid.resize(MAX_POP)
+	_pp_ko.resize(MAX_POP); _pp_ko_t.resize(MAX_POP); _pp_unit.resize(MAX_POP); _pp_box.resize(MAX_POP)
 	_shield_pts.resize(6)
 	_pop_node = pop_canvas
 	_pop_node.draw.connect(_draw_pop_layer)
@@ -268,66 +271,57 @@ func pillar(x: float, y: float, w: float, dur: float, col: Color) -> void:
 			return
 
 
-## A number popup. `delay` staggers popups that land together; `scale` is a whole number.
-## Height above a popup's baseline (number + head word) and below it (tag line).
-## (World units: UI design px / ZOOM.)
+## Label metrics (world units: UI design px / ZOOM). A label is one box: the rise room, the head
+## word (CRIT!), the number line (with the KO! pill beside the number) and the tag line.
 const NUM_H := 11.0 * NUM_SIZE / 15.0 / ZOOM + 1.5        # cap + outline
 const HEAD_H := 11.0 * HEAD_SIZE / 15.0 / ZOOM + 4.0   # + the gap over the number's ring
 const TAG_H := 11.0 * TAG_SIZE / 15.0 / ZOOM + 2.5
-
-
-## Gap between the target's sprite top (its tallest idle frame) and the number's baseline, and how
-## far a number rises after it lands (world px; x6 = screen px at 1080p). Together they keep the
-## number within 12 screen px of the head (about 30 while the target crouches in its hit frame), so
-## on the packed grid it never reads on the unit in the row behind.
-const NUM_GAP := 0.0
+## How far a number rises after it lands (world px; x6 = screen px at 1080p).
 const NUM_RISE := 2.0
-## Gap between two stacked numbers on the same head (world px, about half a number line).
-const STACK_GAP := 5.0
-## The furthest a number is nudged sideways off its target's centre line (world px).
-const PUSH_MAX := 9.0
+## How far a number's box may reach into its own head (world px): the box's bottom holds the rise
+## room, so the digits land just over the crown.
+const HEAD_DIP := 3.0
+## The KO! pill beside a number: gap to the number and padding round the word (UI design px).
+const KO_GAP := 3.0
+const KO_PAD := 3.0
+
+## The solver's view of the field, set by the controller before each popup (BattleFX labels are
+## world-space): every unit {uid, body, bar}, the HUD rects labels keep clear of, and the field.
+var units_geo: Array = []
+## Tests: every placement with the field it was solved against (tests/test_label_layout.gd).
+var recording := false
+var record: Array = []
+var blocked: Array = []
+var field := Rect2(164, 92, 312, 176)
 
 
-## Where a target's number lands (its baseline centre), in world px. `top` is the top of the
-## target's sprite (feet x), `band` the lowest world y the UI keeps for itself (banners, lore caption).
-## A number goes straight above the head. When it can't fit under the band, a tall unit (a monster
-## in the far row) takes it beside the head, on the side facing the field, still within its span;
-## anyone else gets it pushed down onto the top of the head (never sideways off the unit).
-const TALL := 50.0   # world px: taller units (Sentinel, Crystal) may take their number beside the head
+## The label box size for its contents (world px).
+static func label_size(value: int, plus: bool, head: String, small: bool, tag: String, ko: bool) -> Vector2:
+	var row_w := 0.0
+	var h := 0.0
+	if value >= 0:
+		row_w = (UIText.width(("+" if plus else "") + str(value), UIText.BOLD, NUM_SIZE) + 4.0) / ZOOM
+		if ko:
+			row_w += (KO_GAP + _ko_w()) / ZOOM
+		h += NUM_RISE + NUM_H
+	elif ko:
+		row_w = _ko_w() / ZOOM
+		h += NUM_RISE + HEAD_H
+	var hw := 0.0
+	if head != "":
+		var hs := TAG_SIZE if small else HEAD_SIZE
+		hw = (UIText.width(head, UIText.BOLD, hs) + (8.0 if small else 3.0)) / ZOOM
+		h += (TAG_H + 1.0) if small else HEAD_H
+		if value < 0 and not small:
+			h += NUM_RISE
+	var tw := (UIText.width(tag, UIText.BOLD, TAG_SIZE) + 3.0) / ZOOM if tag != "" else 0.0
+	if tag != "":
+		h += TAG_H
+	return Vector2(ceilf(maxf(row_w, maxf(hw, tw))), ceilf(h))
 
 
-static func number_anchor(top: Vector2, top_h: float, facing: int, band: float, head_word := false) -> Vector2:
-	var p := Vector2(top.x, top.y - NUM_GAP)
-	var need := NUM_H + NUM_RISE + (HEAD_H if head_word else 0.0)
-	if p.y - NUM_H - NUM_RISE < band and top_h > TALL:
-		# a tall unit: beside the head, a third of the way to the sprite's edge past its centre line
-		p.x = top.x + minf(top_h * 0.3, 22.0) * facing
-		p.y = band + need
-	elif p.y - need < band:
-		p.y = band + need
-	return Vector2(roundf(p.x), roundf(p.y))
-
-
-func _pop_top(j: int) -> float:
-	return (NUM_H if _pp_val[j] >= 0 else 0.0) + (_head_h(j) if _pp_head[j] != "" else 0.0)
-
-
-func _head_h(j: int) -> float:
-	return TAG_H if _pp_small[j] else HEAD_H
-
-
-func _pop_bot(tag: String) -> float:
-	return TAG_H if tag != "" else 0.0
-
-
-func _pop_hw_j(j: int) -> float:
-	return maxf(_pop_half_w(_pp_val[j], _pp_head[j]), _pop_half_w(-1, _pp_tag[j]))
-
-
-func _pop_half_w(value: int, head: String) -> float:
-	var nw := (UIText.width(str(value), UIText.BOLD, NUM_SIZE) + 4.0) * 0.5 / ZOOM if value >= 0 else 0.0
-	var tw := (UIText.width(head, UIText.BOLD, HEAD_SIZE) + 3.0) * 0.5 / ZOOM if head != "" else 0.0
-	return maxf(nw, tw)
+static func _ko_w() -> float:
+	return UIText.width("KO!", UIText.BOLD, HEAD_SIZE) + KO_PAD * 2.0
 
 
 ## Link the last popup to a point (e.g. the hit that a shared/halved number came from).
@@ -344,11 +338,69 @@ func shield(pos: Vector2, segments: int, col: Color, dur: float) -> void:
 	_sh_next = (_sh_next + 1) % 4
 
 
-func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: String, head_col: Color, tag: String, tag_col: Color, delay := 0.0) -> int:
+func _geo(uid: int) -> Dictionary:
+	for g: Dictionary in units_geo:
+		if int(g["uid"]) == uid:
+			return g
+	return {}
+
+
+## Lays out label j against everything else on screen this action (LabelLayout.place).
+func _place(j: int) -> void:
+	var sz := label_size(_pp_val[j], _pp_plus[j], _pp_head[j], _pp_small[j], _pp_tag[j], _pp_ko[j])
+	var own := _geo(_pp_unit[j])
+	if own.is_empty():
+		own = {"uid": _pp_unit[j], "body": Rect2(_pp_x[j] - 11.0, _pp_y[j], 22.0, 40.0), "bar": Rect2()}
+	var body: Rect2 = own["body"]
+	var bar: Rect2 = own["bar"]
+	# a number's box may dip HEAD_DIP into its own head: after the rise its digits sit on the crown
+	var pref := Vector2(body.get_center().x, body.position.y + HEAD_DIP)
+	if _pp_small[j]:
+		# formation cues sit under the unit's plate, numbers over its head
+		pref.y = maxf(body.end.y, bar.end.y if bar.has_area() else body.end.y) + 1.0 + sz.y
+	var placed: Array = []
+	for k in MAX_POP:
+		if k != j and _pp_on[k]:
+			placed.append(_pp_box[k])
+	_pp_box[j] = LabelLayout.place(sz, pref, own, units_geo, placed, blocked, field)
+	if recording:
+		record.append({"uid": _pp_unit[j], "box": _pp_box[j], "text": _label_text(j), "geo": units_geo.duplicate(),
+			"placed": placed, "blocked": blocked.duplicate(), "field": field, "small": _pp_small[j]})
+	_pp_x[j] = _pp_box[j].get_center().x
+	_pp_y[j] = _pp_box[j].end.y
+
+
+func last_box() -> Rect2:
+	return _pp_box[_last_pop]
+
+
+## Every live label's box this action (world px), for tests and checks.
+func label_boxes() -> Array:
+	var out: Array = []
+	for j in MAX_POP:
+		if _pp_on[j]:
+			out.append({"uid": _pp_unit[j], "box": _pp_box[j], "text": _label_text(j)})
+	return out
+
+
+func _label_text(j: int) -> String:
+	var s := _pp_head[j]
+	if _pp_val[j] >= 0:
+		s += (" " if s != "" else "") + str(_pp_val[j])
+	if _pp_ko[j]:
+		s += " KO!"
+	if _pp_tag[j] != "":
+		s += " " + _pp_tag[j]
+	return s
+
+
+## A number (value >= 0) or word label on unit `uid`, laid out with the action's other labels.
+## `delay` staggers popups that land together; `ko` adds the KO! pill beside the number.
+func popup(value: int, row: int, uid: int, scale: int, plus: bool, head: String, head_col: Color, tag: String, tag_col: Color, delay := 0.0, ko := false, small := false) -> int:
 	# one number per target per action: a further hit on the same target adds to its number
-	if value >= 0 and next_uid >= 0:
+	if value >= 0:
 		for j in MAX_POP:
-			if _pp_on[j] and _pp_uid[j] == next_uid and _pp_val[j] >= 0 and _pp_row[j] != Row.HEAL and row != Row.HEAL:
+			if _pp_on[j] and _pp_unit[j] == uid and not _pp_small[j] and _pp_val[j] >= 0 and _pp_row[j] != Row.HEAL and row != Row.HEAL:
 				_pp_val[j] += value
 				_pp_t[j] = minf(_pp_t[j], 0.0)
 				if head != "" and _pp_head[j] == "":
@@ -359,7 +411,10 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 				if tag != "" and _pp_tag[j] == "":
 					_pp_tag[j] = tag
 					_pp_tag_col[j] = tag_col
-				next_uid = -1
+				if ko and not _pp_ko[j]:
+					_pp_ko[j] = true
+					_pp_ko_t[j] = maxf(0.0, _pp_t[j]) + 0.3
+				_place(j)
 				_last_pop = j
 				return j
 	var best := 0
@@ -371,47 +426,12 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 		if _pp_t[i] > oldest:
 			oldest = _pp_t[i]
 			best = i
-	pos = Vector2(clampf(roundf(pos.x), 186.0, 454.0), roundf(pos.y))
-	var home_x := pos.x
-	# Same target: stack vertically (newest above, half a line apart). Different targets: nudge
-	# sideways, at most PUSH_MAX from the target's centre so the number stays over its own unit.
-	var hw := maxf(_pop_half_w(value, head), _pop_half_w(-1, tag))
-	var my_top := (NUM_H if value >= 0 else 0.0) + (HEAD_H if head != "" else 0.0)
-	for attempt in 8:
-		var hit := -1
-		for j in MAX_POP:
-			if j == best or not _pp_on[j]:
-				continue
-			var same := _pp_uid[j] == next_uid and next_uid >= 0
-			if same and absf(_pp_y[j] - pos.y) < _pop_top(j) + _pop_bot(tag) + STACK_GAP:
-				hit = j
-				break
-			var ov_y := pos.y - my_top < _pp_y[j] + _pop_bot(_pp_tag[j]) + 1.0 and _pp_y[j] - _pop_top(j) < pos.y + _pop_bot(tag) + 1.0
-			if not same and ov_y and absf(_pp_x[j] - pos.x) < hw + _pop_hw_j(j) + 2.0:
-				hit = j
-				break
-		if hit < 0:
-			break
-		if _pp_uid[hit] == next_uid and next_uid >= 0:
-			pos.y = _pp_y[hit] - _pop_top(hit) - STACK_GAP - _pop_bot(tag)
-		else:
-			var need := hw + _pop_hw_j(hit) + 2.0
-			var nx := clampf(_pp_x[hit] + (need if pos.x >= _pp_x[hit] else -need), home_x - PUSH_MAX, home_x + PUSH_MAX)
-			if absf(nx - pos.x) < 0.5:
-				break   # can't move further without leaving its target: overlap rather than mislead
-			pos.x = clampf(nx, 186.0, 454.0)
-	if not avoid.is_empty():
-		pos = _clear_of_units(pos, home_x, hw, my_top, _pop_bot(tag), best)
-	avoid.clear()
-	_pp_uid[best] = next_uid
-	next_uid = -1
+	_pp_on[best] = false
+	_pp_unit[best] = uid
 	_pp_link[best] = Vector2.ZERO
-	_pp_on[best] = true
-	_pp_small[best] = false
+	_pp_small[best] = small
 	_pp_val[best] = value
 	_pp_row[best] = row
-	_pp_x[best] = roundf(pos.x)
-	_pp_y[best] = roundf(pos.y)
 	_pp_t[best] = -delay
 	_pp_scale[best] = scale
 	_pp_plus[best] = plus
@@ -419,73 +439,29 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 	_pp_head_col[best] = head_col
 	_pp_tag[best] = tag
 	_pp_tag_col[best] = tag_col
+	_pp_ko[best] = ko
+	_pp_ko_t[best] = 0.3 if ko and value >= 0 else 0.0
+	_place(best)
+	_pp_on[best] = true
 	_last_pop = best
 	return best
 
 
-## Other units' heads and HP plates the next popup must keep clear of (world rects), and the
-## popup's own unit body (world rect). Set by the controller just before a popup; cleared after it.
-var avoid: Array[Rect2] = []
-var home := Rect2()
-## How far a popup may move down onto its own unit to clear a neighbour (fraction of its height).
-const HOME_DROP := 0.55
-
-
-## A popup box that covers another unit's head or plate moves toward its own unit: first down onto
-## its own head (never past HOME_DROP of its body), then sideways toward its own centre line, and
-## sideways within PUSH_MAX. The candidate with the least overlap wins (ties: the least movement);
-## a candidate that runs into another popup is ruled out.
-func _clear_of_units(pos: Vector2, home_x: float, hw: float, top: float, bot: float, me: int) -> Vector2:
-	var best_p := pos
-	var best_s := INF
-	var hc := home.get_center().x if home.size.x > 0.0 else home_x
-	var max_drop := maxf(0.0, home.size.y * HOME_DROP) if home.size.y > 0.0 else 6.0
-	var dxs: Array[float] = [0.0]
-	for k in range(1, 10):
-		dxs.append(float(k))
-		dxs.append(-float(k))
-	for dy in range(0, int(max_drop) + 1, 1):
-		for dx in dxs:
-			var p := Vector2(pos.x + dx, pos.y + dy)
-			if absf(p.x - hc) > PUSH_MAX + absf(pos.x - hc):
-				continue
-			var box := Rect2(p.x - hw, p.y - top, hw * 2.0, top + bot)
-			var ov := 0.0
-			for r: Rect2 in avoid:
-				var i := box.intersection(r)
-				if i.has_area():
-					ov += i.get_area()
-			if _pop_hits(box, me):
-				continue
-			var sc := ov * 100.0 + dy + absf(dx) * 1.5
-			if sc < best_s:
-				best_s = sc
-				best_p = p
-		if best_s < 100.0:
-			break   # clear of every neighbour at this drop: stop moving down
-	return Vector2(roundf(best_p.x), roundf(best_p.y))
-
-
-func _pop_hits(box: Rect2, me: int) -> bool:
+## KO on unit `uid`: the pill joins that unit's number this action, or stands alone on its pill.
+func ko(uid: int, delay := 0.3) -> void:
 	for j in MAX_POP:
-		if j == me or not _pp_on[j]:
-			continue
-		var hwj := _pop_hw_j(j)
-		var bj := Rect2(_pp_x[j] - hwj, _pp_y[j] - _pop_top(j), hwj * 2.0, _pop_top(j) + _pop_bot(_pp_tag[j]))
-		if bj.intersects(box):
-			return true
-	return false
+		if _pp_on[j] and _pp_unit[j] == uid and _pp_val[j] >= 0 and not _pp_small[j]:
+			if not _pp_ko[j]:
+				_pp_ko[j] = true
+				_pp_ko_t[j] = maxf(0.0, _pp_t[j]) + delay
+				_place(j)
+			return
+	popup(-1, Row.MUTED, uid, 1, false, "", Pal.BLOOD4, "", Color.WHITE, delay, true)
 
 
-## Floating word without a number (e.g. "READY!", "KO").
-func word(text: String, pos: Vector2, col: Color, delay := 0.0) -> int:
-	return popup(-1, Row.MUTED, pos, 1, false, text, col, "", Color.WHITE, delay)
-
-
-## Light-font cue (formation effects): quieter than numbers and KO/READY words.
-func cue(text: String, pos: Vector2, col: Color, delay := 0.0) -> void:
-	next_uid = 100000 + int(pos.x) * 1000 + int(pos.y)   # same spot: stack, not merge
-	_pp_small[word(text, pos, col, delay)] = true
+## Light-font cue (formation effects) under unit `uid`'s plate: quieter than numbers and KO.
+func cue(text: String, uid: int, col: Color, delay := 0.0) -> void:
+	popup(-1, Row.MUTED, uid, 1, false, text, col, "", Color.WHITE, delay, false, true)
 
 
 ## Previous action's numbers blink out quickly so only the current action's stay on screen.
@@ -731,40 +707,80 @@ func _draw_pop_layer() -> void:
 	for i in MAX_POP:
 		if _pp_on[i] and _pp_t[i] >= 0.0:
 			_draw_popup(ci, i)
+	if debug_boxes:
+		# --label-boxes (captures): the solver's view, to check placements frame by frame
+		for g: Dictionary in units_geo:
+			_dbg_rect(ci, g["body"], Color(0.3, 1, 0.3))
+			_dbg_rect(ci, g["bar"], Color(1, 1, 0.2))
+		for i in MAX_POP:
+			if _pp_on[i]:
+				_dbg_rect(ci, _pp_box[i], Color.WHITE)
+
+
+var debug_boxes := OS.get_cmdline_user_args().has("--label-boxes")
+
+
+func _dbg_rect(ci: CanvasItem, r: Rect2, c: Color) -> void:
+	var a: Vector2 = _to_ui.call(r.position)
+	var b: Vector2 = _to_ui.call(r.end)
+	ci.draw_rect(Rect2(a, b - a), c, false, 1.0)
 
 
 func _draw_popup(ci: CanvasItem, i: int) -> void:
 	var t := _pp_t[i]
-	var rise := 1.0 - pow(1.0 - clampf(t / 0.28, 0.0, 1.0), 3.0)
-	var y := _pp_y[i] - NUM_RISE * rise
-	var x := _pp_x[i]
 	var visible_blink := t < 0.95 or fmod(t, 0.08) < 0.05
 	if not visible_blink:
 		return
-	var p: Vector2 = _to_ui.call(Vector2(x, y))   # the number's baseline centre, in UI px
+	var box := _pp_box[i]
+	var x := box.get_center().x
 	var val := _pp_val[i]
-	var top := p.y
+	var head := _pp_head[i]
+	if _pp_small[i]:
+		# world cues (formation behaviours) sit on a dark plate so they read over a busy floor
+		var a: Vector2 = _to_ui.call(box.position)
+		var b: Vector2 = _to_ui.call(box.end)
+		var plate := Rect2(roundf(a.x), roundf(a.y), roundf(b.x - a.x), roundf(b.y - a.y))
+		ci.draw_rect(plate, Color(Pal.INK1, 0.82))
+		ci.draw_rect(plate, Color(_pp_head_col[i], 0.55), false, 1.0)
+		var cy := UIText.centered_y(plate.position.y, plate.size.y, UIText.BOLD, TAG_SIZE)
+		UIText.outlined(ci, Vector2(plate.get_center().x, cy), head, _pp_head_col[i], UIText.BOLD, TAG_SIZE, 1)
+		return
+	# the label rises NUM_RISE after it lands: its content starts at the bottom of its box
+	var rise := 1.0 - pow(1.0 - clampf(t / 0.28, 0.0, 1.0), 3.0)
+	var y := box.position.y + NUM_RISE * (1.0 - rise)   # world y of the content's top
+	if head != "":
+		var top: Vector2 = _to_ui.call(Vector2(x, y))
+		UIText.outlined(ci, Vector2(top.x, top.y + UIText.cap(UIText.BOLD, HEAD_SIZE) - UIText.ascent(UIText.BOLD, HEAD_SIZE)), head, _pp_head_col[i], UIText.BOLD, HEAD_SIZE, 1)
+		y += HEAD_H
+	var ko_on := _pp_ko[i] and t >= _pp_ko_t[i]
 	if val >= 0:
 		# punch: one size up for the first frames
 		var sz := NUM_PUNCH if t < 0.06 else NUM_SIZE
 		var s := ("+" if _pp_plus[i] else "") + str(val)
-		var ty := p.y - UIText.ascent(UIText.BOLD, sz)
+		var nw := UIText.width(s, UIText.BOLD, NUM_SIZE) + 4.0
+		var row_w := nw + ((KO_GAP + _ko_w()) if _pp_ko[i] else 0.0)
+		var c: Vector2 = _to_ui.call(Vector2(x, y + 0.75))
+		var x0 := c.x - row_w * 0.5
+		var base := c.y + UIText.cap(UIText.BOLD, NUM_SIZE)
 		# a two-font-pixel dark ring keeps the digits apart from bright slashes and sparks
-		UIText.outlined(ci, Vector2(p.x, ty), s, ROW_COL[_pp_row[i]], UIText.BOLD, sz, 1, Pal.INK1, true, 2)
-		top = p.y - UIText.cap(UIText.BOLD, sz)
+		UIText.outlined(ci, Vector2(roundf(x0 + nw * 0.5), base - UIText.ascent(UIText.BOLD, sz)), s, ROW_COL[_pp_row[i]], UIText.BOLD, sz, 1, Pal.INK1, true, 2)
+		if ko_on:
+			_draw_ko(ci, Vector2(x0 + nw + KO_GAP, base - UIText.cap(UIText.BOLD, NUM_SIZE) * 0.5))
+		y += NUM_H
 		var tag := _pp_tag[i]
 		if tag != "":
-			UIText.outlined(ci, Vector2(p.x, p.y + UIText.fpx(sz) * 2.0 + 1.0), tag, _pp_tag_col[i], UIText.BOLD, TAG_SIZE, 1)
-	var head := _pp_head[i]
-	if head != "":
-		var hs := TAG_SIZE if _pp_small[i] else HEAD_SIZE
-		# clear of the number's two-font-pixel ring (critic r4: CRIT! sat on the digits)
-		var gap := 3.0 + UIText.fpx(NUM_SIZE) * 2.0
-		var hy := (top - gap if val >= 0 else p.y) - UIText.ascent(UIText.BOLD, hs)
-		if _pp_small[i]:
-			# world cues (formation behaviours) sit on a dark plate so they read over a busy floor
-			var hw := UIText.width(head, UIText.BOLD, hs) * 0.5 + 4.0
-			var plate := Rect2(roundf(p.x - hw), roundf(hy - 1.0), roundf(hw * 2.0), roundf(UIText.ascent(UIText.BOLD, hs) + 4.0))
-			ci.draw_rect(plate, Color(Pal.INK1, 0.82))
-			ci.draw_rect(plate, Color(_pp_head_col[i], 0.55), false, 1.0)
-		UIText.outlined(ci, Vector2(p.x, hy), head, _pp_head_col[i], UIText.BOLD, hs, 1)
+			var tp: Vector2 = _to_ui.call(Vector2(x, y + 1.0))
+			UIText.outlined(ci, Vector2(tp.x, tp.y + UIText.cap(UIText.BOLD, TAG_SIZE) - UIText.ascent(UIText.BOLD, TAG_SIZE)), tag, _pp_tag_col[i], UIText.BOLD, TAG_SIZE, 1)
+	elif ko_on:
+		var c2: Vector2 = _to_ui.call(Vector2(x, y + HEAD_H * 0.5))
+		_draw_ko(ci, Vector2(c2.x - _ko_w() * 0.5, c2.y))
+
+
+## The KO! pill: red word on a dark pill with a red rim, left edge at p.x, centred on p.y (UI px).
+func _draw_ko(ci: CanvasItem, p: Vector2) -> void:
+	var h := UIText.cap(UIText.BOLD, HEAD_SIZE) + KO_PAD * 2.0
+	var r := Rect2(roundf(p.x), roundf(p.y - h * 0.5), roundf(_ko_w()), roundf(h))
+	ci.draw_rect(r, Color(Pal.INK1, 0.92))
+	ci.draw_rect(r, Pal.BLOOD3, false, 1.0)
+	var ty := r.position.y + KO_PAD + UIText.cap(UIText.BOLD, HEAD_SIZE) - UIText.ascent(UIText.BOLD, HEAD_SIZE)
+	UIText.draw(ci, Vector2(r.position.x + KO_PAD, ty), "KO!", UIText.legible(Pal.BLOOD4), UIText.BOLD, HEAD_SIZE)

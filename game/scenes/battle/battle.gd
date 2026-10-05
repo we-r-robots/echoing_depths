@@ -470,7 +470,7 @@ func _report_perf() -> void:
 	var tot := 0
 	for v in a:
 		tot += v
-	print("CHECK popups_alive_at_next_action(before clear)=%d  max_number_centre_to_head_screen_px=%.1f  alive_after_clear=%d" % [_stale_seen, _num_max_dist, fx.live_popups()])
+	print("CHECK popups_alive_at_next_action(before clear)=%d  max_label_centre_to_own_body_screen_px=%.1f  alive_after_clear=%d" % [_stale_seen, _num_max_dist, fx.live_popups()])
 	print("PERF frames=%d wall_avg=%.2fms wall_p99=%.2fms wall_max=%.2fms process_avg=%.3fms process_p99=%.3fms nodes=%d" % [
 		a.size(), tot / 1000.0 / maxi(1, a.size()), a[int(a.size() * 0.99)] / 1000.0, a[a.size() - 1] / 1000.0,
 		float(p[int(p.size() * 0.5)]) / 1000.0, float(p[int(p.size() * 0.99)]) / 1000.0, get_tree().get_node_count()])
@@ -597,7 +597,8 @@ func _behaviour_cue(ev: Dictionary, u) -> void:
 	stage.slot_pulse[Vector3i(s, u.col, u.row)] = 1.4
 	u.buff_glow = 0.6
 	u.buff_color = sc
-	fx.cue(name_, u.position + Vector2(0, 22), sc, 0.0)
+	_layout_ctx()
+	fx.cue(_plate_case(name_), u.uid, sc, 0.0)
 	match eff:
 		"shoulder_to_shoulder":     # a charge pulse travels from the hit partner and fills this gauge
 			if r != null:
@@ -740,7 +741,8 @@ func _memory_cue(ev: Dictionary, u) -> void:
 		"mirror": "Woven likeness", "last_stand": "Last stand", "draw_memory": "Draw",
 		"hasten_fading": "Close the Vault", "dim_lantern": "Dim the lantern"}
 	var col := Pal.VIOLET4
-	fx.cue(String(behs.get(eff, ev.get("name", ""))), u.position + Vector2(0, 22), col, 0.0)
+	_layout_ctx()
+	fx.cue(_plate_case(String(behs.get(eff, ev.get("name", "")))), u.uid, col, 0.0)
 	u.buff_glow = 0.7
 	u.buff_color = col
 	match eff:
@@ -815,7 +817,8 @@ func _play_pending_move() -> void:
 	u.buff_glow = 1.1
 	u.buff_color = side_colors[s].lerp(Pal.INK10, 0.4)
 	fx.light(dest + Vector2(0, -12), side_colors[s], 2, 0.6, 1.2)
-	fx.cue("Hold the door", dest + Vector2(0, 22), sc, 0.0)
+	_layout_ctx()
+	fx.cue(_plate_case("Hold the door"), u.uid, sc, 0.0)
 	fx.trail(u.position, dest, sc)
 	stage.slot_pulse[Vector3i(s, u.col, u.row)] = 1.8
 	hud.pulse_badge(s, 9)
@@ -1003,7 +1006,8 @@ func _on_action_start(ev: Dictionary) -> void:
 	var is_ab := String(ev.get("kind", "basic")) == "ability"
 	var aid := String(ev.get("action", ""))
 	var cols := _fx_cols(aid)
-	hud.show_caption(a.uid, String(ev.get("name", aid)), tid if area != "all_allies" else -1, is_ab, area)
+	hud.show_caption(a.uid, String(ev.get("name", aid)), tid if area != "all_allies" else -1, is_ab, area,
+		_extra_targets(tid, a.side) if area == "single" else 0)
 	match anim:
 		"melee", "melee_big", "dash", "slam", "slam_big":
 			if tgt != null:
@@ -1213,14 +1217,10 @@ func _on_damage(ev: Dictionary) -> void:
 		_split_tags += 1
 		if _split_tags > 1:
 			split = ""   # one "halved"/"shared" tag per action; the dashed links mark the rest
-	fx.next_uid = dst
-	_avoid_for(dst)
-	var np: Vector2 = _num_pos(T, dst, head != "")
-	if T.hp <= 0 and not T.is_crystal:
-		# a killing blow: the unit collapses under its number, so the number drops with it and
-		# never hangs at the height of the unit behind
-		np.y += roundf(T.top_h * 0.3)
-	fx.popup(amount, row, np, 1, false, head, head_col, split, Pal.CRYSTAL5 if split == "halved" else Pal.AMBER6, delay)
+	_layout_ctx()
+	fx.popup(amount, row, dst, 1, false, head, head_col, split, Pal.CRYSTAL5 if split == "halved" else Pal.AMBER6, delay,
+		T.hp <= 0 and not T.is_crystal)
+	_num_max_dist = maxf(_num_max_dist, fx.LabelLayout.dist(fx.last_box().get_center(), T.body_rect()) * 6.0)
 	var pid := String((ev.get("primary", {}) as Dictionary).get("id", "")) if ev.get("primary", null) is Dictionary else ""
 	if was_split or pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
 		var main := int(_cur_action.get("target", -1))
@@ -1283,7 +1283,7 @@ func _annotation(ev: Dictionary) -> Array:
 	if back_a:
 		return ["Rear 1/2", Pal.INK9]
 	if sdm > 1.0:
-		return ["fading x%.2f" % sdm, Pal.FADE4]
+		return ["fading ×%.2f" % sdm, Pal.FADE4]
 	return ["", Color.WHITE]
 
 
@@ -1308,7 +1308,7 @@ func _primary_note(p: Dictionary) -> Array:
 		"echo_step": return ["halved", Pal.CRYSTAL5]
 		"chorus_splash": return ["Chorus", Pal.VIOLET4]
 		"sudden_death":
-			return ["fading x%.2f" % mult, Pal.FADE4] if mult > 1.0 else ["", Color.WHITE]
+			return ["fading ×%.2f" % mult, Pal.FADE4] if mult > 1.0 else ["", Color.WHITE]
 	return ["", Color.WHITE]
 
 
@@ -1360,50 +1360,66 @@ func _formation_line(side: int, form: Dictionary) -> int:
 	return 0 if nb > 0 else -1
 
 
-## Before a popup on unit `uid`: the other living units' heads and HP plates it must keep clear of,
-## and its own body, which it may move onto (BattleFX._clear_of_units).
-func _avoid_for(uid: int) -> void:
-	fx.avoid.clear()
-	fx.home = Rect2()
+## How many other units this action hits besides its named target (Cleave's sides, splash), read
+## ahead in the event list up to the next action: the caption says "▸ Moth + 2".
+func _extra_targets(tid: int, side: int) -> int:
+	var seen := {}
+	var i := _ev_i
+	while i < events.size():
+		var e: Dictionary = events[i]
+		var ty := String(e.get("type", ""))
+		if ty == "action_start" or ty == "sudden_death" or ty == "fight_end":
+			break
+		if ty == "damage":
+			var d := int(e.get("dst", -1))
+			if d >= 0 and d != tid and d < units.size() and units[d].side != side:
+				seen[d] = true
+		i += 1
+	return seen.size()
+
+
+## The label solver's view of the field (BattleFX.units_geo / blocked / field, world px), rebuilt
+## before every popup: each living unit's body core and HP plate (plus `keep`, a unit going down
+## this moment), the HUD rects labels keep clear of, and the visible field under the banners.
+func _layout_ctx(keep := -1) -> void:
+	var geo: Array = []
 	for u in units:
-		if u == null:
+		if u == null or not (u.alive or u.uid == keep):
 			continue
-		var t: Vector2 = u.top()
-		var th: float = u.top_h
-		if u.is_crystal:
-			t = u.position + Vector2(0.0, -48.0)
-			th = 48.0
-		var body := Rect2(t.x - 11.0, t.y - 1.0, 22.0, th + 1.0)
-		if u.uid == uid:
-			fx.home = body
-			continue
-		if not u.alive:
-			continue
-		# the head and shoulders (where staffs, hats and blades reach) and the HP plate at the feet
-		fx.avoid.append(Rect2(t.x - 14.0, t.y - 2.0, 28.0, minf(th * 0.5, 18.0) + 2.0))
-		fx.avoid.append(Rect2(u.position.x - 15.0, u.position.y, 30.0, 11.0))
+		geo.append({"uid": u.uid, "body": u.body_rect(), "bar": u.plate_rect()})
+	fx.units_geo = geo
+	var to_world := _world_xf().affine_inverse()
+	var vis := hud.get_viewport_rect()
+	var a: Vector2 = to_world * vis.position
+	var b: Vector2 = to_world * vis.end
+	var top: float = (to_world * Vector2(0.0, hud.BANNER_H + 4.0)).y
+	fx.field = Rect2(a.x + 2.0, top, b.x - a.x - 4.0, b.y - top)
+	var bl: Array = []
+	for r: Rect2 in hud.blocked_rects():
+		var p0: Vector2 = to_world * r.position
+		var p1: Vector2 = to_world * r.end
+		bl.append(Rect2(p0, p1 - p0))
+	fx.blocked = bl
 
 
-## Number anchor: just above the target's head (BattleFX.number_anchor). Measured in world px, the
-## same units the units stand in; the banner band and the lore caption come in from the UI layer.
-func _num_pos(T, uid: int, head_word := false) -> Vector2:
-	var to_world := (world.get_global_transform() * view.get_canvas_transform()).affine_inverse()
-	var band: float = (to_world * Vector2(0.0, hud.BANNER_H + 2.0 + 3.0)).y
-	# never under the memory lore caption (a UI band over the top of the field)
-	var lb: float = hud.lore_bottom()
-	if lb > 0.0:
-		band = maxf(band, (to_world * Vector2(0.0, lb + 4.0)).y)
-	var top: Vector2 = T.top()
-	var top_h: float = T.top_h
-	if T.is_crystal:
-		top = T.position + Vector2(0.0, -48.0)
-		top_h = 48.0
-	var p: Vector2 = fx.number_anchor(top, top_h, T.facing, band, head_word)
-	# measured in SCREEN pixels through the live canvas transform (camera zoom + offset):
-	# bottom of the drawn number vs the target's on-screen head top
-	var xf := view.get_canvas_transform()
-	_num_max_dist = maxf(_num_max_dist, (xf * p).distance_to(xf * top))
-	return p
+## World -> UI transform from the camera's own settings (the same as the view's canvas transform
+## once the camera has updated; this one also holds before the first frame and headless).
+func _world_xf() -> Transform2D:
+	var c: Vector2 = cam.position + cam.offset
+	return world.get_global_transform() * Transform2D(0.0, cam.zoom, 0.0, Vector2(view.size) * 0.5 - c * cam.zoom)
+
+
+## World plates (formation behaviour cues) use the banner's capitalisation: "Keeper's Ring",
+## "Grief of the Harvest" (the data's behaviour names are in sentence case).
+static func _plate_case(s: String) -> String:
+	const SMALL := ["a", "an", "the", "of", "to", "in", "on", "and", "or", "for", "at", "by"]
+	var words := s.split(" ")
+	for i in words.size():
+		var w := words[i]
+		if w == "" or (i > 0 and SMALL.has(w.to_lower())):
+			continue
+		words[i] = w.substr(0, 1).to_upper() + w.substr(1)
+	return " ".join(words)
 
 
 func _stagger(uid: int) -> float:
@@ -1435,10 +1451,8 @@ func _on_heal(ev: Dictionary) -> void:
 		fx.pillar(T.position.x, T.position.y, 6.0, 0.4, Pal.LIFE4)
 	T.flash(Pal.LIFE4, 0.6)
 	var delay := _stagger(dst)
-	var pos: Vector2 = _num_pos(T, dst, drain)
-	fx.next_uid = dst
-	_avoid_for(dst)
-	fx.popup(int(ev.get("amount", 0)), fx.Row.HEAL, pos, 1, true, "DRAIN" if drain else "", Pal.VIOLET4, "", Color.WHITE, delay)
+	_layout_ctx()
+	fx.popup(int(ev.get("amount", 0)), fx.Row.HEAL, dst, 1, true, "DRAIN" if drain else "", Pal.VIOLET4, "", Color.WHITE, delay)
 
 
 func _on_charge(ev: Dictionary) -> void:
@@ -1476,8 +1490,8 @@ func _on_ko(ev: Dictionary) -> void:
 	fx.particles(u.chest(), 16, u.side_color, 50.0, 30.0, 0.9, 20.0, 2, 3.0)
 	fx.ring(u.chest(), 3, 18, 0.4, Pal.INK10, 1.0)
 	fx.light(u.chest(), Pal.INK10, 2, 0.5, 0.5)
-	_avoid_for(u.uid)
-	fx.word("KO!", u.chest() + Vector2(0, 6), Pal.BLOOD4, 0.3)
+	_layout_ctx(u.uid)
+	fx.ko(u.uid)
 
 
 func _on_sudden_death(ev: Dictionary) -> void:

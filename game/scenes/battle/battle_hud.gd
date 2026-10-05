@@ -43,6 +43,7 @@ var caption_text := ""
 var caption_t := 9.0
 var caption_ability := false
 var caption_area := "single"
+var caption_extra := 0          # further units the action hits besides its target ("▸ Moth + 2")
 var cutin_uid := -1
 var cutin_name := ""
 var cutin_t := 9.0
@@ -179,7 +180,8 @@ func screen_flash(c: Color, a: float) -> void:
 	flash_a = maxf(flash_a, a)
 
 
-func show_caption(uid: int, text: String, target: int, is_ability: bool, area := "single") -> void:
+func show_caption(uid: int, text: String, target: int, is_ability: bool, area := "single", extra := 0) -> void:
+	caption_extra = extra
 	caption_area = area
 	caption_uid = uid
 	caption_text = text
@@ -500,6 +502,7 @@ func _draw_timer() -> void:
 
 # --- caption bar ------------------------------------------------------------------------------
 func _draw_caption() -> void:
+	caption_drawn = Rect2()
 	if caption_uid < 0 or end_t >= 0.0 or cutin_t < cutin_hold:
 		return
 	var u = b.units[caption_uid]
@@ -524,6 +527,8 @@ func _draw_caption() -> void:
 		else:
 			tgt = b.units[caption_target].label
 			tc = b.side_colors[b.units[caption_target].side]
+			if caption_extra > 0:
+				tgt += " + %d" % caption_extra
 	var gap := UIText.width(" ", BOLD, sz)
 	var arrow_w := 14.0
 	var room := r.size.x - 16.0
@@ -535,6 +540,7 @@ func _draw_caption() -> void:
 	var who_col: Color = sc.lerp(Pal.INK10, 0.35)
 	var tgt_col: Color = tc.lerp(Pal.INK10, 0.35)
 	if total <= room:
+		caption_drawn = r
 		_panel_bg(r, sc, 1.0)
 		var y := UIText.centered_y(r.position.y, r.size.y, BOLD, sz)
 		var x := roundf(_c - total / 2.0)
@@ -550,6 +556,7 @@ func _draw_caption() -> void:
 	var w_max := (_r - _l) - 2.0 * (PANEL_W + 4.0)
 	var w := clampf(w_need, r.size.x, w_max)
 	var r2 := Rect2(roundf(_c - w / 2.0), r.end.y - (lh * 2.0 + 10.0), roundf(w), lh * 2.0 + 10.0)
+	caption_drawn = r2
 	_panel_bg(r2, sc, 1.0)
 	var y1 := UIText.centered_y(r2.position.y + 4.0, lh, BOLD, sz)
 	var x1 := roundf(_c - line1 / 2.0)
@@ -573,19 +580,86 @@ func _draw_panel(side: int) -> void:
 	var n := ids.size()
 	if n == 0:
 		return
-	var h := 6.0 + n * ROW_H
+	var rows := roster_rows(side)
+	var h := 6.0 + rows.size() * ROW_H
 	var x0 := _l + 4.0 if side == 0 else _r - 4.0 - PANEL_W
 	var y0 := 358.0 - h
 	var r := Rect2(x0, y0, PANEL_W, h)
+	panel_drawn[side] = r
 	_panel_bg(r, b.side_colors[side], 0.95)
 	# names one size up (critic r3: the roster read thinner than the old 640x360 frame at phone
 	# size) when every name on this side fits; else the whole side stays at the label size
 	var sz := UIText.NUMBER
-	for i in n:
-		if UIText.width(b.units[ids[i]].label, BOLD, sz) > _name_room(sz):
+	for row: Variant in rows:
+		if row is String:
+			continue
+		if UIText.width(b.units[int(row)].label, BOLD, sz) > _name_room(sz):
 			sz = UIText.LABEL
-	for i in n:
-		_draw_row(side, b.units[ids[i]], Vector2(x0, y0 + 3 + i * ROW_H), sz)
+	for i in rows.size():
+		var p := Vector2(x0, y0 + 3 + i * ROW_H)
+		if rows[i] is String:
+			_draw_summary_row(side, String(rows[i]), p)
+		else:
+			_draw_row(side, b.units[int(rows[i])], p, sz)
+
+
+func _pip(cx: float, cy: float, lit: bool) -> void:
+	for r: float in [4.0, 3.0]:
+		_tri.resize(4)
+		_tri[0] = Vector2(cx + 0.5, cy - r)
+		_tri[1] = Vector2(cx + 1.0 + r, cy + 0.5)
+		_tri[2] = Vector2(cx + 0.5, cy + 1.0 + r)
+		_tri[3] = Vector2(cx - r, cy + 0.5)
+		draw_colored_polygon(_tri, Pal.INK1 if r > 3.5 else (Pal.VIOLET4 if lit else Pal.INK4))
+	_tri.resize(3)
+
+
+## A roster never grows past MAX_ROWS (critic r5: the Fading's fifth memory grew the enemy panel
+## up over the Crystal's bar and pips). Past that, the fallen fold into one summary row ("3 memories
+## faded"), and if the living alone still overflow, the last row says how many more there are.
+## Returns unit uids (int) and summary rows (String), top to bottom.
+const MAX_ROWS := 4
+
+
+func roster_rows(side: int) -> Array:
+	var ids: Array = b.side_units[side]
+	if ids.size() <= MAX_ROWS:
+		return ids.duplicate()
+	var living: Array = []
+	var fallen := 0
+	var memories := true
+	for id: int in ids:
+		var u = b.units[id]
+		if u.alive:
+			living.append(id)
+		else:
+			fallen += 1
+			memories = memories and u.is_memory
+	var rows: Array = living.duplicate()
+	var more := 0
+	var room := MAX_ROWS - (1 if fallen > 0 else 0)
+	if rows.size() > room:
+		room = MAX_ROWS - 1
+		more = rows.size() - room
+		rows = rows.slice(0, room)
+	var parts: PackedStringArray = []
+	if more > 0:
+		parts.append("+%d more" % more)
+	if fallen > 0:
+		parts.append(("%d %s faded" % [fallen, "memory" if fallen == 1 else "memories"]) if memories else ("%d fallen" % fallen))
+	if not parts.is_empty():
+		rows.append("  ·  ".join(parts))
+	return rows
+
+
+func _draw_summary_row(side: int, text: String, p: Vector2) -> void:
+	var left := side == 0
+	var sz := UIText.LABEL
+	var y := UIText.centered_y(p.y, ROW_H - 2.0, BOLD, sz)
+	var w := UIText.width(text, BOLD, sz)
+	var x := p.x + 25.0 if left else p.x + PANEL_W - 25.0 - w
+	UIText.draw(self, Vector2(x, y), text, Pal.FADE4, BOLD, sz)
+	draw_rect(Rect2(p.x + 6, p.y, PANEL_W - 12, 1), Pal.INK4)
 
 
 ## Room for a roster name: the row minus the portrait and a 3-digit HP number.
@@ -658,6 +732,12 @@ func _draw_row(side: int, u, p: Vector2, sz := UIText.LABEL) -> void:
 		if u.is_ready:
 			ccol = Pal.VIOLET4 if fmod(t, 0.3) < 0.18 else Pal.INK10
 		draw_rect(Rect2(bar_x, cy, roundf(bw * cf), 1), ccol)
+	# the Crystal's 4 fragment pips, on its bar's line beside the bar (critic r5: in the world they
+	# ran into heroes' bars and hid under the grown roster)
+	if u.is_crystal:
+		for k in 4:
+			var px2 := (bar_x - 39.0 + k * 9.0) if not left else (bar_x + bw + 7.0 + k * 9.0)
+			_pip(px2, by, k < u.cracks)
 	# ready icon
 	if u.is_ready and u.alive:
 		var ix := bar_x + bw + 3.0 if left else bar_x - 10.0
@@ -799,6 +879,35 @@ func _draw_intro() -> void:
 
 # --- Crystal: memory lore caption and fragment banner -----------------------------------------------
 ## Bottom of the memory lore caption in UI design px while it shows (numbers keep below it), else -1.
+## The HUD rects world labels keep clear of (UI design px): the formation badges, the fragment
+## banner, the lore caption, the Fading line, the caption slot (as drawn, or its one-line rect), the
+## roster panels and the timer row. BattleFX's label solver treats them as walls.
+func blocked_rects() -> Array:
+	var out: Array = [badge_rect(0), badge_rect(1), Rect2(_c - _cap_w / 2.0, 292, _cap_w, 28),
+		Rect2(_c - 100, 332, 200, 28)]
+	if caption_drawn.has_area():
+		out.append(caption_drawn)
+	for side in 2:
+		if panel_drawn[side].has_area():
+			out.append(panel_drawn[side])
+	if frag_t <= FRAG_SHOW and frag_n > 0:
+		out.append(fragment_rect())
+	var lb := lore_bottom()
+	if lb > 0.0:
+		out.append(Rect2(_c - 240, 40, 480, lb - 40.0))
+	elif b != null and b.crystal_uid >= 0:
+		# a Crystal fight: a memory may surface over the top of the field at any break, so numbers
+		# never sit where its lore caption will draw (critic r5 frames: "60" under the lore box)
+		out.append(Rect2(_c - 240, 40, 480, 48))
+	if b != null and b.sd_at > 0.0 and b.sim_t >= b.sd_at - 0.5:
+		out.append(Rect2(_c - 160, 38, 320, 24))
+	return out
+
+
+var caption_drawn := Rect2()
+var panel_drawn: Array[Rect2] = [Rect2(), Rect2()]
+
+
 func lore_bottom() -> float:
 	if lore_t > 3.6 or lore_name == "":
 		return -1.0
@@ -899,21 +1008,14 @@ func _draw_end() -> void:
 	draw_rect(Rect2(0, cy + h * 0.5 - 1, _vw, 1), Color(col, a))
 	if h < 68.0:
 		return
-	# letters drop in one by one
+	# the word settles in as one piece (critic r5: letters dropping one by one left a frame reading
+	# "VICTᴼ", a raised letter that looked like a glyph bug)
 	var word := winner_text
 	var sz := UIText.DISPLAY
-	var total_w := UIText.width(word, SERIF, sz)
-	var x := roundf(_c - total_w * 0.5)
-	var top := cy - 25.0
-	for i in word.length():
-		var ch := word.substr(i, 1)
-		var cw := UIText.width(ch, SERIF, sz)
-		var lt := clampf((end_t - 0.15 - i * 0.06) / 0.18, 0.0, 1.0)
-		if lt > 0.0:
-			var dy := roundf((1.0 - (1.0 - pow(1.0 - lt, 2.0))) * -30.0)
-			var bounce := roundf(sin(clampf((end_t - 0.33 - i * 0.06) / 0.2, 0.0, 1.0) * PI) * -3.0)
-			UIText.outlined(self, Vector2(x, top + dy + bounce), ch, col, SERIF, sz, 0)
-		x += cw
+	var lt := clampf((end_t - 0.15) / 0.25, 0.0, 1.0)
+	if lt > 0.0:
+		var dy := roundf((1.0 - lt) * (1.0 - lt) * -8.0)
+		UIText.outlined(self, Vector2(_c, cy - 25.0 + dy), word, Color(col, lt), SERIF, sz, 1)
 	if end_t > 0.8:
 		var sub_a := clampf((end_t - 0.8) / 0.3, 0.0, 1.0)
 		UIText.outlined(self, Vector2(_c, cy + 14.0), b.end_subtitle, Color(Pal.INK10, sub_a), BOLD, UIText.LABEL, 1, Pal.INK1, false)

@@ -39,6 +39,11 @@ var _scene_errs := 0
 
 func _init() -> void:
 	OS.add_logger(counter)
+
+
+## The test methods run on the first frame, so tests that play a real scene (test_label_layout)
+## find the tree ready.
+func _run_tests() -> void:
 	var files: Array[String] = []
 	var dir := DirAccess.open("res://tests")
 	for f in dir.get_files():
@@ -95,7 +100,12 @@ static func _find_scenes(path: String) -> Array[String]:
 
 
 ## Scene smoke phase, one scene at a time across frames.
+var _tests_done := false
 func _process(_delta: float) -> bool:
+	if not _tests_done:
+		_tests_done = true
+		_run_tests()
+		return false
 	if _scene_node != null:
 		_scene_frames += 1
 		if _scene_frames < SCENE_FRAMES:

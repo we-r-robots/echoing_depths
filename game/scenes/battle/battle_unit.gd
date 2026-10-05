@@ -198,6 +198,7 @@ func setup(u: Dictionary, sprite_meta: Dictionary, shadow_tex: Texture2D, echo: 
 	spr.play(&"idle")
 	spr.frame = (uid * 2) % maxi(1, spr.sprite_frames.get_frame_count(&"idle"))
 	top_h = _idle_top(frames)
+	_core_span(frames)
 	_bob_t = uid * 0.37
 
 
@@ -488,6 +489,80 @@ func head() -> Vector2:
 ## gets them just over its ears, a tall sentinel over its crown.
 func top() -> Vector2:
 	return position + Vector2(0, -top_h)
+
+
+## The opaque core of the idle sprite (world px from the feet, facing right): columns at least 30%
+## as full as the fullest, so a blade or staff sticking out doesn't widen it. The label solver
+## keeps each number over its own core and off everyone else's (BattleFX / LabelLayout).
+var core_l := -11.0
+var core_r := 11.0
+
+
+func _core_span(frames: SpriteFrames) -> void:
+	if frames == null or not frames.has_animation(&"idle"):
+		return
+	var tex := frames.get_frame_texture(&"idle", 0)
+	var img: Image = tex.get_image() if tex != null else null
+	if img == null:
+		return
+	if img.is_compressed():
+		img.decompress()
+	var cnt := PackedInt32Array()
+	cnt.resize(img.get_width())
+	var mx := 0
+	for x in img.get_width():
+		var c := 0
+		for y in mini(img.get_height(), _oy + 1):
+			if img.get_pixel(x, y).a > 0.5:
+				c += 1
+		cnt[x] = c
+		mx = maxi(mx, c)
+	var l := 999
+	var r := -999
+	for x in img.get_width():
+		if mx > 0 and cnt[x] * 10 >= mx * 3:
+			l = mini(l, x - _ox)
+			r = maxi(r, x - _ox + 1)
+	if l < r:
+		core_l = float(l)
+		core_r = float(r)
+
+
+## Where the solver sees the unit: its home slot, unless it is out on a move (a lunge, a walk).
+## A hit's 3 px knock-back is a blink; the label belongs over where the unit stands.
+func _solver_pos() -> Vector2:
+	return position if (acting or _walk_t >= 0.0) else home
+
+
+## The label solver's body box (world px): the core span, from the head top to the feet.
+func body_rect() -> Rect2:
+	var p := _solver_pos()
+	var l := core_l if facing > 0 else -core_r
+	var r := core_r if facing > 0 else -core_l
+	return Rect2(roundf(p.x + l), roundf(p.y - top_h), r - l, top_h)
+
+
+## The Crystal's integrity bar: 52 world px, its left end CRYSTAL_BAR_DX from the Crystal's centre
+## (right of centre, clear of the front-row memory's plate beside it; critic r5). Its fragment pips
+## sit in the Crystal's roster row (battle_hud.gd), clear of every world bar.
+const CRYSTAL_BAR_W := 52.0
+const CRYSTAL_BAR_DX := -12.0
+
+
+## Where the HP plate draws: the unit's home slot (it stays put while the unit lunges, so a
+## lunging hero's bar never runs into the Crystal's pips or a neighbour's bar), following a walk.
+func plate_pos() -> Vector2:
+	return position if _walk_t >= 0.0 else home
+
+
+## The HP plate and charge diamond under the unit (BattlePlates), world px.
+func plate_rect() -> Rect2:
+	var p := plate_pos().round()
+	if is_crystal:
+		return Rect2(p.x + CRYSTAL_BAR_DX - 1.0, p.y + 3.0, CRYSTAL_BAR_W + 2.0, 7.0)
+	if side == 0:
+		return Rect2(p.x - 12.0, p.y + 2.0, 33.0, 8.0)
+	return Rect2(p.x - 20.0, p.y + 2.0, 33.0, 8.0)
 
 
 func _idle_top(frames: SpriteFrames) -> float:
