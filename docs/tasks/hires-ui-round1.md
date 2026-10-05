@@ -41,6 +41,8 @@ Both existed in this form before this task. The before captures at ccff74d show 
 - (a) declare them exempt (the intro card and Details are the deliberate "read it once" surfaces) and record that in docs/BUILD.md, or
 - (b) convert them to icon chips plus a tooltip, as the critic's fix 1 describes.
 
+**User decision (2026-10-05):** (b) for the battle intro cards (convert to chips with a tooltip) and (a) for setup Details (exempt, but shown inside the shared tooltip component). Recorded in docs/BUILD.md.
+
 ## Round-2 fix list (the critic's prioritised list; do these in order)
 1. **Intro cards and setup Details: the effects-as-icons rule.** Only if the user picks (b) above.
    - The card becomes the title, one row of shared stat-icon chips with green ▲ / red ▼, and a behaviour glyph with a label of 20 characters or fewer.

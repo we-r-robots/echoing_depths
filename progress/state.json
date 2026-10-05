@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 15:10",
+  "updated": "2026-10-05 15:14",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -689,6 +689,10 @@
     {
       "t": "19:05",
       "msg": "hires-ui critic r1: FAIL, ours 2/5 (won both SAP, lost all 3 SoS menus); open review FAIL. Biggest gap: thin dim secondary text fades at phone size; no space reclaimed. Fix list: docs/tasks/hires-ui-round1.md"
+    },
+    {
+      "t": "15:14",
+      "msg": "User decision: battle intro cards become icon chips with a tooltip; setup Details exempt but uses the tooltip component. hires-ui round 2 starting locally."
     }
   ],
   "questions": [
