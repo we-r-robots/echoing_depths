@@ -15,7 +15,22 @@ esac
 SCENE="$1"; OUT="$(realpath -m "$2")"; AT="$3"; SEED="${4:-1}"
 shift $(( $# < 4 ? $# : 4 ))
 mkdir -p "$OUT"
-timeout "${CAPTURE_TIMEOUT:-300}" "$ROOT/tools/godot_run.sh" --path "$ROOT/game" --fixed-fps 60 --disable-vsync --audio-driver Dummy \
-  --resolution "$RES" -- --scene="$SCENE" --shots="$OUT" --at="$AT" --seed="$SEED" --quit "$@" 2>&1 \
-  | grep -vE "^(Godot Engine|OpenGL API|$)" || true
+# A window manager may still resize the window (a tiling compositor, rarely even with the float
+# rule in godot_run.sh): check every shot is RES and run again (up to 3 tries) when one isn't.
+for try in 1 2 3; do
+  timeout "${CAPTURE_TIMEOUT:-300}" "$ROOT/tools/godot_run.sh" --path "$ROOT/game" --fixed-fps 60 --disable-vsync --audio-driver Dummy \
+    --resolution "$RES" -- --scene="$SCENE" --shots="$OUT" --at="$AT" --seed="$SEED" --quit "$@" 2>&1 \
+    | grep -vE "^(Godot Engine|OpenGL API|$)" || true
+  python3 - "$OUT" "$RES" "$AT" <<'EOF' && break
+import os, sys
+from PIL import Image
+out, res, at = sys.argv[1], sys.argv[2], sys.argv[3]
+want = tuple(int(v) for v in res.split("x"))
+bad = [f for f in ("f%05d.png" % int(a) for a in at.split(",")) if os.path.exists(os.path.join(out, f))
+       and Image.open(os.path.join(out, f)).size != want]
+if bad:
+    print("capture: window was not %s for %s, retrying" % (res, ", ".join(bad)), file=sys.stderr)
+    sys.exit(1)
+EOF
+done
 ls "$OUT"

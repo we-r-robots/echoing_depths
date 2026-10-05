@@ -147,7 +147,7 @@ const NO_FORMATION := {"icon": preload("res://ui/effect_icons/cost_capped.png"),
 	"title": "No bonus, no cost", "name": "No formation",
 	"text": "These heroes are partly joined but don't make a shape, so no formation applies: no bonus and no cost. Join everyone into one shape, or spread everyone apart as Strays."}
 var _locked_effects: Array = []
-const ROW := 24
+const ROW := 26
 var _sections: Array = []       # [y, label, color] section headers drawn on the card
 var _growth_y := 0
 
@@ -194,7 +194,7 @@ func _rebuild_chips() -> void:
 			var chip := EffectChip.new()
 			add_child(chip)
 			chip.position = Vector2(10, y)
-			chip.setup(e, "zone", W - 40)
+			chip.setup(e, "left", W - 40)   # the tooltip opens beside its row, pointing at it
 			chip.locked = bool(e.get("_locked", false))
 			_chips.append(chip)
 			y += ROW
@@ -256,9 +256,9 @@ func _draw_growth_block(shape: Dictionary, strays: bool) -> void:
 		return
 	if strays or String(_ev["state"]) != "active":
 		return
-	var y := bottom - 2 - 21 - 12
-	if y < top:
-		return
+	# docked under the rows (a divider, then the block), not at the card's foot
+	draw_rect(Rect2(10, top - 1, W - 20, 1), Pal.INK3)
+	var y := top + 7
 	var list: Array = []
 	var title := ""
 	if int(_ev["effective"].get("size", 0)) >= 4 or placed < 2:

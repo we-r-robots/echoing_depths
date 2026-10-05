@@ -132,8 +132,6 @@ func _layout() -> void:
 	var fx := UIText.frame_rect(self).position.x
 	board.position = Vector2(fx + 8, 34)
 	panel.position = Vector2(fx + 424, 34)
-	# card tooltips open on the board's free floor strip under the last row, never over heroes
-	Tip.set_zone(Rect2(board.position + Vector2(48, 268), Vector2(356, 46)))   # ends clear of the board frame
 	queue_redraw()
 
 
@@ -228,7 +226,7 @@ func _draw_top_bar() -> void:
 	var sub := "Depth %d" % int(info.get("depth", 1))
 	if place != "":
 		sub = place + "  ·  " + sub
-	PartyDraw.text(self, Vector2(tx, 15), sub, Pal.INK7)
+	PartyDraw.text(self, Vector2(tx, 15), sub, Pal.INK8, PartyDraw.BOLD)
 	# health, far right
 	var mh := int(info.get("max_health", 0))
 	var r0 := sr.end.x - 8.0
@@ -238,7 +236,7 @@ func _draw_top_bar() -> void:
 		for i in mh:
 			var on := i < int(info.get("health", 0))
 			PartyDraw.tint_tex(self, HEART, Vector2(hx + i * 9, 5), Pal.BLOOD3 if on else Pal.INK4, on)
-		PartyDraw.text(self, Vector2(hx - 20, 15), "Health %d/%d" % [int(info.get("health", 0)), mh], Pal.INK7, PartyDraw.SANS, UIText.BODY, true, r0 - hx + 20, HORIZONTAL_ALIGNMENT_RIGHT)
+		PartyDraw.text(self, Vector2(hx - 20, 15), "Health %d/%d" % [int(info.get("health", 0)), mh], Pal.INK8, PartyDraw.BOLD, UIText.BODY, true, r0 - hx + 20, HORIZONTAL_ALIGNMENT_RIGHT)
 		right = hx - 30
 		draw_rect(Rect2(right + 8, 5, 1, 19), Pal.INK4)
 	# the next fight: who, never their formation
@@ -251,7 +249,7 @@ func _draw_top_bar() -> void:
 		PartyDraw.text(self, Vector2(x, 4), title, Pal.INK10, PartyDraw.BOLD)
 		if KIND_ICONS.has(fight):
 			PartyDraw.tint_tex(self, KIND_ICONS[fight], Vector2(x - 12, 5), Pal.BLOOD4 if fight != "pvp" else Pal.VIOLET4)
-		PartyDraw.text(self, Vector2(right - 220, 15), "Their formation stays hidden until the fight", Pal.INK7, PartyDraw.SANS, UIText.BODY, true, 220, HORIZONTAL_ALIGNMENT_RIGHT)
+		PartyDraw.text(self, Vector2(right - 220, 15), "Their formation stays hidden until the fight", Pal.INK8, PartyDraw.BOLD, UIText.BODY, true, 220, HORIZONTAL_ALIGNMENT_RIGHT)
 
 
 # ------------------------------------------------------------------ demo

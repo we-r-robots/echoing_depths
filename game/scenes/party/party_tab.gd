@@ -78,7 +78,7 @@ func _draw() -> void:
 	var name_col := Pal.INK10 if is_selected else Pal.INK9
 	PartyDraw.text(self, Vector2(33, 3), String(hero.get("name", "?")), name_col, PartyDraw.BOLD)
 	var lv := "Lv %d" % int(hero.get("level", 1))
-	PartyDraw.text(self, Vector2(33, 15), lv, Pal.INK8 if is_selected else Pal.INK7)
+	PartyDraw.text(self, Vector2(33, 15), lv, Pal.INK9 if is_selected else Pal.INK8, PartyDraw.BOLD)
 	var x := 33 + PartyDraw.text_w(lv) + 4
 	if PartyModel.tier(hero) == "base":
 		var n := PartyModel.memory_count(hero)

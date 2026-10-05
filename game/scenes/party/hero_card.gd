@@ -47,7 +47,7 @@ func _ready() -> void:
 	_clip.add_child(_sprite)
 	_advance = Button.new()
 	_advance.text = "Advance"
-	_advance.position = Vector2(94, 84)
+	_advance.position = Vector2(94, 88)
 	_advance.custom_minimum_size = Vector2(60, 18)
 	_advance.size = Vector2(60, 18)
 	_advance.focus_mode = Control.FOCUS_NONE
@@ -168,17 +168,16 @@ func _draw_identity() -> void:
 		PartyDraw.pill(self, Vector2(tx, 25), tl, Pal.AMBER6, Pal.AMBER1, Pal.AMBER4)
 	# level
 	var lv := int(hero.get("level", 1))
-	PartyDraw.text(self, Vector2(x, 40), "Lv", Pal.INK7, PartyDraw.BOLD)
+	PartyDraw.text(self, Vector2(x, 40), "Lv", Pal.INK8, PartyDraw.BOLD)
 	PartyDraw.text(self, Vector2(x + 15, 40), str(lv), Pal.INK10, PartyDraw.BOLD)
-	PartyDraw.text(self, Vector2(x + 18 + PartyDraw.text_w(str(lv), PartyDraw.BOLD), 40), "/ %d" % PartyModel.max_level(hero), Pal.INK6)
-	_draw_taken(x, 70)
+	PartyDraw.text(self, Vector2(x + 18 + PartyDraw.text_w(str(lv), PartyDraw.BOLD), 40), "/ %d" % PartyModel.max_level(hero), Pal.INK8, PartyDraw.BOLD)
+	_draw_taken(x, 74)
 	# memories toward the advancement threshold (or levels toward Legendary)
 	var th := PartyModel.threshold()
 	var n := PartyModel.memory_count(hero)
 	if tier == "base":
-		PartyDraw.text(self, Vector2(x + 52, 40), "MEMORIES", Pal.INK7)
 		var gx := x
-		var gy := 54
+		var gy := 56
 		for i in th:
 			var well := Rect2(gx + i * 12, gy, 11, 12)
 			PartyDraw.inset(self, well)
@@ -194,36 +193,33 @@ func _draw_identity() -> void:
 				PartyDraw.inset(self, well)
 				draw_texture(GEM, well.position + Vector2(2, 2))
 			ex += 3 + (n - th) * 12
-		var cnt := "%d/%d" % [mini(n, th), th]
+		var cnt := "%d/%d memories" % [mini(n, th), th]
 		PartyDraw.text(self, Vector2(ex + 3, gy + 1), cnt, Pal.CRYSTAL4 if n >= th else Pal.INK8, PartyDraw.BOLD)
 		if PartyModel.ready_to_advance(hero):
 			if hero.get("held_back", false):
-				PartyDraw.pill(self, Vector2(_advance.position.x + _advance.size.x + 4, 88), "HELD", Pal.CRYSTAL5, Pal.CRYSTAL1, Pal.CRYSTAL3)
+				PartyDraw.pill(self, Vector2(_advance.position.x + _advance.size.x + 4, 92), "HELD", Pal.CRYSTAL5, Pal.CRYSTAL1, Pal.CRYSTAL3)
 			else:
 				var on := fmod(_t, 0.9) < 0.55
-				PartyDraw.text(self, Vector2(_advance.position.x + _advance.size.x + 4, 87), "Ready", Pal.AMBER6 if on else Pal.AMBER5, PartyDraw.BOLD)
-		else:
-			var left := th - n
-			PartyDraw.text(self, Vector2(x, 86), "%d more to advance" % left, Pal.INK7)
+				PartyDraw.text(self, Vector2(_advance.position.x + _advance.size.x + 4, 91), "Ready", Pal.AMBER6 if on else Pal.AMBER5, PartyDraw.BOLD)
 	else:
-		PartyDraw.text(self, Vector2(x + 52, 40), "LEGENDARY", Pal.INK7)
-		var gy := 54
+		PartyDraw.text(self, Vector2(x + 52, 40), "LEGENDARY", Pal.INK8, PartyDraw.BOLD)
+		var gy := 56
 		var mx := PartyModel.max_level(hero)
 		for i in mx:
 			var well := Rect2(x + i * 12, gy, 11, 12)
 			PartyDraw.inset(self, well)
 			if i < lv:
 				PartyDraw.tint_tex(self, preload("res://ui/icons/star.png"), well.position + Vector2(2, 3), Pal.AMBER6, false)
-		PartyDraw.text(self, Vector2(x, 86), "Legendary gate: sealed", Pal.INK7)
+		PartyDraw.text(self, Vector2(x, 90), "Legendary gate: sealed", Pal.INK8, PartyDraw.BOLD)
 
 
 ## The memories taken so far as direction arrows, in the order absorbed.
 func _draw_taken(x: int, y: int) -> void:
 	var mem: Array = hero.get("memories_before", []) + hero.get("memories", [])
-	PartyDraw.text(self, Vector2(x, y), "Taken", Pal.INK7)
+	PartyDraw.text(self, Vector2(x, y), "Taken", Pal.INK8, PartyDraw.BOLD)
 	var ax := x + 30
 	if mem.is_empty():
-		PartyDraw.text(self, Vector2(ax, y), "none yet", Pal.INK6)
+		PartyDraw.text(self, Vector2(ax, y), "none yet", Pal.INK8, PartyDraw.BOLD)
 		return
 	for s: Array in mem:
 		var v := Vector2i(int(s[0]), int(s[1]))
@@ -270,9 +266,9 @@ func _draw_equipment(y: int) -> void:
 		draw_texture(SLOT_ICONS[slot], well.position + Vector2(2, 2), ic)
 		if id == "":
 			var empty_txt := "No Relic" if slot == "relic" else "Empty"
-			PartyDraw.text(self, Vector2(28, ry + 3), empty_txt, Pal.INK6)
+			PartyDraw.text(self, Vector2(28, ry + 3), empty_txt, Pal.INK8, PartyDraw.BOLD)
 			if slot == "relic":
-				PartyDraw.text(self, Vector2(28, ry + 14), "A Relic binds when equipped", Pal.INK6)
+				PartyDraw.text(self, Vector2(28, ry + 14), "A Relic binds when equipped", Pal.INK8, PartyDraw.BOLD)
 		else:
 			var name_col := Pal.AMBER6 if slot == "relic" else Pal.INK10
 			PartyDraw.text(self, Vector2(28, ry + 3), String(it.get("name", id)), name_col, PartyDraw.BOLD)
@@ -315,10 +311,10 @@ func _draw_ability(y: int) -> void:
 	draw_texture(ABILITY, well.position + Vector2(4, 4), cc)
 	PartyDraw.text(self, Vector2(28, y + 12), String(a.get("name", "—")), Pal.INK10, PartyDraw.BOLD)
 	var tag := "replaced on advancing" if PartyModel.tier(hero) == "base" else "advanced ability"
-	PartyDraw.text(self, Vector2(28, y + 12), tag, Pal.INK6, PartyDraw.SANS, PartyDraw.SANS_SIZE, true, W - 16 - 20, HORIZONTAL_ALIGNMENT_RIGHT)
+	PartyDraw.text(self, Vector2(28, y + 12), tag, Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, W - 16 - 20, HORIZONTAL_ALIGNMENT_RIGHT)
 	var desc := PartyModel.ability_desc(a)
 	var lines := UIText.wrap_lines(desc, W - 36, UIText.SANS, UIText.BODY)
 	var ly := y + 24.0
 	for i in mini(3, lines.size()):
-		UIText.draw(self, Vector2(28, ly), lines[i], Pal.INK8, UIText.SANS, UIText.BODY)
+		UIText.draw(self, Vector2(28, ly), lines[i], Pal.INK9, UIText.SANS, UIText.BODY)
 		ly += UIText.line_h(UIText.SANS, UIText.BODY)

@@ -188,7 +188,7 @@ func _draw() -> void:
 	var tx := l + 16 + PartyDraw.text_w("Choose two heroes", PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
 	PartyDraw.text(self, Vector2(tx, 5), "to begin the descent", Pal.INK9, PartyDraw.BOLD)
 	var sub := "More can join on the road: four at most."
-	PartyDraw.text(self, Vector2(tx, 15), sub, Pal.INK7)
+	PartyDraw.text(self, Vector2(tx, 15), sub, Pal.INK8, PartyDraw.BOLD)
 	# pick slots, right
 	var px := r0 - 8
 	for k in range(need - 1, -1, -1):
@@ -201,7 +201,7 @@ func _draw() -> void:
 			PartyDraw.soft_outline(self, r, Pal.AMBER5)
 		else:
 			PartyDraw.dashed_outline(self, r, Pal.INK5)
-			PartyDraw.text(self, r.position + Vector2(0, 5), str(k + 1), Pal.INK6, PartyDraw.BOLD, UIText.BODY, false, 22, HORIZONTAL_ALIGNMENT_CENTER)
+			PartyDraw.text(self, r.position + Vector2(0, 5), str(k + 1), Pal.INK8, PartyDraw.BOLD, UIText.BODY, false, 22, HORIZONTAL_ALIGNMENT_CENTER)
 	PartyDraw.text(self, Vector2(px - 80, 9), "Party %d/%d" % [picks.size(), need], Pal.INK9 if picks.size() < need else Pal.AMBER6,
 		PartyDraw.BOLD, UIText.BODY, true, 78, HORIZONTAL_ALIGNMENT_RIGHT)
 	# what the alignment line on the cards means, said once, as a labelled panel; once the party

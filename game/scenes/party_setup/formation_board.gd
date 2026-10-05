@@ -17,7 +17,7 @@ signal preview_changed          # the drag target changed (preview_cells() diffe
 signal held_changed
 
 const BENCH_OPEN := 40
-const BENCH_SHUT := 12
+const BENCH_SHUT := 0          # shut: no strip at all (critic r1: the empty rail read as a seam)
 const RIGHT := 408
 const ROW_DY := 44
 const SKEW := 40                # x step per row (the battle's lean, at 2x)
@@ -75,7 +75,7 @@ func _ready() -> void:
 	_overlay = Control.new()
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_overlay.size = size
-	_overlay.z_index = 8
+	_overlay.z_index = 12        # name plates and role tags draw above every sprite, the dragged one too
 	_overlay.draw.connect(_draw_overlay)
 	add_child(_overlay)
 	_top = Control.new()
@@ -149,7 +149,8 @@ func bench_rect() -> Rect2:
 
 func field_rect() -> Rect2:
 	var bw := roundf(_bench_w)
-	return Rect2(bw + 4, 0, RIGHT - bw - 4, 318)
+	var gap := 4.0 if bw >= 8 else 0.0
+	return Rect2(bw + gap, 0, RIGHT - bw - gap, 318)
 
 
 func _bench_wanted() -> bool:
@@ -485,11 +486,10 @@ func _draw() -> void:
 func _draw_bench() -> void:
 	var br := bench_rect()
 	var dragging_to_bench: bool = _dragging >= 0 and _target is String and _target == "bench"
+	if br.size.x < 8:
+		return   # shut: the field takes the width; the bench slides open when a hero needs it
 	PartyDraw.panel(self, br, 0, &"DimPanel")
 	if br.size.x < BENCH_OPEN - 2:
-		# collapsed: a thin strip; it opens when a hero needs the bench
-		for k in 4:
-			draw_rect(Rect2(br.size.x / 2.0 - 1, 40 + k * 70, 2, 30), Pal.INK3)
 		return
 	if dragging_to_bench or (_dragging >= 0 and placement[_dragging] is Array) or (held >= 0 and placement[held] is Array):
 		PartyDraw.soft_outline(self, br.grow(-2), Pal.AMBER5 if dragging_to_bench else Pal.AMBER3)
@@ -726,20 +726,23 @@ func _draw_overlay() -> void:
 		var f := (_pos[i] as Vector2).round()
 		var nm := String(heroes[i].get("name", "?"))
 		var w := PartyDraw.text_w(nm, PartyDraw.BOLD) + 6
+		var tags: Array = []
+		if not roles.is_empty():
+			for k in cells.size():
+				if int(cells[k][0]) == int(c[0]) and int(cells[k][1]) == int(c[1]):
+					for r: String in roles[k]:
+						if FormationWords.ROLE_TAGS.has(r):
+							tags.append(String(FormationWords.ROLE_TAGS[r]))
+							break
 		var plate := Rect2(roundi(f.x - 8 - w / 2.0), f.y + 3, w, 12)
 		_overlay.draw_rect(plate, Pal.INK1)
 		_overlay.draw_rect(Rect2(plate.position.x, plate.end.y - 1, plate.size.x, 1), Pal.c(_infos[i]["color"]))
-		PartyDraw.text(_overlay, plate.position + Vector2(3, 0), nm, Pal.INK10 if i != held else Pal.AMBER6, PartyDraw.BOLD, UIText.BODY, false)
-		if roles.is_empty():
-			continue
-		for k in cells.size():
-			if int(cells[k][0]) == int(c[0]) and int(cells[k][1]) == int(c[1]):
-				for r: String in roles[k]:
-					if FormationWords.ROLE_TAGS.has(r):
-						var tag := String(FormationWords.ROLE_TAGS[r])
-						var tw := PartyDraw.text_w(tag, PartyDraw.BOLD) + 6
-						PartyDraw.pill(_overlay, Vector2(roundi(f.x - tw / 2.0), f.y - 96), tag, Pal.CRYSTAL5, Pal.CRYSTAL1, Pal.CRYSTAL3)
-						break
+		PartyDraw.text(_overlay, Vector2(plate.position.x + 3, UIText.centered_y(plate.position.y, plate.size.y - 1, PartyDraw.BOLD)), nm, Pal.INK10 if i != held else Pal.AMBER6, PartyDraw.BOLD, UIText.BODY, false)
+		# the shape role (KEEPER, BRACE ...) on the floor under the name: the next row's heroes stand
+		# to the right and left of that spot, so it clears every sprite
+		if not tags.is_empty():
+			var tw := PartyDraw.text_w(tags[0], PartyDraw.BOLD) + 6
+			PartyDraw.pill(_overlay, Vector2(roundi(plate.get_center().x - tw / 2.0), plate.end.y + 2), tags[0], Pal.CRYSTAL5, Pal.CRYSTAL1, Pal.CRYSTAL3)
 
 
 ## Topmost: the floating result tag over the dragged hero, and the demo hand.
@@ -757,20 +760,22 @@ func _draw_top() -> void:
 				nm = "%s: no formation" % shape["name"]
 		var good: bool = String(res["state"]) == "active" and _target is Array
 		var lock: bool = res["locked"]
-		var p: Vector2 = (_pos[_dragging] as Vector2).round()
+		# the result reads in the board's bottom strip (where the toast goes), never over a hero
+		var lead := "If placed:" if _target is Array else ""
+		var lw := (PartyDraw.text_w(lead, PartyDraw.BOLD) + 6) if lead != "" else 0
 		var w := PartyDraw.text_w(nm, PartyDraw.BOLD) + 8 + (8 if lock else 0)
-		var plate := Rect2(clampf(p.x - roundi(w / 2.0), 1, size.x - w - 1), p.y - 106, w, 13)
-		var ec := Pal.CRYSTAL4 if good else Pal.FADE2
+		var field := field_rect()
+		var plate := Rect2(roundf(field.get_center().x - (w + lw) / 2.0) + lw, field.end.y - 21, w, 15)
+		if lead != "":
+			PartyDraw.text(_top, Vector2(plate.position.x - lw, UIText.centered_y(plate.position.y, plate.size.y, PartyDraw.BOLD)), lead, Pal.INK9, PartyDraw.BOLD)
+		var ec := Pal.CRYSTAL4 if good else Pal.FADE3
 		_top.draw_rect(plate, Pal.CRYSTAL1 if good else Pal.INK1)
 		PartyDraw.soft_outline(_top, plate, ec)
-		var cx := plate.position.x + roundi(w / 2.0)
-		_top.draw_rect(Rect2(cx - 1, plate.end.y, 3, 1), ec)
-		_top.draw_rect(Rect2(cx, plate.end.y + 1, 1, 1), ec)
 		var tx := plate.position.x + 4
 		if lock:
-			_top.draw_texture(LOCK, Vector2(tx, plate.position.y + 3), Pal.FADE4)
+			_top.draw_texture(LOCK, Vector2(tx, plate.position.y + 4), Pal.FADE4)
 			tx += 8
-		PartyDraw.text(_top, Vector2(tx, plate.position.y + 1), nm, Pal.CRYSTAL5 if good else Pal.FADE4, PartyDraw.BOLD, UIText.BODY, false)
+		PartyDraw.text(_top, Vector2(tx, UIText.centered_y(plate.position.y, plate.size.y, PartyDraw.BOLD)), nm, Pal.CRYSTAL5 if good else Pal.FADE4, PartyDraw.BOLD, UIText.BODY, false)
 	if demo_hand > 0:
 		var tex := HAND_POINT if demo_hand == 1 else HAND_GRAB
 		_top.draw_texture(tex, (demo_pointer - Vector2(3, 0)).round())

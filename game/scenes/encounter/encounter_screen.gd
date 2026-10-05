@@ -111,7 +111,7 @@ func _build() -> void:
 	var tl := Label.new()
 	tl.theme_type_variation = &"TagLabel"
 	tl.text = String(kind.get("label", encounter["kind"])).to_upper()
-	tl.add_theme_color_override("font_color", kcol)
+	tl.add_theme_color_override("font_color", UIText.legible(kcol))
 	var line_r := _hline(18, Pal.INK4)
 	for n in [line_l, icon, tl, line_r]:
 		_tag.add_child(n)
@@ -424,7 +424,7 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 	var nm := _text(_card, hero["name"], Vector2(4, 68), cc, &"HeaderLabel")
 	nm.size = Vector2(66, 11)
 	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var cl := _text(_card, info.get("name", ""), Vector2(4, 79), Pal.INK7)
+	var cl := _text(_card, info.get("name", ""), Vector2(4, 79), Pal.INK8, &"HeaderLabel")
 	cl.size = Vector2(66, 11)
 	cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
@@ -435,8 +435,8 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 	gem.position = Vector2(mx, 9)
 	_add(_card, gem)
 	_text(_card, "Memory", Vector2(mx + 17, 8), Pal.CRYSTAL4, &"TagLabel")
-	_text(_card, "absorbed", Vector2(mx + 17, 18), Pal.INK7)
-	_text(_card, "LEVEL", Vector2(mx, 37), Pal.INK7)
+	_text(_card, "absorbed", Vector2(mx + 17, 18), Pal.INK8, &"HeaderLabel")
+	_text(_card, "LEVEL", Vector2(mx, 37), Pal.INK8, &"HeaderLabel")
 	var lv_old := _text(_card, str(int(before["level"])), Vector2(mx + 30, 34), Pal.INK10, &"TitleLabel")
 	var lv_arrow := TextureRect.new()
 	lv_arrow.texture = load("res://ui/icons/chevron.png")
@@ -491,7 +491,7 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 			row.add_child(sp)
 		var l := Label.new()
 		l.text = "%s +%d" % [w["word"], w["amount"]]
-		l.add_theme_color_override("font_color", Pal.c(w["color"]))
+		l.add_theme_color_override("font_color", UIText.legible(Pal.c(w["color"])))
 		row.add_child(l)
 		row.modulate.a = 0.0
 		_add(_card, row)
@@ -555,10 +555,10 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 	tw.tween_callback(_spawn_flyers.bind(_art.source_point(), portrait_center, chip))
 	tw.tween_interval(0.7)
 	tw.tween_callback(func() -> void:
-		lv_old.add_theme_color_override("font_color", Pal.INK6)
+		lv_old.add_theme_color_override("font_color", UIText.legible(Pal.INK6))
 		lv_arrow.visible = true
 		lv_new.visible = true
-		lv_new.add_theme_color_override("font_color", Pal.INK10)
+		lv_new.add_theme_color_override("font_color", UIText.legible(Pal.INK10))
 		pips.set_meta("filled", mini(int(hero["level"]), thr))
 		pips.set_meta("glow", 1.0)
 		pips.queue_redraw()
@@ -570,7 +570,7 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 	tw.tween_interval(0.14)
 	tw.tween_callback(func() -> void:
 		frame2.color = cc
-		lv_new.add_theme_color_override("font_color", Pal.CRYSTAL5)
+		lv_new.add_theme_color_override("font_color", UIText.legible(Pal.CRYSTAL5))
 		pips.set_meta("glow", 0.0)
 		pips.queue_redraw())
 	tw.tween_property(adv, "modulate:a", 1.0, 0.15)
@@ -641,7 +641,7 @@ func _text(parent: Control, t: String, pos: Vector2, col: Color, variation: Stri
 		l.theme_type_variation = variation
 	l.text = t
 	l.position = pos
-	l.add_theme_color_override("font_color", col)
+	l.add_theme_color_override("font_color", UIText.legible(col))
 	_add(parent, l)
 	return l
 
@@ -675,7 +675,7 @@ func _icon_box(path: String, col: Color) -> Control:
 func _axis_label(parent: Control, t: String, col: String, pos: Vector2, w: int, align: HorizontalAlignment) -> void:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_color_override("font_color", Pal.c(col))
+	l.add_theme_color_override("font_color", UIText.legible(Pal.c(col)))
 	l.position = pos
 	l.size = Vector2(w, 11)
 	l.horizontal_alignment = align

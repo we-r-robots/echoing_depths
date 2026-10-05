@@ -59,7 +59,7 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	var who := Label.new()
 	who.theme_type_variation = &"GoldLabel"
 	who.text = "[%s]" % h["name"]
-	who.add_theme_color_override("font_color", cc)
+	who.add_theme_color_override("font_color", UIText.legible(cc))
 	l1.add_child(who)
 	var what := Label.new()
 	what.theme_type_variation = &"GoldLabel"
@@ -133,7 +133,7 @@ func _label(t: String, col: Color, bold := false) -> Label:
 	if bold:
 		l.theme_type_variation = &"GoldLabel"
 	l.text = t
-	l.add_theme_color_override("font_color", col)
+	l.add_theme_color_override("font_color", UIText.legible(col))
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
 
@@ -142,7 +142,7 @@ func _label(t: String, col: Color, bold := false) -> Label:
 func _pill(t: String, col: Color, border: Color) -> Control:
 	var l := _label(t, col)
 	l.theme_type_variation = &"GoldLabel"
-	l.add_theme_color_override("font_color", col)
+	l.add_theme_color_override("font_color", UIText.legible(col))
 	var wrap := MarginContainer.new()
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.add_theme_constant_override("margin_left", 3)

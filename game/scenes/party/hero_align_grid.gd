@@ -218,16 +218,15 @@ func _draw_markers() -> void:
 	# underlying ghost and the Relic's pull to the effective cell
 	if underlying != effective:
 		PartyDraw.dashed_outline(self, cell_rect(underlying).grow(-3), Pal.AMBER5, int(_t * 6.0))
-		var a := center(underlying)
-		var b := center(effective)
-		var mid := a.lerp(b, 0.5).round()
+		# the Relic's mark sits inside the ghost cell (never on a border or over the hero's plate)
+		var mid := center(underlying).round()
 		var mr := Rect2(mid - Vector2(7, 7), Vector2(15, 15))
 		draw_rect(mr, Pal.INK1)
 		PartyDraw.soft_outline(self, mr, Pal.AMBER5)
 		draw_texture(RELIC, mid - Vector2(4, 4), Pal.AMBER6)
 	# hero token: portrait in a framed well, upper part of the cell (name plaque goes below)
 	var er := cell_rect(effective)
-	var tok := Rect2(er.position + Vector2((C - 26) / 2, 4), Vector2(26, 26))
+	var tok := Rect2(er.position + Vector2((C - 26) / 2, 3), Vector2(26, 26))
 	draw_rect(tok.grow(1), Pal.INK1)
 	draw_rect(tok, Pal.INK2)
 	if portrait:
@@ -265,26 +264,29 @@ func _draw_corner_info() -> void:
 		PartyDraw.text(self, tr.position + Vector2(3, 1), t, Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
 
 
+## Name plate centred on cx, kept inside the grid's frame with 2 px to spare (it may overhang
+## its cell when the name is wider, never the frame); text and the NEW tag centred vertically.
 func _plaque(cx: float, y: float, s: String, fg: Color, edge: Color, tag := "") -> void:
 	var w := PartyDraw.text_w(s, PartyDraw.BOLD) + 8
 	var tw := 0
 	if tag != "":
 		tw = PartyDraw.text_w(tag, PartyDraw.BOLD) + 8
-	var r := Rect2(roundf(cx - (w + tw) / 2.0), y, w + tw, 13)
+	var x := clampf(roundf(cx - (w + tw) / 2.0), FRAME + 2, total() - FRAME - 2 - (w + tw))
+	var r := Rect2(x, y, w + tw, 13)
 	draw_rect(r, Pal.INK1)
 	PartyDraw.soft_outline(self, r, edge)
-	PartyDraw.text(self, r.position + Vector2(4, 1), s, fg, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
+	PartyDraw.text(self, Vector2(r.position.x + 4, UIText.centered_y(r.position.y, r.size.y, PartyDraw.BOLD)), s, fg, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
 	if tag != "":
-		var tr := Rect2(r.position.x + w - 1, r.position.y + 2, tw - 2, 9)
+		var tr := Rect2(r.position.x + w - 1, r.position.y + 2, tw - 3, 9)
 		draw_rect(tr, Pal.CRYSTAL4)
-		PartyDraw.text(self, tr.position + Vector2(3, -1), tag, Pal.INK1, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
+		PartyDraw.text(self, Vector2(tr.position.x + 3, UIText.centered_y(tr.position.y, tr.size.y, PartyDraw.BOLD)), tag, Pal.INK1, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
 
 
 func _draw_plaques() -> void:
 	var here := PartyModel.region_of(effective)
 	var er := cell_rect(effective)
 	var nm := String(names.get(here, "???"))
-	_plaque(er.position.x + C / 2.0, er.position.y + 32, nm, Pal.INK10 if nm != "???" else Pal.INK8, HI,
+	_plaque(er.position.x + C / 2.0, er.position.y + 31, nm, Pal.INK10 if nm != "???" else Pal.INK8, HI,
 		"NEW" if here in new_regions else "")
 	if focus_region != "" and focus_region != here:
 		var fc := center(PartyModel.region_cell(focus_region))

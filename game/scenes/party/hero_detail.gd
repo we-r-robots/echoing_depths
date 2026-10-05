@@ -19,6 +19,7 @@ signal codex_recorded(class_id: String)
 signal closed
 
 const SCENE := "res://scenes/party/hero_detail.tscn"
+const GAP := 16               # between the hero card and the grid panel
 const BACKDROP := preload("res://assets/encounter/colossus/bg.png")
 
 var party: Array = []
@@ -106,11 +107,11 @@ func _layout() -> void:
 	var r := UIFrame.right(self)
 	for i in _tabs.size():
 		_tabs[i].position = Vector2(l + 8 + i * (PartyTab.W + 4), 4)
-	var x0 := roundf((get_viewport_rect().size.x - (HeroCard.W + 6 + AlignPanel.W)) / 2.0)
+	var x0 := roundf((get_viewport_rect().size.x - (HeroCard.W + GAP + AlignPanel.W)) / 2.0)
 	_card.position = Vector2(x0, 38)
 	if not _adv.visible:
 		_adv.position = Vector2(x0, 38)
-	_align.position = Vector2(x0 + HeroCard.W + 6, 38)
+	_align.position = Vector2(x0 + HeroCard.W + GAP, 38)
 	_close.position = Vector2(r - 58, 337)
 	queue_redraw()
 
@@ -164,7 +165,7 @@ func open_advancement() -> void:
 	_align.grid.focus_region = target
 	var reach := AdvanceCard.hold_reach(h)
 	_align.grid.reach_cell = reach["cell"] if not reach.is_empty() else null
-	_message_override = "Advance sets the class from where %s stands now. Holding back keeps the path open." % h["name"]
+	_message_override = "Advance takes the class where %s stands now." % h["name"]
 	queue_redraw()
 
 
@@ -191,8 +192,7 @@ func _on_advance() -> void:
 	_align.grid.new_regions = [PartyModel.region_of(PartyModel.effective(nh))] if is_new else []
 	var tw := create_tween()
 	tw.tween_method(func(v: float) -> void: _align.grid.reveal = v, 1.0, 0.0, 0.6)
-	_message_override = "%s advanced to %s.%s" % [nh["name"], PartyModel.class_name_of(id),
-		" A new path is recorded in the codex." if is_new else ""]
+	_message_override = ("%s is now a %s, a new path in the codex." if is_new else "%s is now a %s.") % [nh["name"], PartyModel.class_name_of(id)]
 	advanced.emit(index, nh)
 
 
@@ -201,7 +201,7 @@ func _on_hold() -> void:
 	h["held_back"] = true
 	_close_advancement()
 	select(index)
-	_message_override = "%s holds back: still a %s, still travelling the grid." % [h["name"], PartyModel.class_name_of(String(h["class"]))]
+	_message_override = "%s holds back and keeps travelling." % h["name"]
 	held_back.emit(index)
 
 
@@ -221,29 +221,25 @@ func _on_cell(p: Array) -> void:
 	var words := PartyModel.region_words(region)
 	if region.ends_with("*"):
 		words = "Corner of " + words
-	var lean := PartyModel.lean_of(p)
-	_message_override = "%s: %s%s. %d step%s from the %s start." % [words, nm,
-		(" (%s)" % lean) if lean != "" and region != "N" else "", d, "" if d == 1 else "s", PartyModel.class_name_of(base)]
+	_message_override = "%s: %s, %d step%s from the start." % [words, nm, d, "" if d == 1 else "s"]
 	queue_redraw()
 
 
 func _describe(h: Dictionary) -> String:
 	var name := String(h["name"])
 	if PartyModel.tier(h) != "base":
-		return "%s walks the path of the %s. Legendary needs a sacrifice." % [name, PartyModel.class_name_of(String(h["class"]))]
+		return "%s is a %s; Legendary needs a sacrifice." % [name, PartyModel.class_name_of(String(h["class"]))]
 	if PartyModel.ready_to_advance(h):
 		if h.get("held_back", false):
-			return "%s is held back, still travelling. They can advance at any rest." % name
-		return "%s has gathered %d memories. Advance now, or hold back to travel farther." % [name, PartyModel.memory_count(h)]
+			return "%s is held back and can advance at any rest." % name
+		return "%s is ready to advance." % name
 	var off := PartyModel.relic_offset(h)
 	var left := PartyModel.threshold() - PartyModel.memory_count(h)
 	if off != [0, 0]:
 		var relic := PartyModel.item(String(h["items"].get("relic", "")))
-		var id := PartyModel.advance_target(h)
-		var ground := PartyModel.class_name_of(id) if id != "" and id in codex else "unknown"
-		return "%s's %s is bound and holds them %s off their memories' path, on %s ground." % [name, relic.get("name", "Relic"),
-			"a step" if absi(int(off[0])) + absi(int(off[1])) == 1 else "two steps", ground]
-	return "%s needs %d more memor%s to set their path." % [name, left, "y" if left == 1 else "ies"]
+		return "The %s moves %s %s on the grid." % [relic.get("name", "Relic"), name,
+			"one step" if absi(int(off[0])) + absi(int(off[1])) == 1 else "two steps"]
+	return "%s needs %d more memor%s to advance." % [name, left, "y" if left == 1 else "ies"]
 
 
 func _process(delta: float) -> void:
@@ -305,7 +301,7 @@ func _draw() -> void:
 	# run box (top right)
 	var rb := Rect2(r - 166, 4, 158, 30)
 	PartyDraw.panel(self, rb, 0, &"DimPanel")
-	PartyDraw.text(self, Vector2(rb.position.x + 8, 7), String(run_info.get("place", "")), Pal.INK8)
+	PartyDraw.text(self, Vector2(rb.position.x + 8, 7), String(run_info.get("place", "")), Pal.INK8, PartyDraw.BOLD)
 	PartyDraw.text(self, Vector2(rb.position.x + 8, 18), "Depth %d" % int(run_info.get("depth", 1)), Pal.AMBER6, PartyDraw.BOLD)
 	var ready := 0
 	for h: Dictionary in party:
@@ -313,14 +309,11 @@ func _draw() -> void:
 			ready += 1
 	if ready > 0:
 		var t := "%d ready" % ready
-		PartyDraw.text(self, Vector2(rb.position.x, 18), t, Pal.AMBER5, PartyDraw.SANS, PartyDraw.SANS_SIZE, true, rb.size.x - 8, HORIZONTAL_ALIGNMENT_RIGHT)
+		PartyDraw.text(self, Vector2(rb.position.x, 18), t, Pal.AMBER5, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, rb.size.x - 8, HORIZONTAL_ALIGNMENT_RIGHT)
 	# description bar (bottom)
-	var bb := Rect2(l + 8, 336, r - l - 70, 20)
-	draw_rect(bb.grow(-1), Pal.INK2)
-	PartyDraw.soft_outline(self, bb, Pal.INK5)
-	draw_rect(Rect2(bb.position.x + 2, bb.position.y + 1, bb.size.x - 4, 1), Pal.INK3)
 	var msg := _message_override if _message_override != "" else _message
-	PartyDraw.text(self, Vector2(bb.position.x + 8, bb.position.y + 5), msg, Pal.INK9)
+	var cx := _card.position.x
+	PartyDraw.text(self, Vector2(cx + 2, UIText.centered_y(337, 18, PartyDraw.BOLD)), msg, Pal.INK9, PartyDraw.BOLD)
 
 
 ## Sample party mid-run: Ilse wears a bound Relic (effective != underlying), Brannoc sits at the

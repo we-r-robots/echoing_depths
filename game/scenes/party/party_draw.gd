@@ -66,7 +66,7 @@ static func text_w(s: String, font: Font = SANS, size := SANS_SIZE) -> int:
 
 
 ## Small-caps style section header: muted caps, a rule running to `w`, a tiny diamond end.
-static func header(ci: CanvasItem, pos: Vector2, w: int, s: String, color := Pal.INK7) -> void:
+static func header(ci: CanvasItem, pos: Vector2, w: int, s: String, color := Pal.INK8) -> void:
 	text(ci, pos, s.to_upper(), color, BOLD, SANS_SIZE, false)
 	var tw := text_w(s.to_upper(), BOLD) + 4
 	var y := pos.y + 4
@@ -157,5 +157,5 @@ static func pill(ci: CanvasItem, pos: Vector2, s: String, fg: Color, bg: Color, 
 	var r := Rect2(pos, Vector2(w, 11))
 	ci.draw_rect(r.grow_individual(0, 0, 0, 0), bg)
 	soft_outline(ci, r, edge)
-	text(ci, pos + Vector2(3, 1), s, fg, BOLD, SANS_SIZE, false)
+	text(ci, Vector2(pos.x + 3, UIText.centered_y(pos.y, r.size.y, BOLD)), s, fg, BOLD, SANS_SIZE, false)
 	return w

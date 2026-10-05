@@ -5,7 +5,7 @@ extends Control
 
 signal cell_tapped(pos: Array)
 
-const W := 300
+const W := 286
 const H := 294
 
 var grid: HeroAlignGrid
@@ -35,8 +35,6 @@ func _draw() -> void:
 	var f := PartyDraw.BOLD
 	var up: Texture2D = preload("res://ui/icons/arrow_up.png")
 	var dn: Texture2D = preload("res://ui/icons/arrow_down.png")
-	var lf: Texture2D = preload("res://ui/icons/arrow_left.png")
-	var rt: Texture2D = preload("res://ui/icons/arrow_right.png")
 	# Mercy (top) / Cruelty (bottom): centred, arrow + word
 	for pair in [[1, gy - 14, up], [-1, gy + gs + 3, dn]]:
 		var word := PartyModel.axis_word("good", pair[0]).to_upper()
@@ -45,15 +43,17 @@ func _draw() -> void:
 		var x := gx + (gs - w) / 2
 		PartyDraw.tint_tex(self, pair[2], Vector2(x, pair[1] + 1), col)
 		PartyDraw.text(self, Vector2(x + 10, pair[1]), word, col, f)
-	# Order (left) / Freedom (right): stacked letters beside the grid, arrow on top
-	for pair in [[1, gx - 13, lf], [-1, gx + gs + 4, rt]]:
+	# Order (left) / Freedom (right): set on their side, rotated a quarter turn (reading up on the
+	# left, down on the right), arrow first, centred on the grid
+	for pair in [[1, -PI / 2.0], [-1, PI / 2.0]]:
 		var word := PartyModel.axis_word("law", pair[0]).to_upper()
 		var col := PartyModel.axis_color("law", pair[0])
-		var n := word.length()
-		var hgt := 10 + n * 10
-		var y := gy + (gs - hgt) / 2
-		PartyDraw.tint_tex(self, pair[2], Vector2(pair[1] + 1, y), col)
-		for i in n:
-			var ch := word.substr(i, 1)
-			var cw := PartyDraw.text_w(ch, f)
-			PartyDraw.text(self, Vector2(pair[1] + roundi((9 - cw) / 2.0), y + 10 + i * 10), ch, col, f)
+		var w := PartyDraw.text_w(word, f) + 10
+		var rot: float = pair[1]
+		var cy := gy + gs / 2.0
+		var org := Vector2(gx - 13, roundf(cy + w / 2.0)) if rot < 0.0 else Vector2(gx + gs + 13, roundf(cy - w / 2.0))
+		draw_set_transform(org, rot)
+		# an up arrow turns to point left on the left side and right on the right side
+		PartyDraw.tint_tex(self, up, Vector2(0, 1), col, false)
+		PartyDraw.text(self, Vector2(10, 0), word, col, f, PartyDraw.SANS_SIZE, false)
+		draw_set_transform(Vector2.ZERO)

@@ -102,9 +102,34 @@ static func width(s: String, f: Font = SANS, size := BODY) -> float:
 
 ## Text with its top-left at `pos` (the ascent line), with a one-font-pixel drop shadow.
 ## width/align as draw_string (align within `w` when w > 0).
+## Contrast floor for text (critic round 1: the muted tier at 2.5-3.9:1 faded out at phone size).
+## The palette's mid-dark tones are below 4.5:1 on the panel inks, so as a text colour each one
+## is lifted to its nearest readable sibling (alpha kept): INK6/INK7 -> INK8 (6.4:1 on INK2,
+## 5.7:1 on INK3), FADE2 -> FADE3, AMBER3 -> AMBER4, CRYSTAL3 -> CRYSTAL4, LIFE3 -> LIFE4,
+## BLOOD3 -> BLOOD4, VIOLET2 -> VIOLET3, SKIN2 -> SKIN3. Darker tones (INK1-5 ...) are left
+## alone: they are only used as dark text on light fills (pills, tags).
+const READABLE := {
+	"INK6": "INK8", "INK7": "INK8", "FADE2": "FADE3", "AMBER3": "AMBER4", "CRYSTAL3": "CRYSTAL4",
+	"LIFE3": "LIFE4", "BLOOD3": "BLOOD4", "VIOLET2": "VIOLET3", "SKIN2": "SKIN3",
+}
+static var _readable: Dictionary = {}
+
+
+static func legible(c: Color) -> Color:
+	if _readable.is_empty():
+		for k: String in READABLE:
+			_readable[Pal.c(k.to_lower()).to_html(false)] = Pal.c(String(READABLE[k]).to_lower())
+	var key := c.to_html(false)
+	if _readable.has(key):
+		var r: Color = _readable[key]
+		return Color(r, c.a)
+	return c
+
+
 static func draw(ci: CanvasItem, pos: Vector2, s: String, color: Color, f: Font = SANS, size := BODY,
 		shadow := true, w := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
 	_check(f, size)
+	color = legible(color)
 	var base := Vector2(pos.x, pos.y + ascent(f, size))
 	if shadow:
 		var d := fpx(size)
@@ -123,6 +148,7 @@ static func draw_base(ci: CanvasItem, base: Vector2, s: String, color: Color, f:
 static func outlined(ci: CanvasItem, pos: Vector2, s: String, color: Color, f: Font = BOLD, size := BODY,
 		anchor := 0, outline := Pal.INK1, drop := true) -> float:
 	_check(f, size)
+	color = legible(color)
 	var w := width(s, f, size)
 	var x := pos.x - (w * 0.5 if anchor == 1 else (w if anchor == 2 else 0.0))
 	var base := Vector2(x, pos.y + ascent(f, size))
