@@ -71,13 +71,10 @@ func _ready() -> void:
 func _build() -> void:
 	var n := offered.size()
 	var cw := 150   # same card for 3 or 4 offered heroes
-	var total := n * cw + (n - 1) * 8
-	var x0 := roundi((640 - total) / 2.0)
 	for i in n:
 		var o: Dictionary = offered[i]
 		var c := DraftCard.new()
 		add_child(c)
-		c.position = Vector2(x0 + i * (cw + 8), 0)
 		c.set_base_y(38)
 		c.setup({"name": o["name"], "class": o["class"], "alignment": o["alignment"]}, cw, 290, i * 4)
 		c.tapped.connect(toggle.bind(i))
@@ -86,11 +83,25 @@ func _build() -> void:
 	_go = Button.new()
 	_go.text = "Set out"
 	_go.focus_mode = Control.FOCUS_NONE
-	_go.position = Vector2(556, 336)
 	_go.size = Vector2(76, 20)
 	_go.pressed.connect(commit)
 	add_child(_go)
+	get_viewport().size_changed.connect(_layout)
+	_layout()
 	_refresh()
+
+
+## Cards centred in the view (3 or 4 offered); the footer runs edge to edge with Set out at the
+## right edge.
+func _layout() -> void:
+	var cw := 150
+	var n := _cards.size()
+	var total := n * cw + (n - 1) * 8
+	var x0 := roundi((get_viewport_rect().size.x - total) / 2.0)
+	for i in n:
+		_cards[i].position.x = x0 + i * (cw + 8)
+	_go.position = Vector2(UIFrame.right(self) - 84, 336)
+	queue_redraw()
 
 
 ## Tap a card: pick it (if a pick is left) or unpick it.
@@ -166,23 +177,20 @@ func _run_demo() -> void:
 
 
 func _draw() -> void:
-	draw_texture(BACKDROP, Vector2.ZERO)
-	draw_texture(GLOW, Vector2.ZERO)
 	var dim := Pal.INK1
 	dim.a = 0.72
-	draw_rect(Rect2(0, 0, 640, 360), dim)
+	UIFrame.backdrop(self, BACKDROP, dim, [GLOW])
+	var l := UIFrame.left(self)
+	var r0 := UIFrame.right(self)
 	# top bar
-	draw_rect(Rect2(0, 0, 640, 28), Pal.INK2)
-	draw_rect(Rect2(0, 0, 640, 1), Pal.INK3)
-	draw_rect(Rect2(0, 28, 640, 1), Pal.INK4)
-	draw_rect(Rect2(0, 29, 640, 1), Pal.INK1)
-	PartyDraw.text(self, Vector2(10, 5), "Choose two heroes", Pal.AMBER6, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
-	var tx := 16 + PartyDraw.text_w("Choose two heroes", PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
+	UIFrame.top_bar(self)
+	PartyDraw.text(self, Vector2(l + 10, UIText.centered_y(0, 28, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)), "Choose two heroes", Pal.AMBER6, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
+	var tx := l + 16 + PartyDraw.text_w("Choose two heroes", PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
 	PartyDraw.text(self, Vector2(tx, 5), "to begin the descent", Pal.INK9, PartyDraw.BOLD)
 	var sub := "More can join on the road: four at most."
 	PartyDraw.text(self, Vector2(tx, 15), sub, Pal.INK7)
 	# pick slots, right
-	var px := 632
+	var px := r0 - 8
 	for k in range(need - 1, -1, -1):
 		var r := Rect2(px - 22, 3, 22, 22)
 		px -= 25
@@ -196,9 +204,14 @@ func _draw() -> void:
 			PartyDraw.text(self, r.position + Vector2(0, 5), str(k + 1), Pal.INK6, PartyDraw.BOLD, UIText.BODY, false, 22, HORIZONTAL_ALIGNMENT_CENTER)
 	PartyDraw.text(self, Vector2(px - 80, 9), "Party %d/%d" % [picks.size(), need], Pal.INK9 if picks.size() < need else Pal.AMBER6,
 		PartyDraw.BOLD, UIText.BODY, true, 78, HORIZONTAL_ALIGNMENT_RIGHT)
-	# what "Starts:" on the cards means, said once, as a labelled panel
-	var bb := Rect2(8, 334, 540, 22)
+	# what the alignment line on the cards means, said once, as a labelled panel; once the party
+	# sets out, the same strip says so
+	var bb := Rect2(l + 8, 334, r0 - l - 100, 22)
 	PartyDraw.panel(self, bb, 0, &"DimPanel")
+	var ty := UIText.centered_y(bb.position.y, bb.size.y)
+	if _done:
+		PartyDraw.text(self, Vector2(bb.position.x + 8, ty), _msg, Pal.AMBER6, PartyDraw.BOLD)
+		return
 	var pw := PartyDraw.pill(self, Vector2(bb.position.x + 6, bb.position.y + 6), "ALIGNMENT", Pal.AMBER6, Pal.AMBER1, Pal.AMBER4)
-	PartyDraw.text(self, Vector2(bb.position.x + 12 + pw, bb.position.y + 6),
+	PartyDraw.text(self, Vector2(bb.position.x + 12 + pw, ty),
 		"Each class starts at a fixed place. Your choices shift it and set the advanced class.", Pal.INK9)

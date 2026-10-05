@@ -59,6 +59,11 @@ static func close() -> void:
 		_node.shut()
 
 
+## Is any tooltip open right now (e.g. to keep a toast out from under it)?
+static func any_open() -> bool:
+	return _node != null and is_instance_valid(_node) and _node.visible_now()
+
+
 static func is_open_for(c: Control) -> bool:
 	return _node != null and is_instance_valid(_node) and _node.owner_control == c and _node.visible_now()
 

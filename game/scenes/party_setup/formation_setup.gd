@@ -19,7 +19,7 @@ signal confirmed(result: Dictionary)
 signal closed
 
 const SCENE := "res://scenes/party_setup/formation_setup.tscn"
-const BACKDROP := preload("res://assets/battle/bg_vault.png")
+const BACKDROP := preload("res://assets/battle/bg_vault_wide.png")   # 640x360 frame + 120 px wings
 const HEART := preload("res://ui/icons/heart.png")
 const KIND_ICONS := {
 	"pvp": preload("res://ui/icons/kind_pvp.png"), "monster": preload("res://ui/icons/kind_monster.png"),
@@ -81,10 +81,8 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	board = FormationBoard.new()
-	board.position = Vector2(8, 34)
 	add_child(board)
 	panel = FormationPanel.new()
-	panel.position = Vector2(424, 34)
 	add_child(panel)
 	_confirm = Button.new()
 	_confirm.text = "Confirm"
@@ -115,9 +113,20 @@ func _ready() -> void:
 		_back.pressed.connect(_on_back)
 		panel.add_child(_back)
 	board.setup(_pending["heroes"], _pending["slots"], _pending["unlocked"])
-	# card tooltips open on the board's free floor strip under the last row, never over heroes
-	Tip.set_zone(Rect2(board.position + Vector2(48, 271), Vector2(356, 47)))
+	get_viewport().size_changed.connect(_layout)
+	_layout()
 	_refresh()
+
+
+## The board and the card keep their 640x360 frame, centred in the view (the 16:9 safe area of a
+## wide phone); the backdrop and the top bar span the whole width, anchored to its safe edges.
+func _layout() -> void:
+	var fx := UIText.frame_rect(self).position.x
+	board.position = Vector2(fx + 8, 34)
+	panel.position = Vector2(fx + 424, 34)
+	# card tooltips open on the board's free floor strip under the last row, never over heroes
+	Tip.set_zone(Rect2(board.position + Vector2(48, 268), Vector2(356, 46)))   # ends clear of the board frame
+	queue_redraw()
 
 
 func _on_changed() -> void:
@@ -186,20 +195,25 @@ func _process(delta: float) -> void:
 # ------------------------------------------------------------------ drawing
 
 func _draw() -> void:
-	draw_texture(BACKDROP, Vector2(-16, -16))
+	var view := get_viewport_rect()
+	var fr := UIText.frame_rect(self)
+	draw_texture(BACKDROP, fr.position + Vector2(-16 - 120, -16))
 	var dim := Pal.INK1
 	dim.a = 0.78
-	draw_rect(Rect2(0, 0, 640, 360), dim)
+	draw_rect(view, dim)
 	_draw_top_bar()
 
 
 func _draw_top_bar() -> void:
-	draw_rect(Rect2(0, 0, 640, 28), Pal.INK2)
-	draw_rect(Rect2(0, 28, 640, 1), Pal.INK4)
-	draw_rect(Rect2(0, 29, 640, 1), Pal.INK1)
-	draw_rect(Rect2(0, 0, 640, 1), Pal.INK3)
-	PartyDraw.text(self, Vector2(10, 5), "Formation", Pal.AMBER6, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
-	var tx := 14 + PartyDraw.text_w("Formation", PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
+	var vw := get_viewport_rect().size.x
+	var sr := UIText.safe_rect(self)
+	var l := sr.position.x
+	draw_rect(Rect2(0, 0, vw, 28), Pal.INK2)
+	draw_rect(Rect2(0, 28, vw, 1), Pal.INK4)
+	draw_rect(Rect2(0, 29, vw, 1), Pal.INK1)
+	draw_rect(Rect2(0, 0, vw, 1), Pal.INK3)
+	PartyDraw.text(self, Vector2(l + 10, UIText.centered_y(0, 28, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)), "Formation", Pal.AMBER6, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
+	var tx := l + 14 + PartyDraw.text_w("Formation", PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
 	var where := "Arrange the party" if mode == "review" or String(info.get("fight", "")) == "" else "Before the fight"
 	PartyDraw.text(self, Vector2(tx, 5), where, Pal.INK9, PartyDraw.BOLD)
 	var place := String(info.get("place", ""))
@@ -209,13 +223,14 @@ func _draw_top_bar() -> void:
 	PartyDraw.text(self, Vector2(tx, 15), sub, Pal.INK7)
 	# health, far right
 	var mh := int(info.get("max_health", 0))
-	var right := 632
+	var r0 := sr.end.x - 8.0
+	var right := r0
 	if mh > 0:
-		var hx := 632 - mh * 9 + 2
+		var hx := r0 - mh * 9 + 2
 		for i in mh:
 			var on := i < int(info.get("health", 0))
 			PartyDraw.tint_tex(self, HEART, Vector2(hx + i * 9, 5), Pal.BLOOD3 if on else Pal.INK4, on)
-		PartyDraw.text(self, Vector2(hx - 20, 15), "Health %d/%d" % [int(info.get("health", 0)), mh], Pal.INK7, PartyDraw.SANS, UIText.BODY, true, 632 - hx + 20, HORIZONTAL_ALIGNMENT_RIGHT)
+		PartyDraw.text(self, Vector2(hx - 20, 15), "Health %d/%d" % [int(info.get("health", 0)), mh], Pal.INK7, PartyDraw.SANS, UIText.BODY, true, r0 - hx + 20, HORIZONTAL_ALIGNMENT_RIGHT)
 		right = hx - 30
 		draw_rect(Rect2(right + 8, 5, 1, 19), Pal.INK4)
 	# the next fight: who, never their formation

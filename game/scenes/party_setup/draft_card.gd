@@ -128,7 +128,7 @@ func _gui_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	_flash = maxf(0.0, _flash - delta * 2.0)
-	var goal := -4.0 if pick > 0 else 0.0
+	var goal := 0.0   # picked cards stay aligned with the rest; the outline and ribbon mark the pick
 	_lift = lerpf(_lift, goal, 1.0 - exp(-delta * 14.0))
 	position.y = roundf(_base_y + _lift)
 	_sprite.speed_scale = 0.4 if dimmed else 1.0

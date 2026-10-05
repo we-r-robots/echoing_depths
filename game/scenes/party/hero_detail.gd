@@ -92,10 +92,27 @@ func _build() -> void:
 	_close = Button.new()
 	_close.text = "Close"
 	_close.focus_mode = Control.FOCUS_NONE
-	_close.position = Vector2(582, 337)
 	_close.size = Vector2(46, 18)
 	_close.pressed.connect(close)
 	add_child(_close)
+	get_viewport().size_changed.connect(_layout)
+	_layout()
+
+
+## The hero card and the alignment panel sit together, centred in the view; the party tabs, the run
+## box, the description bar and Close follow the view's safe edges (wide phones).
+func _layout() -> void:
+	var l := UIFrame.left(self)
+	var r := UIFrame.right(self)
+	for i in _tabs.size():
+		_tabs[i].position = Vector2(l + 8 + i * (PartyTab.W + 4), 4)
+	var x0 := roundf((get_viewport_rect().size.x - (HeroCard.W + 6 + AlignPanel.W)) / 2.0)
+	_card.position = Vector2(x0, 38)
+	if not _adv.visible:
+		_adv.position = Vector2(x0, 38)
+	_align.position = Vector2(x0 + HeroCard.W + 6, 38)
+	_close.position = Vector2(r - 58, 337)
+	queue_redraw()
 
 
 ## Shows hero i (party row tap).
@@ -141,7 +158,7 @@ func open_advancement() -> void:
 	_adv.visible = true
 	_adv.position.x = -230
 	var tw := create_tween()
-	tw.tween_method(func(v: float) -> void: _adv.position.x = roundf(v), -230.0, 8.0, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_method(func(v: float) -> void: _adv.position.x = roundf(v), _card.position.x - 238.0, _card.position.x, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_card.visible = false
 	var target := PartyModel.region_of(PartyModel.effective(h))
 	_align.grid.focus_region = target
@@ -280,12 +297,13 @@ func _demo_button() -> Button:
 
 func _draw() -> void:
 	# the run behind the menu, dimmed
-	draw_texture(BACKDROP, Vector2.ZERO)
 	var dim := Pal.INK1
 	dim.a = 0.82
-	draw_rect(Rect2(0, 0, 640, 360), dim)
+	UIFrame.backdrop(self, BACKDROP, dim)
+	var l := UIFrame.left(self)
+	var r := UIFrame.right(self)
 	# run box (top right)
-	var rb := Rect2(474, 4, 158, 30)
+	var rb := Rect2(r - 166, 4, 158, 30)
 	PartyDraw.panel(self, rb, 0, &"DimPanel")
 	PartyDraw.text(self, Vector2(rb.position.x + 8, 7), String(run_info.get("place", "")), Pal.INK8)
 	PartyDraw.text(self, Vector2(rb.position.x + 8, 18), "Depth %d" % int(run_info.get("depth", 1)), Pal.AMBER6, PartyDraw.BOLD)
@@ -297,7 +315,7 @@ func _draw() -> void:
 		var t := "%d ready" % ready
 		PartyDraw.text(self, Vector2(rb.position.x, 18), t, Pal.AMBER5, PartyDraw.SANS, PartyDraw.SANS_SIZE, true, rb.size.x - 8, HORIZONTAL_ALIGNMENT_RIGHT)
 	# description bar (bottom)
-	var bb := Rect2(8, 336, 570, 20)
+	var bb := Rect2(l + 8, 336, r - l - 70, 20)
 	draw_rect(bb.grow(-1), Pal.INK2)
 	PartyDraw.soft_outline(self, bb, Pal.INK5)
 	draw_rect(Rect2(bb.position.x + 2, bb.position.y + 1, bb.size.x - 4, 1), Pal.INK3)

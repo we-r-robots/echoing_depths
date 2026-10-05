@@ -626,7 +626,7 @@ func _draw_field() -> void:
 			dc.a = 1.0 - a
 			draw_rect(Rect2(p + Vector2(sx * spread, -1 - roundi(a * 4)), Vector2(2, 2)), dc)
 	# a short line for a moment after a change
-	if toast_t > 0.0 and toast != "" and hl < 0:
+	if toast_t > 0.0 and toast != "" and hl < 0 and not Tip.any_open():
 		var col := Pal.AMBER6 if toast.ends_with("formed") else Pal.INK9
 		PartyDraw.text(self, Vector2(field.position.x, field.end.y - 18), toast, col, PartyDraw.BOLD, UIText.BODY, true, field.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 

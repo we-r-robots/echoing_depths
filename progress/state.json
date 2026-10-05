@@ -659,6 +659,10 @@
     {
       "t": "17:44",
       "msg": "hires-ui M2: battle migrated (numbers, banners, cards, cut-in, Fading line, Crystal), wide-aspect stage; tests + smoke green"
+    },
+    {
+      "t": "17:56",
+      "msg": "hires-ui M3: menu screens on the UI layer and wide-aspect layouts; tests + smoke green"
     }
   ],
   "questions": [

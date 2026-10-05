@@ -147,7 +147,7 @@ func _draw_advance(r: Rect2) -> void:
 	var x := r.position.x + 5
 	var y := r.position.y
 	PartyDraw.text(self, Vector2(x, y + 2), "ADVANCE", Pal.AMBER6 if lit else Pal.AMBER5, PartyDraw.BOLD)
-	var lv := "Lv %d  >  Lv 1" % int(hero.get("level", 1))
+	var lv := "Lv %d  →  Lv 1" % int(hero.get("level", 1))
 	PartyDraw.text(self, Vector2(r.position.x, y + 2), lv, Pal.INK8, PartyDraw.SANS, PartyDraw.SANS_SIZE, true, r.size.x - 6, HORIZONTAL_ALIGNMENT_RIGHT)
 	var adv := PartyModel.advanced_copy(hero)
 	var id := String(adv["class"])
@@ -180,7 +180,7 @@ func _draw_advance(r: Rect2) -> void:
 		PartyDraw.tint_tex(self, HeroCard.ICONS[k], Vector2(cx[0], ry + 3), HeroCard.STAT_COLORS[k], false)
 		PartyDraw.text(self, Vector2(cx[0] + 10, ry + 1), PartyModel.STAT_LABELS[k], Pal.INK8)
 		PartyDraw.text(self, Vector2(cx[1], ry + 1), str(a[k]), Pal.INK7, PartyDraw.SANS, PartyDraw.SANS_SIZE, true, 26, HORIZONTAL_ALIGNMENT_RIGHT)
-		PartyDraw.text(self, Vector2(cx[2] + 2, ry + 1), ">", Pal.INK6)
+		PartyDraw.text(self, Vector2(cx[2], ry + 1), "→", Pal.INK6)
 		PartyDraw.text(self, Vector2(cx[3], ry + 1), str(b[k]), Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, 26, HORIZONTAL_ALIGNMENT_RIGHT)
 		var d := int(b[k]) - int(a[k])
 		var dc := Pal.LIFE4 if d > 0 else (Pal.BLOOD4 if d < 0 else Pal.INK6)

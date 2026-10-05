@@ -38,6 +38,9 @@ var _layer: Control
 var _legend: Control
 var _body_top := 92
 var _clock := 0.0
+## The text column's x: COL_X in the 640x360 frame; on wide screens it anchors to the right edge
+## (the painting stays at the left edge and every encounter painting ends in plain ink on the right).
+var col_x := COL_X
 
 
 func _ready() -> void:
@@ -82,6 +85,7 @@ func show_encounter(id: String) -> void:
 # ------------------------------------------------------------------------------------------ build
 
 func _build() -> void:
+	col_x = COL_X + roundi(UIFrame.right(self) - 640.0)
 	var back := ColorRect.new()
 	back.color = Pal.INK1
 	back.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -113,19 +117,19 @@ func _build() -> void:
 		_tag.add_child(n)
 	_layer.add_child(_tag)
 	_tag.reset_size()
-	_tag.position = Vector2(COL_X + int((COL_W - _tag.size.x) / 2.0), 44)
+	_tag.position = Vector2(col_x + int((COL_W - _tag.size.x) / 2.0), 44)
 
 	_title = Label.new()
 	_title.theme_type_variation = &"TitleLabel"
 	_title.text = encounter["title"]
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_title.position = Vector2(COL_X, 58)
+	_title.position = Vector2(col_x, 58)
 	_title.size = Vector2(COL_W, 16)
 	_layer.add_child(_title)
 
 	_divider = TextureRect.new()
 	_divider.texture = load("res://ui/divider.png")
-	_divider.position = Vector2(COL_X + int((COL_W - 96) / 2.0), 78)
+	_divider.position = Vector2(col_x + int((COL_W - 96) / 2.0), 78)
 	_divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layer.add_child(_divider)
 
@@ -134,7 +138,7 @@ func _build() -> void:
 	_body.fit_content = true
 	_body.scroll_active = false
 	_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_body.position = Vector2(COL_X + 6, 92)
+	_body.position = Vector2(col_x + 6, 92)
 	_body.size = Vector2(COL_W - 12, 120)
 	_body.text = "[center]" + EncounterDB.markup(encounter["text"]) + "[/center]"
 	_layer.add_child(_body)
@@ -176,8 +180,8 @@ func _layout() -> void:
 	_body_top = top + 46
 	_body.position.y = _body_top
 	var cy := mini(_body_top + body_h + 24, BOTTOM - ch_h)
-	_legend.position = Vector2(COL_X + COL_W - _legend.custom_minimum_size.x - 4, cy - 11)
-	_choice_box.position = Vector2(COL_X, cy)
+	_legend.position = Vector2(col_x + COL_W - _legend.custom_minimum_size.x - 4, cy - 11)
+	_choice_box.position = Vector2(col_x, cy)
 
 
 func _text_height(bb: String) -> int:
@@ -214,10 +218,12 @@ func _build_top_bar() -> void:
 	var bar := PanelContainer.new()
 	bar.theme_type_variation = &"TopBar"
 	bar.position = Vector2.ZERO
-	bar.size = Vector2(640, 32)
+	bar.size = Vector2(get_viewport_rect().size.x, 32)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layer.add_child(bar)
-	var x := 4
+	var l0 := roundi(UIFrame.left(self))
+	var r0 := roundi(UIFrame.right(self))
+	var x := l0 + 4
 	for h in party:
 		var chip := HeroChip.new()
 		chip.position = Vector2(x, 2)
@@ -230,11 +236,11 @@ func _build_top_bar() -> void:
 	loc.theme_type_variation = &"MutedLabel"
 	loc.text = "Depth %d" % int(meta.get("depth", 1))
 	loc.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	loc.position = Vector2(360, 3)
+	loc.position = Vector2(r0 - 280, 3)
 	loc.size = Vector2(274, 11)
 	_layer.add_child(loc)
 	var lan: Array = meta.get("lanterns", [3, 4])
-	var lx := 634 - int(lan[1]) * 9
+	var lx := r0 - 6 - int(lan[1]) * 9
 	for i in int(lan[1]):
 		var lt := _lantern_icon(i < int(lan[0]))
 		lt.position = Vector2(lx + i * 9, 15)
@@ -361,7 +367,7 @@ func _add_recruit(r: Dictionary) -> void:
 	var h := {"name": r["name"], "class": r["class"], "level": 1, "pos": EncounterDB.class_start(r["class"])}
 	party.append(h)
 	var chip := HeroChip.new()
-	chip.position = Vector2(4 + _chips.size() * (HeroChip.W + 4), 2)
+	chip.position = Vector2(roundi(UIFrame.left(self)) + 4 + _chips.size() * (HeroChip.W + 4), 2)
 	chip.modulate.a = 0.0
 	_layer.add_child(chip)
 	chip.setup(h)
@@ -396,7 +402,7 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 	var card_y := _body_top + body_h + 10
 	_card = Control.new()
 	_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_card.position = Vector2(COL_X, card_y + 6)
+	_card.position = Vector2(col_x, card_y + 6)
 	_card.size = Vector2(COL_W, card_h)
 	_card.modulate.a = 0.0
 	_layer.add_child(_card)
@@ -534,7 +540,7 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 		reveal.append(_recruit_panel(recruit, card_y + card_h + 4))
 	_continue = Button.new()
 	_continue.text = "Continue"
-	_continue.position = Vector2(COL_X, card_y + card_h + rec_h + 6)
+	_continue.position = Vector2(col_x, card_y + card_h + rec_h + 6)
 	_continue.size = Vector2(COL_W, cont_h)
 	_continue.modulate.a = 0.0
 	_continue.disabled = true
@@ -593,7 +599,7 @@ func _recruit_panel(r: Dictionary, y: int) -> Control:
 	var cc := Pal.c(info["color"])
 	var p := Control.new()
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	p.position = Vector2(COL_X, y)
+	p.position = Vector2(col_x, y)
 	p.size = Vector2(COL_W, 36)
 	p.modulate.a = 0.0
 	_layer.add_child(p)
