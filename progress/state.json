@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 16:27",
+  "updated": "2026-10-05 16:36",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -701,6 +701,10 @@
     {
       "t": "16:27",
       "msg": "hires-ui round 2 built (4a08adb, 133 tests); critic round 2 started on captures/hires-ui/r2 with 2340x1080 phone pairs."
+    },
+    {
+      "t": "16:36",
+      "msg": "hires-ui critic round 2: FAIL, ours 2/5 (won both SAP pairs, lost all SoS). Open review FAIL: damage numbers anchor ~1 grid row above target (regression from the r2 anchor change), crystal caption truncation, Fading numbers merging, encounter wide-phone edge. Record: docs/tasks/hires-ui-round2.md"
     }
   ],
   "questions": [
