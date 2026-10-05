@@ -104,7 +104,7 @@ func set_hero(h: Dictionary) -> void:
 	_build_tips()
 	var ready := PartyModel.ready_to_advance(h)
 	_advance.visible = ready
-	_advance.text = "Advance" if not h.get("held_back", false) else "Advance now"
+	_advance.text = "Advance"   # (held back: the HELD tag beside it says so; "Advance now" pushed it off the card)
 	_advance.size = Vector2(maxi(60, PartyDraw.text_w(_advance.text, PartyDraw.BOLD, UIText.NUMBER) + 28), 24)
 	queue_redraw()
 
@@ -345,12 +345,10 @@ func _draw_equipment(y: int) -> void:
 			if slot != "relic":
 				PartyDraw.text(self, Vector2(28, ry + 3), sw, Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, W - 16 - 24, HORIZONTAL_ALIGNMENT_RIGHT)
 			else:
-				# BOUND tag with a lock
+				# BOUND: a lock and the word, no pill of its own (critic r4: the row's fill and a pill
+				# were two highlight treatments on one row)
 				var bw := PartyDraw.text_w("BOUND", PartyDraw.BOLD) + 14
 				var bx := W - 8 - 3 - bw
-				var br := Rect2(bx, ry + 3, bw, 11)
-				draw_rect(br, Pal.INK1)
-				PartyDraw.soft_outline(self, br, Pal.AMBER4)
 				draw_texture(LOCK, Vector2(bx + 3, ry + 5), Pal.AMBER5)
 				PartyDraw.text(self, Vector2(bx + 10, ry + 4), "BOUND", Pal.AMBER5, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
 				# alignment offset: the only equipment with one

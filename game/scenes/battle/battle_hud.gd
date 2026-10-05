@@ -802,7 +802,7 @@ func _draw_intro() -> void:
 func lore_bottom() -> float:
 	if lore_t > 3.6 or lore_name == "":
 		return -1.0
-	var lines := UIText.wrap_lines(lore_text, 380.0, BOLD, UIText.BODY)
+	var lines := UIText.wrap_lines(lore_text, 456.0, BOLD, UIText.BODY)
 	return 40.0 + ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + lines.size() * UIText.line_h(BOLD, UIText.BODY) + 6.0)
 
 
@@ -810,10 +810,10 @@ func _draw_lore() -> void:
 	if lore_t > 3.6 or lore_name == "":
 		return
 	var a := clampf(lore_t / 0.25, 0.0, 1.0) * (1.0 - clampf((lore_t - 3.2) / 0.4, 0.0, 1.0))
-	var lines := UIText.wrap_lines(lore_text, 380.0, BOLD, UIText.BODY)
+	var lines := UIText.wrap_lines(lore_text, 456.0, BOLD, UIText.BODY)
 	var lh := UIText.line_h(BOLD, UIText.BODY)
 	var h := ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + lines.size() * lh + 6.0)
-	var r := Rect2(_c - 210, 40, 420, h)
+	var r := Rect2(_c - 240, 40, 480, h)
 	draw_rect(r, Color(Pal.INK1, 0.85 * a))
 	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1), Color(Pal.VIOLET3, a))
 	draw_rect(Rect2(r.position.x, r.end.y - 1, r.size.x, 1), Color(Pal.VIOLET3, a))

@@ -733,6 +733,10 @@
     {
       "t": "18:14",
       "msg": "hires-ui critic round 4: FAIL, 2/5 (SAP pairs won, SoS lost on density). Open review: Lanternrest label clip, splash contrast, Crystal banner timing."
+    },
+    {
+      "t": "18:39",
+      "msg": "hires-ui round-5 build: Lanternrest tiles, splash hint contrast, fragment banner own slot, pane/pips/encounter/results/wrap/draft/crit fixes; captures r5 ready for critic round 5"
     }
   ],
   "questions": [

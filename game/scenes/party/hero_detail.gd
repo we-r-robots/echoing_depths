@@ -93,7 +93,8 @@ func _build() -> void:
 	_close = Button.new()
 	_close.text = "Close"
 	_close.focus_mode = Control.FOCUS_NONE
-	_close.size = Vector2(46, 18)
+	_close.custom_minimum_size = Vector2(76, 22)   # a standard secondary button (critic r4: a small ghost)
+	_close.size = _close.custom_minimum_size
 	_close.pressed.connect(close)
 	add_child(_close)
 	get_viewport().size_changed.connect(_layout)
@@ -112,7 +113,7 @@ func _layout() -> void:
 	if not _adv.visible:
 		_adv.position = Vector2(x0, 38)
 	_align.position = Vector2(x0 + HeroCard.W + GAP, 38)
-	_close.position = Vector2(r - 58, 337)
+	_close.position = Vector2(r - 84, 333)
 	queue_redraw()
 
 
