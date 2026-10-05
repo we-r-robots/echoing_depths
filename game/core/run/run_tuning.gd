@@ -36,7 +36,7 @@ const RUN := {
 	"monster_count_max": 4,
 	# floor guardians (name, intro, monsters, level, loss_health) and the Crystal's name/intro: guardians.json
 	# --- the Crystal of Remembrance (06): the fight is core's simulate_crystal; win or the run ends ---
-	"crystal_integrity": 360,    # passed to simulate_crystal (core default 360): the Crystal's toughness
+	"crystal_integrity": 600,    # passed to simulate_crystal (core default 360): the Crystal's toughness
 	"crystal_memories": 4,       # memories released: one at the start, one at each of fragments 1-3
 	"glimmers_per_fragment": 6,  # on defeat, each chipped fragment becomes Glimmers
 	"item_drop_chance": 0.5,     # chance a won monster fight drops an item

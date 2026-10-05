@@ -21,7 +21,7 @@ only stores the player's 2x4 placement and passes it to the sim.
 ```gdscript
 const Run = preload("res://core/run/run.gd")
 var run := Run.new()
-run.start_run(seed, {"best_floor": 3})   # -> current_node()
+run.start_run(seed, {"best_floor": 3, "story_chapter": 1})   # -> current_node()
 run.current_node()     # what the player sees now (never the map)
 run.choose(i)          # draft pick / encounter choice (incl. a legend's memory) / Advance-Hold
 run.set_formation([[col,row], ...])      # one cell per party hero, any time before a fight
@@ -47,13 +47,13 @@ alignment, items, slot, held, legendary).
 | `draft` | `offered` [{index, name, class, alignment, taken}], `picks_left` | `choose(i)` twice |
 | `choice` | `type: "encounter"`, `kind` (riddle/chance/moral/monster/recruitment, or `legend`), `encounter_id`, `title`, `text`, `choices` [{index, id, label, hero_index, hero_name, class, shift, rare, recruit?, legend?, rest?, uncertain?}] (a `rest` choice has hero_index −1) | `choose(i)` |
 | `decision` | `type: "advance"` (0 Advance, 1 Hold back), `hero_index` | `choose(0/1)` |
-| `fight` | `type: "monster" / "pvp" / "guardian" / "heart"`, `opponent` {name, title, banner} only (formation hidden until the fight), `attempt` | `set_formation` (optional), `resolve_fight()` |
+| `fight` | `type: "monster" / "pvp" / "guardian" / "crystal"`, `opponent` {name, title, banner} only (formation hidden until the fight), `attempt` | `set_formation` (optional), `resolve_fight()` |
 | `outcome` | `last`: what the choice or fight did (memory, item, recruit, lore, outcome text, fight result) | `advance()` |
 | `ended` | `outcome`: `"victory"` / `"fallen"` | `summary()` |
 
 Node flow: encounter = choice → decisions → (monster kind: fight) → outcome. PvP and floor
-guardian = fight → outcome. The Vault Heart (last node) = the last guardian; a loss costs health
-and the fight is retried.
+guardian = fight → outcome. The last node is the Crystal of Remembrance: one fight, no retry;
+it ends the run either way.
 
 ## Rules as built
 
@@ -63,14 +63,21 @@ and the fight is retried.
   hidden seeded shuffle (every route has ≥ 2 targets, so choices 0 and 1 always diverge). Every
   node gets a different encounter id, so a run never repeats one. No public method or view
   contains routes, layers or upcoming nodes.
-- **Run arc (`RUN.floors`):** 5 floors, `EEEPEG`, `EPEPEG` x3, `EPEPEH` (E encounter, P PvP,
-  G floor guardian, H Vault Heart): 30 nodes, 16 encounters, 9 PvP, 4 guardians + the Heart.
-  Guardians and the Heart are authored in **`guardians.json`** (name, intro shown before the
-  fight, monster composition, level, per-monster `level_offset`, `loss_health`): the Sentinel
-  Warden, the Lantern Thieves, the Choir of the Unremembered, the Gate of Seals, the Heart of the
-  Vault. Losing one costs 2/2/3/3 health (the Heart 3, retried while health remains) against 1 for
-  PvP; the party limps on past a floor guardian. Health 10. Greedy-bot win rates fall floor by
-  floor (~49/47/43/32/25 %) and stay below that floor's PvP rate.
+- **Run arc (`RUN.floors`):** 5 floors, `EEEPEG`, `EPEPEG` x3, `EPEPEC` (E encounter, P PvP,
+  G floor guardian, C the Crystal of Remembrance): 30 nodes, 16 encounters, 9 PvP, 4 guardians, the Crystal.
+  Guardians are authored in **`guardians.json`** (name, intro shown before the fight, monster
+  composition, level, per-monster `level_offset`, `loss_health`): the Sentinel Warden, the Lantern
+  Thieves, the Choir of the Unremembered, the Gate of Seals. Losing one costs 2/2/3/3 health
+  against 1 for PvP; the party limps on. Health 10. Greedy-bot win rates fall floor by floor
+  (~49/43/40/25 %) and stay below that floor's PvP rate.
+- **The Crystal of Remembrance (06-crystal-of-remembrance.md):** the final node runs
+  `CombatSim.simulate_crystal` with `RUN.crystal_integrity` (600) and a 4-memory sequence from the
+  `story_chapter` run option (default 1): every memory of that chapter first, filled from earlier
+  chapters, seeded order. The view shows the Crystal's name and intro (`guardians.json` → `crystal`),
+  never the memories. No retreat and no retry: `reason == "shard"` wins the run; otherwise the
+  party falls there (health 0) and each chipped fragment pays `glimmers_per_fragment` (6) Glimmers.
+  Memories knocked out (a `ko` on a uid from a `spawn`) are listed in `memories_defeated` for the
+  codex. Greedy bot: ~58 % win at the Crystal, ~21 % run victory.
 - **Rest:** 12 encounters carry a party-wide `rest` choice: +1 health, but nobody gains a memory there.
 - **Phases by floor:** Gathering floors 1–2 (recruitment weighted 4×), Advancement 3–4, Legend 5
   (a label; the Legendary gate does not use depth).
@@ -107,7 +114,8 @@ and the fight is retried.
   finished run (won or fallen) records one snapshot per floor reached (the party as it first met
   rivals on that floor; `core/echo.gd` format, meta: floor, depth, outcome, seed). Max 600.
 - **Rewards (summary):** Glimmers = 1/layer + 4/PvP win + 4/new floor; `lore_items`; `new_floors`;
-  victory adds 1 Shard, `monument` {party, formation, vault} and `vault_heart_memory`.
+  victory adds 1 Shard, `monument` {party, formation, vault} and `remembrance` {id, name, lore}
+  (`RunTuning.REMEMBRANCES`, one per chapter: the memory the final fragment frees; never spawned in the fight).
 
 ## Commands
 
@@ -116,6 +124,6 @@ godot --path game --headless -s res://tests/run_all.gd                          
 godot --path game --headless -s res://tests/run_sim.gd -- --seed=1 [--n=200] [--policy=greedy|random]
 ```
 
-Summary also carries: `encounters_seen`, `legend_offered`, `guardian_wins/losses`, `rests`, `healed`,
+Summary also carries: `crystal_reached`, `fragments`, `memories_defeated`, `story_chapter`, `encounters_seen`, `legend_offered`, `guardian_wins/losses`, `rests`, `healed`,
 `health_lost_by_phase`, `death` {depth, floor, node, phase}, `encounter_nodes`, `two_choice_nodes`,
 `echo` (last snapshot recorded) and `echoes_recorded`.

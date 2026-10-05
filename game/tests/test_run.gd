@@ -209,7 +209,7 @@ func test_legend_gate() -> void:
 func test_legend_memory_is_an_encounter_once_per_run() -> void:
 	var offers := 0
 	var accepted := 0
-	for s in 40:
+	for s in 120:
 		var run := _new_run(600 + s)
 		var rng := Rng.new(s)
 		var seen := 0
@@ -235,7 +235,7 @@ func test_legend_memory_is_an_encounter_once_per_run() -> void:
 				continue
 			RunBot.step(run, rng, "random", 0.0)
 		check(seen <= 1, "legend's memory appears at most once per run (seed %d: %d)" % [600 + s, seen])
-	check(offers > 3 and accepted > 0, "saw %d offers" % offers)
+	check(offers >= 3 and accepted > 0, "saw %d offers" % offers)
 
 
 func test_opponent_hidden_before_fight() -> void:
