@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 18:40",
+  "updated": "2026-10-05 18:52",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -741,6 +741,10 @@
     {
       "t": "18:40",
       "msg": "hires-ui round 5 built (51bd7b2, 152 tests). New fairer references (SoS party/equip, FF6 party, Octopath status, StS event). Critic round 5 started: 7 pairs."
+    },
+    {
+      "t": "18:52",
+      "msg": "hires-ui critic round 5: FAIL, 2/7 (won FF6 + Octopath pairs; encounter/setup win at full size, lose at phone). Fails under load: Firestorm number drift, Crystal roster covers pips, 11 px world plates."
     }
   ],
   "questions": [
