@@ -120,11 +120,11 @@ func _build() -> void:
 	_tag.position = Vector2(col_x + int((COL_W - _tag.size.x) / 2.0), 44)
 
 	_title = Label.new()
-	_title.theme_type_variation = &"TitleLabel"
+	_title.theme_type_variation = &"HeadingLabel"
 	_title.text = encounter["title"]
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.position = Vector2(col_x, 58)
-	_title.size = Vector2(COL_W, 16)
+	_title.size = Vector2(COL_W, 20)
 	_layer.add_child(_title)
 
 	_divider = TextureRect.new()
@@ -172,12 +172,12 @@ func _build() -> void:
 func _layout() -> void:
 	var body_h := _text_height(_body.text)
 	var ch_h := int(_choice_box.size.y)
-	var total := 48 + body_h + 12 + 12 + ch_h
+	var total := 54 + body_h + 12 + 12 + ch_h
 	var top := 38 + maxi(0, int((BOTTOM - 38 - total) / 2.0))
 	_tag.position.y = top
 	_title.position.y = top + 13
-	_divider.position.y = top + 33
-	_body_top = top + 46
+	_divider.position.y = top + 38
+	_body_top = top + 52
 	_body.position.y = _body_top
 	var cy := mini(_body_top + body_h + 24, BOTTOM - ch_h)
 	_legend.position = Vector2(col_x + COL_W - _legend.custom_minimum_size.x - 4, cy - 11)
@@ -392,7 +392,7 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 	var cont_h := 22
 	var rec_h := 40 if not recruit.is_empty() else 0
 	# re-centre the whole column around the result so nothing floats over empty space
-	var total := 46 + body_h + 10 + card_h + rec_h + 6 + cont_h
+	var total := 52 + body_h + 10 + card_h + rec_h + 6 + cont_h
 	var top := 38 + maxi(0, int((BOTTOM - 38 - total) / 2.0))
 	var shift_y := top - _tag.position.y
 	var tl := create_tween().set_parallel(true)

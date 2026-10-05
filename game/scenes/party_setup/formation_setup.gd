@@ -13,7 +13,8 @@ extends Control
 ##   heroes = core-format dicts, slots = per hero [col, row] or null, info = top-bar fields
 ##   {"depth", "place", "health", "max_health", "fight": "pvp"/"monster"/"heart"/"", "opponent"}.
 ##   confirmed then carries {"ok": true, "slots": [...], "formation": id}.
-## Run standalone (no open), it plays an unattended demo for captures.
+## Run standalone (no open), it plays an unattended demo for captures. Demo args: --unlocked=none
+## (no shape unlocked: the locked fallback), --demo=strays (a still party of four, nobody side by side).
 
 signal confirmed(result: Dictionary)
 signal closed
@@ -97,12 +98,19 @@ func _ready() -> void:
 	if not _opened:
 		demo = true
 		_pending = demo_data()
+		_script = demo_script()
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--unlocked="):
 				# e.g. --unlocked=none: no shape unlocked, to show a locked shape that makes no formation
 				var ids := a.substr(11)
 				_pending["unlocked"] = [] if ids == "none" else Array(ids.split(","))
-		_script = demo_script()
+			elif a == "--demo=strays":
+				# a still party of four with no two heroes side by side (they fight as Strays)
+				_pending["heroes"] = (_pending["heroes"] as Array) + [
+					{"name": "Holt", "class": "fighter", "level": 2, "items": {}, "alignment": [0, 1]},
+					{"name": "Ilse", "class": "healer", "level": 3, "items": {}, "alignment": [1, 1]}]
+				_pending["slots"] = [[0, 0], [1, 1], [0, 2], [1, 3]]
+				_script = []
 	info = _pending.get("info", {})
 	if mode == "review":
 		_back = Button.new()
