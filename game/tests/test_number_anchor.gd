@@ -50,3 +50,14 @@ func test_tall_far_row_monster_gets_number_beside_its_head() -> void:
 	check(p.y - FX.NUM_RISE - FX.NUM_H - FX.HEAD_H >= BAND - 0.5, "tall unit's number clears the band")
 	check(absf(p.x - top.x) <= 22.0, "tall unit's number stays within its span (dx %.0f)" % (p.x - top.x))
 	check(p.y < feet.y - top_h * 0.5, "tall unit's number sits on its upper half")
+
+
+func test_a_low_band_pushes_a_hero_number_onto_its_head_not_beside() -> void:
+	# the Crystal's lore caption lowers the band below a far-row hero's head
+	var top_h := 41.0
+	var top := Layout.slot_pos(0, 0, 0) - Vector2(0, top_h)
+	var band := top.y + 4.0
+	var p := FX.number_anchor(top, top_h, -1, band, false)
+	eq(p.x, top.x, "number stays centred on its hero")
+	check(p.y - FX.NUM_RISE - FX.NUM_H >= band - 0.5, "number clears the lowered band")
+	check(p.y < top.y + top_h * 0.5, "number stays on the hero's upper half")

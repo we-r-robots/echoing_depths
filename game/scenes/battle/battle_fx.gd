@@ -290,15 +290,17 @@ const PUSH_MAX := 9.0
 
 ## Where a target's number lands (its baseline centre), in world px. `top` is the top of the
 ## target's sprite (feet x), `band` the lowest world y the UI keeps for itself (banners, lore caption).
-## A number goes straight above the head; only when even the bare number can't fit under the band
-## (a tall monster in the far row) does it move beside the head, on the side facing the field,
-## still within the target's span. A head word (CRIT!) that would reach the band pushes the number
-## down onto the head instead of off it.
+## A number goes straight above the head. When it can't fit under the band, a tall unit (a monster
+## in the far row) takes it beside the head, on the side facing the field, still within its span;
+## anyone else gets it pushed down onto the top of the head (never sideways off the unit).
+const TALL := 50.0   # world px: taller units (Sentinel, Crystal) may take their number beside the head
+
+
 static func number_anchor(top: Vector2, top_h: float, facing: int, band: float, head_word := false) -> Vector2:
 	var p := Vector2(top.x, top.y - NUM_GAP)
 	var need := NUM_H + NUM_RISE + (HEAD_H if head_word else 0.0)
-	if p.y - NUM_H - NUM_RISE < band:
-		# beside the head: a third of the way to the sprite's edge past its centre line
+	if p.y - NUM_H - NUM_RISE < band and top_h > TALL:
+		# a tall unit: beside the head, a third of the way to the sprite's edge past its centre line
 		p.x = top.x + minf(top_h * 0.3, 22.0) * facing
 		p.y = band + need
 	elif p.y - need < band:
