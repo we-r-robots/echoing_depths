@@ -132,11 +132,8 @@ func test_each_memory_behaviour_fires_truthfully() -> void:
 		for i in 40:
 			var r := _fight(i, {"memories": [mid, "ferryman", "miller", "weaver"]})
 			var evs: Array = r["events"]
-			var actor := -1
 			for k in evs.size():
 				var ev: Dictionary = evs[k]
-				if ev["type"] == "action_start":
-					actor = int(ev["uid"])
 				if ev["type"] == "formation_proc" and String(ev["source"]) == "memory:" + mid:
 					check(_truthful(evs, k), "%s cue is truthful: %s" % [mid, ev])
 					fired = true

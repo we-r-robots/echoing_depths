@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 11:13",
+  "updated": "2026-10-05 11:16",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -591,6 +591,10 @@
     {
       "t": "11:13",
       "msg": "User decision: Strays now means truly spread out (no two side by side) and is its own formation; partly connected = Unformed; a locked shape falls back to its largest unlocked smaller shape. Spec updated; core change queued after the Crystal."
+    },
+    {
+      "t": "11:16",
+      "msg": "Setup screens show the new Strays, Unformed and locked-fallback states (a locked Crescent fights as Tidebreak, with the active heroes lit). Core implementation queued after the Crystal."
     }
   ],
   "questions": [
