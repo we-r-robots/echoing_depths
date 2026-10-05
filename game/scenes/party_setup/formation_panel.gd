@@ -7,6 +7,7 @@ extends Control
 
 const W := 208
 const H := 318
+const TITLE_SIZE := 20      # serif: one step over the effect rows (UIText.HEADING)
 ## The card's foot: the Details button and the primary Confirm (28 design px tall).
 const FOOT := 38
 const LOCK := preload("res://assets/party/lock.png")
@@ -246,18 +247,15 @@ func _zone_local() -> Rect2:
 	return Rect2(4, top, W - 8, foot - 4 - top)
 
 
-## The reading pane: the card's free lower half framed as the place where an effect's full text
-## opens (the shared tooltip), with a quiet hint while nothing is open (critic r3: a dead void).
+## The reading pane: the card's free lower half, where an effect's full text opens (the shared
+## tooltip). While nothing is open it collapses to one quiet hint line under the rows, with no empty
+## box (critic r5: a large dim pane holding one hint).
 func _draw_pane() -> void:
 	var z := _zone_local().grow_individual(-4, -2, -4, -2)
-	if z.size.y < 30 or details:
+	if z.size.y < 30 or details or Tip.any_open():
 		return
-	PartyDraw.inset(self, z, Pal.INK2)
-	if Tip.any_open():
-		return
-	var hint := "Tap an effect to read it"
-	var ty := roundf(z.get_center().y - 6)
-	PartyDraw.text(self, Vector2(z.position.x, ty), hint, Pal.INK8, PartyDraw.BOLD, UIText.BODY, false, z.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	var hint := "Tap an effect for the full text"
+	PartyDraw.text(self, Vector2(z.position.x, z.position.y + 2), hint, Pal.INK8, PartyDraw.BOLD, UIText.BODY, false, z.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func _process(delta: float) -> void:
@@ -372,7 +370,9 @@ func _draw_title(shape: Dictionary, locked: bool, strays: bool) -> void:
 	elif state == "locked_unformed":
 		nm = "No formation"
 		ncol = Pal.INK9
-	PartyDraw.text(self, Vector2(56, 8), nm, ncol, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
+	# the panel's title is its largest text (critic r5: it sat a step under the effect rows)
+	var tsz := TITLE_SIZE if PartyDraw.text_w(nm, PartyDraw.SERIF, TITLE_SIZE) <= W - 56 - 6 else PartyDraw.SERIF_SIZE
+	PartyDraw.text(self, Vector2(56, 5 if tsz == TITLE_SIZE else 8), nm, ncol, PartyDraw.SERIF, tsz)
 	var label := "ACTIVE"
 	var fg := Pal.CRYSTAL5
 	var bg := Pal.CRYSTAL1
@@ -404,15 +404,15 @@ func _draw_title(shape: Dictionary, locked: bool, strays: bool) -> void:
 		fg = Pal.AMBER6
 		bg = Pal.AMBER1
 		edge = Pal.AMBER4
-	PartyDraw.pill(self, Vector2(56, 27), label, fg, bg, edge)
+	PartyDraw.pill(self, Vector2(56, 30), label, fg, bg, edge)
 	if placed < party_size:
 		line = "%d of %d placed" % [placed, party_size]
 		line_col = Pal.INK9
 	var lx := 56
 	if state in ["locked_fallback", "locked_unformed"]:
-		draw_texture(LOCK, Vector2(56, 43), Pal.FADE4)
+		draw_texture(LOCK, Vector2(56, 46), Pal.FADE4)
 		lx = 64
-	PartyDraw.text(self, Vector2(lx, 40), line, line_col, PartyDraw.BOLD)
+	PartyDraw.text(self, Vector2(lx, 43), line, line_col, PartyDraw.BOLD)
 
 
 func _chip_flow(shapes: Array, y: int) -> int:

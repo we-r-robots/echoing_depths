@@ -77,7 +77,7 @@ const HERO_NAMES := ["Brakka", "Ilse", "Moth", "Corin", "Vael", "Tamsin", "Oren"
 
 ## Team names ("The <epithet> <company>"): a run's party name unless the player picks one, and the
 ## names of generated Echoes. 24 x 24 = 576 combinations, all <= 32 characters.
-const TEAM_EPITHETS := ["Ashen", "Gray", "Lantern", "Hollow", "Quiet", "Last", "Drowned", "Unlit",
+const TEAM_EPITHETS := ["Ashen", "Grey", "Lantern", "Hollow", "Quiet", "Last", "Drowned", "Unlit",
 	"Crystal", "Faded", "Sleepless", "Oathbound", "Wandering", "Forgotten", "Ember", "Silent",
 	"Mended", "Lumari", "Nameless", "Waning", "Dawnless", "Glass", "Hearth", "Kindled"]
 const TEAM_COMPANIES := ["Pact", "Choir", "Watch", "Oath", "Company", "Wardens", "Lanterns", "Vigil",

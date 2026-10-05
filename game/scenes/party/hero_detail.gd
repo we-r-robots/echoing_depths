@@ -105,7 +105,6 @@ func _build() -> void:
 ## box, the description bar and Close follow the view's safe edges (wide phones).
 func _layout() -> void:
 	var l := UIFrame.left(self)
-	var r := UIFrame.right(self)
 	for i in _tabs.size():
 		_tabs[i].position = Vector2(l + 8 + i * (PartyTab.W + 4), 4)
 	var x0 := roundf((get_viewport_rect().size.x - (HeroCard.W + GAP + AlignPanel.W)) / 2.0)
@@ -113,7 +112,8 @@ func _layout() -> void:
 	if not _adv.visible:
 		_adv.position = Vector2(x0, 38)
 	_align.position = Vector2(x0 + HeroCard.W + GAP, 38)
-	_close.position = Vector2(r - 84, 333)
+	# Close sits inside the grid panel's bottom-right corner (critic r5: it floated outside both)
+	_close.position = _align.position + Vector2(AlignPanel.W - 8 - _close.size.x, AlignPanel.H - 6 - _close.size.y)
 	queue_redraw()
 
 

@@ -8,7 +8,10 @@ extends Button
 ## Right: the hero's alignment grid, solid cell = now, white ring = after this choice.
 ## Strong-shift rows use the same plate (so they never look selected) with gold studs and a glint.
 
-const H := 50
+const H := 56
+## The mini grid: 9 design px cells (critic r5: 7 px cells couldn't be read at phone size).
+const CELL := 9
+const GRID_W := 5 * CELL + 4 + 4
 
 var choice: Dictionary
 var hero: Dictionary
@@ -57,10 +60,10 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 
 	# line 1, the focus: the action itself, one size step up (serif), in one colour
 	var what := Label.new()
-	what.text = c.get("label", "")
+	what.text = UIText.curly(String(c.get("label", "")))
 	# (a label too long for the room beside the grid drops one size step, never clipped;
 	# then every row on the screen does, so the rows keep one size)
-	var room := width - 42 - (7 * 5 + 4 + 6) - 14
+	var room := width - 42 - (GRID_W + 2) - 14
 	_what = what
 	# serif at the title size, a step under the screen's own title (critic r4: the choices read
 	# louder than the encounter's name)
@@ -75,7 +78,7 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	# The level step, "strong shift", an edge cap and the now/after markers are in the grid's
 	# tooltip (critic r3: three lines per row were too dense)
 	var eff := EncounterDB.effective_shift(h["pos"], c)
-	var l2 := _row(Vector2(42, 29), 3)
+	var l2 := _row(Vector2(42, 32), 3)
 	l2.add_child(_label(String(h["name"]), cc, true))
 	l2.add_child(_spacer(2))
 	var shift_text := "No move"
@@ -90,28 +93,24 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	l2.add_child(_label(shift_text, Pal.INK9 if eff != Vector2i.ZERO else Pal.INK8, true))
 	# what fits beside the grid: the strong-shift star and the word "Awakens" go first to the
 	# tooltip (the gold studs still mark a strong row; the amber glyph still marks an Awakening)
-	var room2 := float(width - 42 - (7 * 5 + 4) - 8 - 6)
+	var room2 := float(width - 42 - (GRID_W - 4) - 8 - 6)
 	var used := l2.get_combined_minimum_size().x
 	var aw := 3.0 + 9.0 + 3.0 + UIText.width("Awakens", UIText.BOLD, UIText.BODY)
-	var star_w := 3.0 + 9.0
 	# an Awakening always shows glyph + word (critic r4), in one place on every row: the end of
 	# line 1, right-aligned before the grid (the action's title is a size step down, so it fits);
 	# on line 2 only when line 1 has no room
 	var aw_line1 := false
 	if awakens:
 		var tw := 9.0 + 3.0 + UIText.width("Awakens", UIText.BOLD, UIText.BODY)
-		var right := float(width - (7 * 5 + 4) - 8 - 8)
+		var right := float(width - (GRID_W - 4) - 8 - 8)
 		var title_end := 42.0 + UIText.width(what.text, UIText.SERIF, UIText.TITLE) + 8.0
 		if right - tw >= title_end:
 			aw_line1 = true
-			var tag := _row(Vector2(roundf(right - tw), 9 + roundf(UIText.ascent(UIText.SERIF, UIText.TITLE) - UIText.ascent(UIText.BOLD, UIText.BODY))), 3)
+			var tag := _row(Vector2(roundf(right - tw), 12 + roundf(UIText.ascent(UIText.SERIF, UIText.TITLE) - UIText.ascent(UIText.BOLD, UIText.BODY))), 3)
 			tag.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
 			tag.add_child(_label("Awakens", Pal.AMBER6, true))
 	var aw_line2 := awakens and not aw_line1
-	var show_star := strong and used + star_w + (aw if aw_line2 else 0.0) <= room2
-	if show_star:
-		l2.add_child(_icon("res://ui/icons/star.png", Pal.AMBER6, 2))
-		used += star_w
+	# (no strong-shift star: critic r5 found it unexplained; the tooltip says "Strong shift")
 	if aw_line2:
 		l2.add_child(_spacer(2))
 		l2.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
@@ -122,7 +121,7 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 		l2.add_child(_label("+ %s joins" % c["recruit"]["name"], Pal.LIFE4, true))
 
 	grid = AlignGrid.new()
-	grid.cell = 7
+	grid.cell = CELL
 	grid.gap = 1
 	grid.dot_color = cc
 	grid.from_pos = h["pos"]
@@ -165,7 +164,7 @@ var _what: Label
 func _apply_size() -> void:
 	_what.add_theme_font_override("font", UIText.SERIF)
 	_what.add_theme_font_size_override("font_size", UIText.TITLE if small else UIText.HEADING)
-	_what.position.y = 9 if small else 5
+	_what.position.y = 12 if small else 8
 
 
 ## One size for every row's action: if any sibling row needed the smaller face, all use it.
@@ -282,13 +281,7 @@ func _draw() -> void:
 		PartyDraw.outline(self, r.grow(-1), Color(Pal.CRYSTAL2, 0.8))
 	if not strong:
 		return
-	# gold studs on the chamfered ends mark a strong shift
-	var on := fmod(_t, 1.2) < 0.6
-	var my := int(size.y / 2.0)
-	for x in [2, int(size.x) - 5]:
-		draw_rect(Rect2(x + 1, my - 2, 1, 1), Pal.AMBER5)
-		draw_rect(Rect2(x, my - 1, 3, 2), Pal.AMBER7 if on else Pal.AMBER5)
-		draw_rect(Rect2(x + 1, my + 1, 1, 1), Pal.AMBER5)
+	# a strong shift: a glint runs along the plate's edges (critic r5: the gold studs read as stray ◆)
 	if _shimmer >= 0.0:
 		var x0 := int(-10 + _shimmer * (size.x + 20))
 		for i in 3:

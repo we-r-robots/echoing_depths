@@ -152,15 +152,16 @@ func _hero(h: Dictionary) -> Control:
 	var holder := CenterContainer.new()
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var frame := Control.new()
-	frame.custom_minimum_size = Vector2(26, 26)
+	# portraits at 2x (critic r5: 24 px heads were too small for a hero reveal)
+	frame.custom_minimum_size = Vector2(52, 52)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tex: Texture2D = load(String(EncounterDB.class_info(base).get("portrait", "res://assets/encounter/portraits/fighter.png")))
 	var cc := Pal.c(String(EncounterDB.class_info(base).get("color", "ink8")))
 	frame.draw.connect(func() -> void:
-		frame.draw_rect(Rect2(0, 0, 26, 26), Pal.INK1)
-		frame.draw_rect(Rect2(1, 1, 24, 24), Pal.INK3)
-		frame.draw_texture(tex, Vector2(1, 1))
-		frame.draw_rect(Rect2(1, 24, 24, 1), cc))
+		frame.draw_rect(Rect2(0, 0, 52, 52), Pal.INK1)
+		frame.draw_rect(Rect2(1, 1, 50, 50), Pal.INK3)
+		frame.draw_texture_rect(tex, Rect2(2, 2, 48, 48), false)
+		frame.draw_rect(Rect2(1, 49, 50, 2), cc))
 	holder.add_child(frame)
 	v.add_child(holder)
 	v.add_child(FlowUI.label(String(h.get("name", "")), &"HeaderLabel", null, 56, HORIZONTAL_ALIGNMENT_CENTER))

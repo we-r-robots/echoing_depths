@@ -14,7 +14,7 @@
     "motes": { "rect": [150, 100, 120, 170], "count": 26, "colors": ["fade2", "fade3", "fade4"], "speed": 3},
     "source": [150, 190]
   },
-  "text": "Something the size of a cart-horse paces the corridor ahead. Where the [fade]Fading[/fade] has touched it, the hound is simply gone: a gray shape with a red eye, hunting by the sound of remembered names.\n\nIt has heard yours.",
+  "text": "Something the size of a cart-horse paces the corridor ahead. Where the [fade]Fading[/fade] has touched it, the hound is simply gone: a grey shape with a red eye, hunting by the sound of remembered names.\n\nIt has heard yours.",
   "choices": [
     {
       "id": "stand_ground",
@@ -29,13 +29,13 @@
       "class": "healer",
       "label": "Call it by a name",
       "shift": { "good": 2, "law": 0},
-      "outcome": "\"Ash,\" your healer says, and the gray flickers. For a moment it is only a dog. It lies down at their feet and fades, content to be someone's.",
+      "outcome": "\"Ash,\" your healer says, and the grey flickers. For a moment it is only a dog. It lies down at their feet and fades, content to be someone's.",
       "art": { "hide": ["hound", "eye"] }
     },
     {
       "id": "burn_gray",
       "class": "mage",
-      "label": "Burn the gray out",
+      "label": "Burn the grey out",
       "shift": { "good": 0, "law": -1},
       "outcome": "Violet fire, and a howl that echoes long after the hound is ash. Your mage breathes in the smoke and tastes a kennel, rain, a master's voice.",
       "art": { "hide": ["hound", "eye"] }

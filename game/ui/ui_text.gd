@@ -164,6 +164,24 @@ static func outlined(ci: CanvasItem, pos: Vector2, s: String, color: Color, f: F
 	return x + w
 
 
+## Typographer's quotes for display (critic r5: "A memory." in straight quotes): pairs of " become
+## “ ”, an apostrophe or a closing ' becomes ’, an opening ' becomes ‘. Data stays as written.
+static func curly(s: String) -> String:
+	var out := ""
+	var open := true
+	for i in s.length():
+		var ch := s[i]
+		if ch == "\"":
+			out += "“" if open else "”"
+			open = not open
+		elif ch == "'":
+			var prev := s[i - 1] if i > 0 else " "
+			out += "‘" if prev in [" ", "\n", "(", "[", "“", "—"] else "’"
+		else:
+			out += ch
+	return out
+
+
 ## Word wrap to `w` design px.
 ## Words wrapped to `w`. No lone last word: when a paragraph's last line would be one word, the
 ## line above gives it a word if that still fits (critic r4: a stranded "grid.").

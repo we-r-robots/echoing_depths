@@ -153,7 +153,7 @@ func _hero_card(h: Dictionary) -> Control:
 	var col := FlowUI.vbox(0)
 	col.add_child(FlowUI.label(String(h.get("name", "")), &"HeaderLabel", cc))
 	col.add_child(FlowUI.label(PartyModel.class_name_of(String(h.get("class", ""))), &"MutedLabel"))
-	col.add_child(FlowUI.label("Lv %d  ·  %d mem." % [int(h.get("level", 1)), int(h.get("memories", 0))], &"MutedLabel"))
+	col.add_child(FlowUI.label("Lv %d  ·  %d memor%s" % [int(h.get("level", 1)), int(h.get("memories", 0)), "y" if int(h.get("memories", 0)) == 1 else "ies"], &"MutedLabel"))
 	row.add_child(col)
 	p.add_child(FlowUI.margin(row, 4))
 	return p

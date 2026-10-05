@@ -186,12 +186,12 @@
    "kind": "chance",
    "title": "The Gambler's Lantern",
    "art": {},
-   "text": "A lantern burns with two flames, one [amber]amber[/amber], one [fade]gray[/fade]. Blow out one.",
+   "text": "A lantern burns with two flames, one [amber]amber[/amber], one [fade]grey[/fade]. Blow out one.",
    "choices": [
     {
      "id": "blow_gray",
      "class": "healer",
-     "label": "Blow out the gray",
+     "label": "Blow out the grey",
      "shift": {
       "good": 1,
       "law": 0
@@ -218,7 +218,7 @@
      "outcome": [
       {
        "weight": 1,
-       "text": "The gray flame shows you a door that is not there."
+       "text": "The grey flame shows you a door that is not there."
       },
       {
        "weight": 1,
@@ -254,7 +254,7 @@
       "good": 0,
       "law": -1
      },
-     "outcome": "A new flame, neither amber nor gray. Nobody told you that was allowed.",
+     "outcome": "A new flame, neither amber nor grey. Nobody told you that was allowed.",
      "luck": {
       "chance": 0.35,
       "good": 1,
@@ -894,7 +894,7 @@
    "kind": "recruitment",
    "title": "The Fading Camp",
    "art": {},
-   "text": "A campfire going gray at the edges. One survivor is still warm enough to walk.",
+   "text": "A campfire going grey at the edges. One survivor is still warm enough to walk.",
    "choices": [
     {
      "id": "share_fire",
@@ -908,7 +908,7 @@
       "class": "*",
       "name": ""
      },
-     "outcome": "The gray retreats a hand's width. They come with you."
+     "outcome": "The grey retreats a hand's width. They come with you."
     },
     {
      "id": "recruit_hard",
@@ -949,7 +949,7 @@
    "rest": {
     "label": "Sleep by the fire",
     "heal": 1,
-    "outcome": "The gray stays back while the fire lasts. You rest, all of you."
+    "outcome": "The grey stays back while the fire lasts. You rest, all of you."
    }
   },
   {
@@ -1292,7 +1292,7 @@
    "kind": "riddle",
    "title": "The Weighing Scales",
    "art": {},
-   "text": "Great brass scales. One pan holds a feather of [fade]gray[/fade]. The other is empty and waiting for you.",
+   "text": "Great brass scales. One pan holds a feather of [fade]grey[/fade]. The other is empty and waiting for you.",
    "choices": [
     {
      "id": "place_your_shield",
@@ -1837,7 +1837,7 @@
    "kind": "chance",
    "title": "The Ring of Pale Caps",
    "art": {},
-   "text": "A ring of pale mushrooms glowing [fade]gray[/fade]. Step in, and you hear voices from the surface.",
+   "text": "A ring of pale mushrooms glowing [fade]grey[/fade]. Step in, and you hear voices from the surface.",
    "choices": [
     {
      "id": "step_in_and_listen",
@@ -2424,7 +2424,7 @@
    "kind": "monster",
    "title": "The Ash Pack",
    "art": {},
-   "text": "Three hounds of [fade]gray[/fade] ash circle the light. They have forgotten their names, but not their hunger.",
+   "text": "Three hounds of [fade]grey[/fade] ash circle the light. They have forgotten their names, but not their hunger.",
    "choices": [
     {
      "id": "hold_the_line",

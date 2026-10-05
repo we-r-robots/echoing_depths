@@ -9,7 +9,7 @@ signal advance_chosen
 signal hold_chosen
 
 const W := 228
-const H := 294
+const H := 312
 const GEM := preload("res://ui/icons/memory_gem.png")
 const STAR := preload("res://ui/icons/star.png")
 const POINTER := preload("res://assets/party/pointer.png")

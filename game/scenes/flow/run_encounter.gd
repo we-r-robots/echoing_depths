@@ -20,7 +20,7 @@ const Run = preload("res://core/run/run.gd")
 const RunBot = preload("res://core/run/run_bot.gd")
 const Rng = preload("res://core/rng.gd")
 const EchoPool = preload("res://core/run/echo_pool.gd")
-const COL_W := 292
+const COL_W := 276   # the encounter screen's column: 24 px clear of the frame's right edge
 const FALLBACK_ART := {"riddle": "colossus", "chance": "odds", "moral": "hollowmere", "monster": "hound",
 	"recruitment": "campfire", "legend": "colossus"}
 const ITEMS := preload("res://core/data/items.gd")
@@ -128,7 +128,7 @@ func _build() -> void:
 	_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_body.custom_minimum_size = Vector2(COL_W, 0)
 	_body.add_theme_font_override("normal_font", UIText.BOLD)
-	_body.text = "[center]" + EncounterDB.markup(String(node.get("text", ""))) + "[/center]"
+	_body.text = "[center]" + EncounterDB.markup(UIText.curly(String(node.get("text", "")))) + "[/center]"
 	_col.add_child(_body)
 	_choices = FlowUI.vbox(5)
 	_col.add_child(_choices)
@@ -188,24 +188,44 @@ func choose(i: int) -> void:
 	if _done:
 		return
 	_done = true
+	var before_party: Array = node.get("party", [])
+	var picked: Dictionary = {}
+	for c: Dictionary in node.get("choices", []):
+		if int(c["index"]) == i:
+			picked = c
 	var res: Dictionary = run.call("choose", i)
 	_choices.visible = false
 	var after: Dictionary = run.call("current_node")
-	_body.text = "[center]" + EncounterDB.markup(String(res.get("text", ""))) + "[/center]"
-	for line: Array in _result_lines(res, after):
+	_body.text = "[center]" + EncounterDB.markup(UIText.curly(String(res.get("text", "")))) + "[/center]"
+	# the memory on the encounter screen's designed result card (critic r5: plain centred lines here
+	# and a card there were two visual languages for one moment)
+	var card: EncounterResultCard = null
+	if res.has("memory"):
+		var m: Dictionary = res["memory"]
+		var hi := int(m["hero_index"])
+		var party_after: Array = after.get("party", [])
+		if hi < before_party.size() and hi < party_after.size():
+			card = EncounterResultCard.new()
+			card.setup(_hero_for_button(party_after[hi]), _hero_for_button(before_party[hi]), _choice_for_button(picked), COL_W)
+			_result.add_child(card)
+	for line: Array in _result_lines(res, after, card != null):
 		_result.add_child(FlowUI.label(String(line[0]), &"GoldLabel", line[1], COL_W, HORIZONTAL_ALIGNMENT_CENTER))
 	_result.visible = true
 	_continue.visible = true
 	_build_chips()
 	_layout()
+	if card != null:
+		card.play(0.3)
 	chosen.emit(i, res)
 
 
 ## Plain result lines with a colour each.
-func _result_lines(res: Dictionary, after: Dictionary) -> Array:
+func _result_lines(res: Dictionary, after: Dictionary, on_card := false) -> Array:
 	var out: Array = []
 	var party: Array = after.get("party", [])
-	if res.has("memory"):
+	if res.has("memory") and on_card and res.get("luck", false):
+		out.append(["It turned out differently.", Pal.INK9])
+	if res.has("memory") and not on_card:
 		var m: Dictionary = res["memory"]
 		var h: Dictionary = party[int(m["hero_index"])]
 		var lv := "Level %d → %d" % [int(m["level_before"]), int(m["level"])] if int(m["level"]) > int(m["level_before"]) \
@@ -258,8 +278,16 @@ func _layout() -> void:
 	var l := roundf(UIFrame.left(self))
 	for k in _chips.size():
 		(_chips[k] as Control).position = Vector2(l + 4 + k * (HeroChip.W + 4), 2)
-	_where.text = "%s  ·  Depth %d  ·  Floor %d" % [String(node.get("vault", "")), int(node.get("depth", 1)), int(node.get("floor", 1))]
-	_where.position = Vector2(fx + 338, 37)
+	# where we are, top right in the bar, the health under it (the encounter screen's top bar)
+	# (the vault's name only when it clears the party chips)
+	var right := roundf(UIFrame.right(self)) - 6
+	var room := right - (l + 4 + _chips.size() * (HeroChip.W + 4)) - 6
+	var full := "%s  ·  Depth %d  ·  Floor %d" % [String(node.get("vault", "")), int(node.get("depth", 1)), int(node.get("floor", 1))]
+	var short := "Depth %d  ·  Floor %d" % [int(node.get("depth", 1)), int(node.get("floor", 1))]
+	_where.text = full if UIText.width(full, UIText.BOLD, UIText.LABEL) <= room else short
+	_where.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_where.size.x = maxf(60.0, room)
+	_where.position = Vector2(right - _where.size.x, 3)
 	_col.reset_size()
 	var h := _col.size.y
 	_col.position = Vector2(fx + 340, roundf(maxf(54.0, 52 + (304 - h) / 2.0)))
@@ -286,4 +314,4 @@ func _draw_over() -> void:
 	_over.draw_rect(Rect2(fx + 330, 32, 310 + maxf(0.0, get_viewport_rect().size.x - fx - 640), 328), plate)
 	_over.draw_rect(Rect2(fx + 330, 32, 1, 328), Pal.INK4)
 	var cur: Dictionary = run.call("current_node")
-	FlowUI.draw_health(_over, minf(fx + 634, roundf(UIFrame.right(self)) - 6), 39, int(cur.get("health", 0)), int(cur.get("max_health", 0)))
+	FlowUI.draw_health(_over, roundf(UIFrame.right(self)) - 6, 17, int(cur.get("health", 0)), int(cur.get("max_health", 0)))

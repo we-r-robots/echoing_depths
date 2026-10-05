@@ -5,8 +5,10 @@ extends Control
 
 signal cell_tapped(pos: Array)
 
-const W := 286
-const H := 294
+const W := 346
+const H := 312
+## Side margins hold Order (left) and Freedom (right) at mid-height, like compass sides (critic r5:
+## on the bottom baseline with Cruelty they read as a row of tabs).
 
 var grid: HeroAlignGrid
 var hero: Dictionary = {}
@@ -43,17 +45,14 @@ func _draw() -> void:
 		var x := gx + (gs - w) / 2
 		PartyDraw.tint_tex(self, pair[2], Vector2(x, pair[1] + 1), col)
 		PartyDraw.text(self, Vector2(x + 10, pair[1]), word, col, f)
-	# Order (left) / Freedom (right): horizontal, under the grid's left and right edges with an
-	# arrow pointing out to their side (critic r2: rotated words were slow to read on a phone)
+	# Order (left) / Freedom (right): beside the grid's left and right edges at mid-height, the
+	# arrow over the word pointing out to its side
 	var lf: Texture2D = preload("res://ui/icons/arrow_left.png")
 	var rt: Texture2D = preload("res://ui/icons/arrow_right.png")
-	var by := gy + gs + 3
-	var wl := PartyModel.axis_word("law", 1).to_upper()
-	var cl := PartyModel.axis_color("law", 1)
-	PartyDraw.tint_tex(self, lf, Vector2(gx, by + 1), cl)
-	PartyDraw.text(self, Vector2(gx + 10, by), wl, cl, f)
-	var wr := PartyModel.axis_word("law", -1).to_upper()
-	var cr := PartyModel.axis_color("law", -1)
-	var rx := gx + gs - 10 - PartyDraw.text_w(wr, f)
-	PartyDraw.text(self, Vector2(rx, by), wr, cr, f)
-	PartyDraw.tint_tex(self, rt, Vector2(gx + gs - 8, by + 1), cr)
+	var cy := gy + gs / 2.0
+	for pair in [[1, lf, gx / 2.0], [-1, rt, gx + gs + (W - gx - gs) / 2.0]]:
+		var word := PartyModel.axis_word("law", pair[0]).to_upper()
+		var col := PartyModel.axis_color("law", pair[0])
+		var cx: float = pair[2]
+		PartyDraw.tint_tex(self, pair[1], Vector2(roundf(cx - 4.0), roundf(cy - 13.0)), col)
+		PartyDraw.text(self, Vector2(roundf(cx - PartyDraw.text_w(word, f) / 2.0), roundf(cy - 1.0)), word, col, f)

@@ -165,8 +165,8 @@
    "id": "legend_necromancer",
    "kind": "legend",
    "for_class": "necromancer",
-   "legend_name": "The Gray Shepherd",
-   "title": "A Legend's Memory: The Gray Shepherd",
+   "legend_name": "The Grey Shepherd",
+   "title": "A Legend's Memory: The Grey Shepherd",
    "art": {},
    "text": "He tended the dead when the living would not. The Fading's flock still answers to his crook.",
    "choices": [
@@ -179,7 +179,7 @@
       "law": 0
      },
      "legend": true,
-     "outcome": "Something gray turns to face you, and kneels."
+     "outcome": "Something grey turns to face you, and kneels."
     },
     {
      "id": "let_go",

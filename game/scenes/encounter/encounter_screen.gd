@@ -8,7 +8,7 @@ signal resolved(result: Dictionary)
 signal finished(result: Dictionary)
 
 const COL_X := 340
-const COL_W := 292
+const COL_W := 276      # 24 px clear of the frame's right edge (critic r5: the rows hugged it)
 const BOTTOM := 350
 
 @export var encounter_id := ""
@@ -147,7 +147,7 @@ func _build() -> void:
 	_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_body.position = Vector2(col_x + 6, 92)
 	_body.size = Vector2(COL_W - 12, 120)
-	_body.text = "[center]" + EncounterDB.markup(encounter["text"]) + "[/center]"
+	_body.text = "[center]" + EncounterDB.markup(UIText.curly(encounter["text"])) + "[/center]"
 	# the prose in the bold face: 2-unit stems stay 2 px when a 1080p frame is shown phone-sized
 	_body.add_theme_font_override("normal_font", UIText.BOLD)
 	_layer.add_child(_body)
@@ -397,16 +397,10 @@ func _add_recruit(r: Dictionary) -> void:
 
 func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary, body_h: int) -> void:
 	_choice_box.visible = false
-	var info := EncounterDB.class_info(hero["class"])
-	var cc := Pal.c(info["color"])
-	var shift: Vector2i = hero["pos"] - before["pos"]
-	var capped: bool = shift != EncounterDB.shift_of(btn.choice)
-	var strong := EncounterDB.is_rare(btn.choice) and not capped
-	var thr := int(EncounterDB.rules().get("advance_threshold", 3))
 	var recruit: Dictionary = btn.choice.get("recruit", {})
 	if party.size() >= 4 and party[-1].get("name", "") != recruit.get("name", ""):
 		recruit = {}
-	var card_h := 112
+	var card_h := EncounterResultCard.H
 	var cont_h := int(FlowUI.PRIMARY_H)
 	var rec_h := 40 if not recruit.is_empty() else 0
 	# re-centre the whole column around the result so nothing floats over empty space
@@ -418,139 +412,13 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 		tl.tween_property(n, "position:y", n.position.y + shift_y, 0.3)
 	_body_top += shift_y
 	var card_y := _body_top + body_h + 10
-	_card = Control.new()
-	_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_card.position = Vector2(col_x, card_y + 6)
-	_card.size = Vector2(COL_W, card_h)
-	_card.modulate.a = 0.0
-	_layer.add_child(_card)
+	var card := EncounterResultCard.new()
+	_card = card
+	card.setup(hero, before, btn.choice, COL_W)
+	card.position = Vector2(col_x, card_y)
+	_layer.add_child(card)
 	_layer.move_child(_fx, -1)
-	var panel := PanelContainer.new()
-	panel.theme_type_variation = &"RarePanel" if strong else &"PanelContainer"
-	panel.size = _card.size
-	_add(_card, panel)
-
-	# left: portrait at 2x in a class-coloured frame
-	_rect(_card, Rect2(10, 10, 54, 54), Pal.INK1)
-	var frame2 := _rect(_card, Rect2(11, 11, 52, 52), cc)
-	_rect(_card, Rect2(12, 12, 50, 50), Pal.INK3)
-	var por := TextureRect.new()
-	por.texture = load(info["portrait"])
-	por.scale = Vector2(2, 2)
-	por.position = Vector2(13, 13)
-	_add(_card, por)
-	var nm := _text(_card, hero["name"], Vector2(4, 68), cc, &"HeaderLabel")
-	nm.size = Vector2(66, 11)
-	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var cl := _text(_card, info.get("name", ""), Vector2(4, 79), Pal.INK8, &"HeaderLabel")
-	cl.size = Vector2(66, 11)
-	cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-
-	# middle column (x 74..166): memory, level, shift
-	var mx := 74
-	var gem := TextureRect.new()
-	gem.texture = load("res://ui/icons/memory_gem_big.png")
-	gem.position = Vector2(mx, 9)
-	_add(_card, gem)
-	_text(_card, "Memory", Vector2(mx + 17, 8), Pal.CRYSTAL4, &"TagLabel")
-	_text(_card, "absorbed", Vector2(mx + 17, 18), Pal.INK8, &"HeaderLabel")
-	_text(_card, "LEVEL", Vector2(mx, 37), Pal.INK8, &"HeaderLabel")
-	var lv_old := _text(_card, str(int(before["level"])), Vector2(mx + 30, 34), Pal.INK10, &"TitleLabel")
-	# one arrow for every level and stat change in the game: "2 → 3" (critic r1 found three)
-	var lv_arrow := _text(_card, "\u2192", Vector2(mx + 40, 36), Pal.INK8, &"HeaderLabel")
-	lv_arrow.visible = false
-	var lv_new := _text(_card, str(int(hero["level"])), Vector2(mx + 49, 34), Pal.CRYSTAL5, &"TitleLabel")
-	lv_new.visible = false
-	var pips := Control.new()
-	pips.position = Vector2(mx, 53)
-	pips.set_meta("filled", mini(int(before["level"]), thr))
-	pips.set_meta("glow", 0.0)
-	pips.draw.connect(func() -> void:
-		var f: int = pips.get_meta("filled")
-		var glow: float = pips.get_meta("glow")
-		for i in thr:
-			var r := Rect2(i * 9, 0, 8, 6)
-			pips.draw_rect(r, Pal.INK1)
-			var on := i < f
-			var col := Pal.CRYSTAL4 if on else Pal.INK4
-			if on and i == f - 1 and glow > 0.0:
-				col = Pal.INK10
-			pips.draw_rect(r.grow(-1), col)
-			if on:
-				pips.draw_rect(Rect2(i * 9 + 2, 1, 2, 1), Pal.CRYSTAL5))
-	_add(_card, pips)
-	var left := thr - int(hero["level"])
-	var adv := _text(_card, ("%d more to Awaken" % left) if left > 0 else "Ready to Awaken", Vector2(mx, 61),
-		Pal.AMBER6 if left <= 0 else Pal.INK7)
-	adv.modulate.a = 0.0
-	# shift: one word per line so nothing runs into the grid labels
-	var words := EncounterDB.shift_words(shift)
-	var acol := Pal.c(words[0]["color"]) if words.size() == 1 else Pal.INK10
 	var reveal: Array[Control] = []
-	var sy := 76
-	if words.is_empty():
-		var nm0 := _text(_card, "No move", Vector2(mx, sy), Pal.INK8)
-		nm0.modulate.a = 0.0
-		reveal.append(nm0)
-		sy += 11
-	for i in words.size():
-		var w: Dictionary = words[i]
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 3)
-		row.position = Vector2(mx, sy)
-		if i == 0:
-			row.add_child(_icon_box(EncounterDB.arrow_icon(shift), acol))
-		else:
-			var sp := Control.new()
-			sp.custom_minimum_size = Vector2(7, 1)
-			row.add_child(sp)
-		var l := Label.new()
-		l.text = "%s +%d" % [w["word"], w["amount"]]
-		l.add_theme_color_override("font_color", UIText.legible(Pal.c(w["color"])))
-		row.add_child(l)
-		row.modulate.a = 0.0
-		_add(_card, row)
-		reveal.append(row)
-		sy += 11
-	var note_txt := ""
-	var note_col := Pal.INK7
-	if strong:
-		note_txt = "Strong shift"
-		note_col = Pal.AMBER6
-	elif capped:
-		note_txt = "Capped at edge"
-		note_col = Pal.INK8
-	if note_txt != "":
-		var note := _text(_card, note_txt, Vector2(mx + (10 if strong else 0), sy), note_col)
-		note.modulate.a = 0.0
-		reveal.append(note)
-		if strong:
-			var star := TextureRect.new()
-			star.texture = load("res://ui/icons/star.png")
-			star.modulate = Pal.AMBER6
-			star.position = Vector2(-10, 2)
-			note.add_child(star)
-
-	# right: the big grid with the four pole words, each clear of the border
-	var grid := AlignGrid.new()
-	grid.cell = 7
-	grid.gap = 1
-	grid.dot_color = cc
-	grid.target_color = Pal.INK10
-	grid.from_pos = before["pos"]
-	grid.to_pos = hero["pos"]
-	grid.show_target = true
-	var gs := grid.total_size()
-	var gx := COL_W - gs - 48
-	var gy := int((card_h - gs) / 2.0) + 1
-	grid.position = Vector2(gx, gy)
-	_add(_card, grid)
-	var axes: Dictionary = EncounterDB.rules()["axes"]
-	_axis_label(_card, axes["good"]["pos"], axes["good"]["pos_color"], Vector2(gx - 10, gy - 13), gs + 20, HORIZONTAL_ALIGNMENT_CENTER)
-	_axis_label(_card, axes["good"]["neg"], axes["good"]["neg_color"], Vector2(gx - 10, gy + gs + 2), gs + 20, HORIZONTAL_ALIGNMENT_CENTER)
-	_axis_label(_card, axes["law"]["pos"], axes["law"]["pos_color"], Vector2(gx - 34, gy + int(gs / 2.0) - 6), 30, HORIZONTAL_ALIGNMENT_RIGHT)
-	_axis_label(_card, axes["law"]["neg"], axes["law"]["neg_color"], Vector2(gx + gs + 4, gy + int(gs / 2.0) - 6), 42, HORIZONTAL_ALIGNMENT_LEFT)
-
 	if rec_h > 0:
 		reveal.append(_recruit_panel(recruit, card_y + card_h + 4))
 	_continue = FlowUI.primary("Continue", COL_W)
@@ -562,49 +430,27 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 	_layer.add_child(_continue)
 
 	var chip := _chips[btn.hero_index] if btn.hero_index < _chips.size() else null
-	var portrait_center := _card.position + Vector2(37, 37 - 6)
-	var tw := create_tween()
-	tw.tween_property(_card, "modulate:a", 1.0, 0.2)
-	tw.parallel().tween_property(_card, "position:y", _card.position.y - 6, 0.2)
-	tw.tween_callback(_spawn_flyers.bind(_art.source_point(), portrait_center, chip))
-	tw.tween_interval(0.7)
-	tw.tween_callback(func() -> void:
-		lv_old.add_theme_color_override("font_color", UIText.legible(Pal.INK6))
-		lv_arrow.visible = true
-		lv_new.visible = true
-		lv_new.add_theme_color_override("font_color", UIText.legible(Pal.INK10))
-		pips.set_meta("filled", mini(int(hero["level"]), thr))
-		pips.set_meta("glow", 1.0)
-		pips.queue_redraw()
-		frame2.color = Pal.CRYSTAL5
+	var portrait_center := card.portrait_center() - Vector2(0, 6)
+	get_tree().create_timer(0.2).timeout.connect(_spawn_flyers.bind(_art.source_point(), portrait_center, chip))
+	card.landed.connect(func() -> void:
 		_burst(portrait_center)
 		if chip:
 			chip.set_level(int(hero["level"]))
 			chip.pulse())
-	tw.tween_interval(0.14)
-	tw.tween_callback(func() -> void:
-		frame2.color = cc
-		lv_new.add_theme_color_override("font_color", UIText.legible(Pal.CRYSTAL5))
-		pips.set_meta("glow", 0.0)
-		pips.queue_redraw())
-	tw.tween_property(adv, "modulate:a", 1.0, 0.15)
-	tw.tween_property(grid, "progress", 1.0, 0.8 if strong else 0.6)
-	if chip:
-		chip.grid.from_pos = before["pos"]
-		chip.grid.to_pos = hero["pos"]
-		tw.parallel().tween_property(chip.grid, "progress", 1.0, 0.6)
-	tw.tween_callback(func() -> void:
-		grid.show_target = false
-		grid.flash = 1.0)
-	tw.tween_property(grid, "flash", 0.0, 0.3)
-	for r in reveal:
-		tw.parallel().tween_property(r, "modulate:a", 1.0, 0.2)
-	tw.tween_callback(func() -> void:
+	card.moving.connect(func() -> void:
+		if chip:
+			chip.grid.from_pos = before["pos"]
+			chip.grid.to_pos = hero["pos"]
+			create_tween().tween_property(chip.grid, "progress", 1.0, 0.6))
+	card.finished.connect(func() -> void:
+		for r in reveal:
+			create_tween().tween_property(r, "modulate:a", 1.0, 0.2)
 		if chip:
 			chip.grid.from_pos = hero["pos"]
 			chip.grid.progress = 0.0
-		_continue.disabled = false)
-	tw.tween_property(_continue, "modulate:a", 1.0, 0.2)
+		_continue.disabled = false
+		create_tween().tween_property(_continue, "modulate:a", 1.0, 0.2))
+	card.play()
 
 
 ## The recruit's moment: their portrait, name and starting place on the grid, under the memory card.

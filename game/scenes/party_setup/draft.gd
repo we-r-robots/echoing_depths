@@ -173,6 +173,9 @@ func _run_demo() -> void:
 				commit())
 
 
+const TITLE_SIZE := 20
+
+
 func _draw() -> void:
 	var dim := Pal.INK1
 	dim.a = 0.72
@@ -181,10 +184,13 @@ func _draw() -> void:
 	var r0 := UIFrame.right(self)
 	# top bar
 	UIFrame.top_bar(self)
-	PartyDraw.text(self, Vector2(l + 10, UIText.centered_y(0, 28, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)), "Choose two heroes", Pal.AMBER6, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
-	# one serif title, one sans subtitle on the same line (critic r1: a sentence split across faces)
-	var tx := l + 18 + PartyDraw.text_w("Choose two heroes", PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
-	PartyDraw.text(self, Vector2(tx, UIText.centered_y(0, 28, PartyDraw.BOLD)), "More can join on the road, up to four.", Pal.INK9, PartyDraw.BOLD)
+	# the screen's title is clearly a title: serif two steps over the quiet sans subtitle, which
+	# shares its baseline (critic r5: "Choose two heroes" was barely larger than the sentence)
+	var head_y := UIText.centered_y(0, 28, PartyDraw.SERIF, TITLE_SIZE)
+	PartyDraw.text(self, Vector2(l + 10, head_y), "Choose two heroes", Pal.AMBER6, PartyDraw.SERIF, TITLE_SIZE)
+	var base := head_y + UIText.ascent(PartyDraw.SERIF, TITLE_SIZE)
+	var tx := l + 20 + PartyDraw.text_w("Choose two heroes", PartyDraw.SERIF, TITLE_SIZE)
+	PartyDraw.text(self, Vector2(tx, base - UIText.ascent(PartyDraw.BOLD, UIText.BODY)), "More can join on the road, up to four.", Pal.INK8, PartyDraw.BOLD)
 	# pick slots, right
 	var px := r0 - 8
 	for k in range(need - 1, -1, -1):

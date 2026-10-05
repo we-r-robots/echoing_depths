@@ -85,7 +85,7 @@
    "name": "The Choir of the Unremembered",
    "level": 4,
    "loss_health": 3,
-   "intro": "They sing in the voices of the people they have eaten. You know some of the voices. The [fade]gray[/fade] behind them is listening, and every verse takes something from the room.",
+   "intro": "They sing in the voices of the people they have eaten. You know some of the voices. The [fade]grey[/fade] behind them is listening, and every verse takes something from the room.",
    "monsters": [
     {
      "class": "memory_wraith",

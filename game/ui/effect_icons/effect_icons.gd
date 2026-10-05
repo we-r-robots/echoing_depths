@@ -405,6 +405,34 @@ static func who_of(shape_id: String, cells: Array, names: Array) -> Dictionary:
 const CHIP := 20
 
 
+## An item's flat stat bonuses as effects (hero detail equipment rows; the user's "keep it
+## consistent" ruling, critic r5): the stat icon with a green ▲ or red ▼, a short title ("Atk +6",
+## or just "+6" where the row is tight) and the full sentence for the tooltip.
+const ITEM_STATS := ["hp", "atk", "def", "mag", "spd"]
+const ITEM_LABEL := {"hp": "HP", "atk": "Atk", "def": "Def", "mag": "Mag", "spd": "Spd"}
+const ITEM_WHY := {
+	"hp": ["More health before going down.", "Less health before going down."],
+	"atk": ["Weapon blows hit harder.", "Weapon blows hit softer."],
+	"def": ["Takes less damage from blows.", "Takes more damage from blows."],
+	"mag": ["Spells and healing are stronger.", "Spells and healing are weaker."],
+	"spd": ["The ATB gauge fills faster, so turns come sooner.", "The ATB gauge fills slower, so turns come later."],
+}
+
+
+static func item_effects(it: Dictionary) -> Array:
+	var out: Array = []
+	var st: Dictionary = it.get("stats", {})
+	for s: String in ITEM_STATS:
+		if not st.has(s) or int(st[s]) == 0:
+			continue
+		var v := int(st[s])
+		var lab: String = ITEM_LABEL[s]
+		out.append({"icon": icon("stat_" + s), "sign": 1 if v > 0 else -1, "kind": "stat",
+			"title": "%s %+d" % [lab, v], "short": "%+d" % v, "name": lab,
+			"text": "%s: %+d %s. %s" % [String(it.get("name", "Item")), v, lab, ITEM_WHY[s][0 if v > 0 else 1]]})
+	return out
+
+
 ## Draws one effect as a 20x20 chip at pos: a dark well, the icon tinted (green buff, red cost,
 ## crystal behaviour, amber bond) and a green up / red down arrow in the corner.
 static func draw_effect(ci: CanvasItem, pos: Vector2, e: Dictionary, lit := false, locked := false) -> void:

@@ -154,16 +154,16 @@ func _draw() -> void:
 	draw_rect(r, Pal.INK1)
 	draw_rect(r.grow(-1), Pal.INK2)
 	draw_rect(Rect2(r.position.x + 1, r.position.y + 1, r.size.x - 2, 1), _accent)
-	# the reading pane is wired to its row: the row gets an accent frame and a rule runs down the
-	# card's left margin from the row to the pane
+	# the reading pane is tied to its row: the row gets an accent frame, and a small caret on the
+	# pane's top edge points up toward the row's icon (critic r5: a bracket rule down the card's
+	# margin read as a stray line)
 	if _in_zone and owner_control != null and is_instance_valid(owner_control):
 		var a := owner_control.get_global_rect()
-		var lx := r.position.x + 2.0
-		if a.end.y <= r.position.y and a.position.x - 4.0 >= lx:
-			var ay := roundf(a.get_center().y)
+		if a.end.y <= r.position.y:
 			draw_rect(a.grow(1.0), _accent, false, 1.0)
-			draw_rect(Rect2(lx, ay, a.position.x - 1.0 - lx, 1), _accent)
-			draw_rect(Rect2(lx, ay, 1, r.position.y - ay + 1.0), _accent)
+			var cx := roundf(clampf(a.position.x + 10.0, r.position.x + 6.0, r.end.x - 6.0))
+			for k in 4:
+				draw_rect(Rect2(cx - k, r.position.y - 4 + k, k * 2 + 1, 1), _accent)
 	# pointer nub toward the owner when placed beside it
 	if owner_control != null and is_instance_valid(owner_control) and not _in_zone:
 		var a := owner_control.get_global_rect()

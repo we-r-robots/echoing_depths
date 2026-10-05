@@ -6,7 +6,7 @@ extends Control
 signal advance_pressed
 
 const W := 228
-const H := 294
+const H := 312
 const GEM := preload("res://ui/icons/memory_gem.png")
 const ICONS := {
 	"hp": preload("res://assets/party/stat_hp.png"), "atk": preload("res://assets/party/stat_atk.png"),
@@ -29,9 +29,11 @@ const TAKEN_Y := 62        # the memories row: one 16x16 well per memory (its ar
 const TAKEN_X := 52        # room for "Memories" before the wells
 const WELL := 16           # memory wells: 16 design px = 48 screen px at 1080p, arrows drawn x2
 const STATS_Y := 116
-const EQUIP_Y := 152
-const ABILITY_Y := 222
-const NOTE_Y := 258        # the screen's one status sentence, inside the card (critic r3)
+const EQUIP_Y := 151
+const ROW := 22            # weapon / armor rows: slot icon, name, stat chips right-aligned
+const ROW_RELIC := 36      # the Relic row: name and BOUND, then its alignment and stat chips
+const ABILITY_Y := 238
+const NOTE_Y := 276        # the screen's one status sentence, inside the card (critic r3)
 
 var hero: Dictionary = {}
 var info: Dictionary = {}
@@ -49,6 +51,7 @@ const PIP_STEP := 16
 var _pip_tips: Array[Control] = []
 var _taken_tips: Array[Control] = []
 var _ability_tip: Control
+var _equip_chips: Array[EffectChip] = []
 
 
 func _tip_area(r: Rect2) -> Control:
@@ -102,6 +105,7 @@ func set_hero(h: Dictionary) -> void:
 	else:
 		_sprite.visible = false
 	_build_tips()
+	_build_equip_chips()
 	var ready := PartyModel.ready_to_advance(h)
 	_advance.visible = ready
 	_advance.text = "Advance"   # (held back: the HELD tag beside it says so; "Advance now" pushed it off the card)
@@ -152,6 +156,68 @@ func _build_tips() -> void:
 	var note := "Replaced by the new class's ability on advancing." if PartyModel.tier(hero) == "base" else "This advanced class's ability."
 	_ability_tip = _tip_area(Rect2(6, ABILITY_Y - 2, W - 12, 32))
 	Tip.attach(_ability_tip, String(a.get("name", "")), PartyModel.ability_desc(a) + " " + note, Pal.c(info["color"]))
+
+
+## Equipment stat effects as the shared stat chips (BUILD.md: effects are icons; the user's "keep it
+## consistent" ruling, critic r5): the stat icon with a green ▲ / red ▼ and "Atk +6", the full
+## sentence in the shared Tip. Weapon and armor chips sit right-aligned on the item's line; the
+## Relic's follow its alignment on the second line. The chip's label is the amount ("+6").
+func _build_equip_chips() -> void:
+	for c in _equip_chips:
+		Tip.detach(c)
+		c.queue_free()
+	_equip_chips.clear()
+	var items: Dictionary = hero.get("items", {})
+	var ry := EQUIP_Y
+	for slot: String in ["weapon", "armor", "relic"]:
+		var id := String(items.get(slot, ""))
+		var rh := ROW_RELIC if slot == "relic" else ROW
+		if id != "":
+			var it := PartyModel.item(id)
+			var effs := EffectIcons.item_effects(it)
+			var right := W - 8 - 3
+			var left := 28
+			var y := ry + 1
+			if slot == "relic":
+				left = 28 + _relic_align_w(it) + 6
+				y = ry + 15
+			# the icon names the stat: the chip says the amount ("+6"), as Sea of Stars' "+17"
+			for e: Dictionary in effs:
+				e["title"] = e["short"]
+			var x := right - _chips_w(effs)
+			if slot == "relic":
+				x = left
+			for e: Dictionary in effs:
+				var lw := _chip_label_w(e)
+				var chip := EffectChip.new()
+				add_child(chip)
+				chip.setup(e, "auto", lw)
+				chip.position = Vector2(x, y)
+				_equip_chips.append(chip)
+				x += EffectIcons.CHIP + lw + 4
+		ry += rh
+
+
+func _chip_label_w(e: Dictionary) -> int:
+	return PartyDraw.text_w(String(e["title"]), PartyDraw.BOLD) + 10
+
+
+func _chips_w(effs: Array) -> int:
+	var w := 0
+	for e: Dictionary in effs:
+		w += EffectIcons.CHIP + _chip_label_w(e) + 4
+	return maxi(0, w - 4)
+
+
+## Width of the Relic's alignment words ("▲ +1 Mercy") on its second line.
+func _relic_align_w(it: Dictionary) -> int:
+	var off: Array = it.get("alignment", [0, 0])
+	var w := 0
+	for pair in [["good", int(off[0])], ["law", int(off[1])]]:
+		if pair[1] == 0:
+			continue
+		w += 13 + PartyDraw.text_w("%+d %s" % [absi(pair[1]), PartyModel.axis_word(pair[0], pair[1])], PartyDraw.BOLD)
+	return w
 
 
 static func _frames_for(base: String) -> SpriteFrames:
@@ -283,6 +349,9 @@ func _draw_taken(x: int, y: int) -> void:
 		else:
 			draw_rect(Rect2(well.position + Vector2(6, 6), Vector2(4, 4)), Pal.INK4)
 		ax += WELL + 2
+	# how many: "2/3" toward advancing (critic r5 read the wells as unlabelled glyphs)
+	if PartyModel.tier(hero) == "base":
+		PartyDraw.text(self, Vector2(ax + 2, y + 3), "%d/%d" % [mini(mem.size(), PartyModel.threshold()), PartyModel.threshold()], Pal.INK8, PartyDraw.BOLD)
 
 
 ## The status sentence (what the Relic does, how far from advancing, the tapped cell) as the card's
@@ -301,18 +370,22 @@ func _draw_note() -> void:
 
 
 func _draw_stats(y: int) -> void:
-	# no section header: the stat icons say what this strip is (fewer, calmer elements)
+	# no section header: the stat icons say what this strip is. Label and value share one centre
+	# line per column (critic r5: left labels over right-aligned values read as two columns).
 	var st := PartyModel.stats(hero)
 	var x := 8
 	var cw := 40
 	for s: String in ["hp", "atk", "def", "mag", "spd"]:
 		var r := Rect2(x, y, cw, 27)
 		PartyDraw.row(self, Rect2(r.position, Vector2(cw, 12)))
-		PartyDraw.tint_tex(self, ICONS[s], Vector2(x + 3, y + 2), STAT_COLORS[s])
-		PartyDraw.text(self, Vector2(x + 12, y), PartyModel.STAT_LABELS[s], Pal.INK9, PartyDraw.BOLD)
+		var lab: String = PartyModel.STAT_LABELS[s]
+		var lw := 9 + PartyDraw.text_w(lab, PartyDraw.BOLD)
+		var lx := x + roundi((cw - lw) / 2.0)
+		PartyDraw.tint_tex(self, ICONS[s], Vector2(lx, y + 2), STAT_COLORS[s])
+		PartyDraw.text(self, Vector2(lx + 9, y), lab, Pal.INK9, PartyDraw.BOLD)
 		var well := Rect2(x, y + 13, cw, 13)
 		PartyDraw.inset(self, well)
-		PartyDraw.text(self, Vector2(x, y + 14), str(st[s]), Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, cw - 4, HORIZONTAL_ALIGNMENT_RIGHT)
+		PartyDraw.text(self, Vector2(x, y + 14), str(st[s]), Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, cw, HORIZONTAL_ALIGNMENT_CENTER)
 		x += cw + 3
 
 
@@ -322,38 +395,37 @@ func _draw_equipment(y: int) -> void:
 	for slot: String in ["weapon", "armor", "relic"]:
 		var id := String(items.get(slot, ""))
 		var it := PartyModel.item(id) if id != "" else {}
-		var rh := 28 if slot == "relic" else 18
+		var rh := ROW_RELIC if slot == "relic" else ROW
 		var r := Rect2(8, ry, W - 16, rh - 1)
 		if slot == "relic":
 			draw_rect(r, Pal.AMBER1 if id != "" else Pal.INK2)
 			PartyDraw.soft_outline(self, r, Pal.AMBER3 if id != "" else Pal.INK4)
 		else:
 			PartyDraw.row(self, r)
-		var well := Rect2(10, ry + 2, 13, 13)
+		var ty := UIText.centered_y(ry, ROW - 1, UIText.BOLD, PartyDraw.SANS_SIZE)
+		var well := Rect2(10, ry + 4, 13, 13)
 		PartyDraw.inset(self, well)
 		var ic: Color = Pal.AMBER6 if slot == "relic" and id != "" else (Pal.INK9 if id != "" else Pal.INK5)
 		draw_texture(SLOT_ICONS[slot], well.position + Vector2(2, 2), ic)
 		if id == "":
 			var empty_txt := "No Relic" if slot == "relic" else "Empty"
-			PartyDraw.text(self, Vector2(28, ry + 3), empty_txt, Pal.INK8, PartyDraw.BOLD)
+			PartyDraw.text(self, Vector2(28, ty), empty_txt, Pal.INK8, PartyDraw.BOLD)
 			if slot == "relic":
-				PartyDraw.text(self, Vector2(28, ry + 14), "A Relic binds when equipped", Pal.INK8, PartyDraw.BOLD)
+				PartyDraw.text(self, Vector2(28, ty + 15), "A Relic binds when equipped", Pal.INK8, PartyDraw.BOLD)
 		else:
 			var name_col := Pal.AMBER6 if slot == "relic" else Pal.INK10
-			PartyDraw.text(self, Vector2(28, ry + 3), String(it.get("name", id)), name_col, PartyDraw.BOLD)
-			var sw := PartyModel.item_stat_words(it)
-			if slot != "relic":
-				PartyDraw.text(self, Vector2(28, ry + 3), sw, Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, W - 16 - 24, HORIZONTAL_ALIGNMENT_RIGHT)
-			else:
+			PartyDraw.text(self, Vector2(28, ty), String(it.get("name", id)), name_col, PartyDraw.BOLD)
+			if slot == "relic":
 				# BOUND: a lock and the word, no pill of its own (critic r4: the row's fill and a pill
 				# were two highlight treatments on one row)
 				var bw := PartyDraw.text_w("BOUND", PartyDraw.BOLD) + 14
 				var bx := W - 8 - 3 - bw
-				draw_texture(LOCK, Vector2(bx + 3, ry + 5), Pal.AMBER5)
-				PartyDraw.text(self, Vector2(bx + 10, ry + 4), "BOUND", Pal.AMBER5, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
-				# alignment offset: the only equipment with one
+				draw_texture(LOCK, Vector2(bx + 3, ty + 1), Pal.AMBER5)
+				PartyDraw.text(self, Vector2(bx + 10, ty), "BOUND", Pal.AMBER5, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
+				# alignment offset (the only equipment with one), then the stat chips (EffectChip)
 				var off: Array = it.get("alignment", [0, 0])
 				var ax := 28
+				var ly := UIText.centered_y(ry + 15, EffectIcons.CHIP, UIText.BOLD, PartyDraw.SANS_SIZE)
 				for pair in [["good", int(off[0])], ["law", int(off[1])]]:
 					if pair[1] == 0:
 						continue
@@ -361,11 +433,10 @@ func _draw_equipment(y: int) -> void:
 					var shift := Vector2i(v, 0) if pair[0] == "good" else Vector2i(0, v)
 					var arrow: Texture2D = PartyDraw.icon(EncounterDB.arrow_icon(shift))
 					var col := PartyModel.axis_color(pair[0], v)
-					PartyDraw.tint_tex(self, arrow, Vector2(ax, ry + 16), col)
+					PartyDraw.tint_tex(self, arrow, Vector2(ax, ly + 2), col)
 					var word := "%+d %s" % [absi(v), PartyModel.axis_word(pair[0], v)]
-					PartyDraw.text(self, Vector2(ax + 9, ry + 14), word, col, PartyDraw.BOLD)
+					PartyDraw.text(self, Vector2(ax + 9, ly), word, col, PartyDraw.BOLD)
 					ax += 13 + PartyDraw.text_w(word, PartyDraw.BOLD)
-				PartyDraw.text(self, Vector2(ax + 2, ry + 14), sw, Pal.INK9, PartyDraw.BOLD)
 		ry += rh
 
 

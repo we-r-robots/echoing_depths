@@ -309,10 +309,7 @@ static func _toast_for(ev: Dictionary) -> String:
 			return "Strays: nobody side by side"
 		"unformed":
 			return "No formation: no bonus, no cost"
-		"locked_fallback":
-			return "%s locked: fighting as %s" % [ev["shape"]["name"], ev["effective"]["name"]]
-		"locked_unformed":
-			return "%s locked: no formation" % ev["shape"]["name"]
+		# a locked shape: no toast, the card's title line already says "<shape> locked" (critic r5)
 	return ""
 
 
@@ -814,12 +811,14 @@ func _draw_top() -> void:
 		var nm := "Back to the bench"
 		if _target is Array:
 			nm = "No shape" if shape.is_empty() else String(res["effective"]["name"])
+			# a locked shape: the plate names only what fights; the card says which shape is locked
+			# (critic r5: board and card said "Crescent locked" twice)
 			if String(res["state"]) == "locked_fallback":
-				nm = "%s: as %s" % [shape["name"], res["effective"]["name"]]
+				nm = String(res["effective"]["name"])
 			elif String(res["state"]) == "locked_unformed":
-				nm = "%s: no formation" % shape["name"]
+				nm = "No formation"
 		var good: bool = String(res["state"]) == "active" and _target is Array
-		var lock: bool = res["locked"]
+		var lock := false
 		# the result reads in the board's bottom strip (where the toast goes), never over a hero
 		var lead := "If placed:" if _target is Array else ""
 		var lw := (PartyDraw.text_w(lead, PartyDraw.BOLD) + 6) if lead != "" else 0

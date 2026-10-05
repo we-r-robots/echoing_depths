@@ -218,13 +218,13 @@ func _draw_top_bar() -> void:
 	draw_rect(Rect2(0, 0, vw, 1), Pal.INK3)
 	PartyDraw.text(self, Vector2(l + 10, UIText.centered_y(0, 28, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)), "Formation", Pal.AMBER6, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
 	var tx := l + 14 + PartyDraw.text_w("Formation", PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
-	var where := "Arrange the party" if mode == "review" or String(info.get("fight", "")) == "" else "Before the fight"
-	PartyDraw.text(self, Vector2(tx, 5), where, Pal.INK9, PartyDraw.BOLD)
+	# two lines beside the title (critic r5: four strings in 40 px): where we are, then the next
+	# fight with the hidden-formation note
 	var place := String(info.get("place", ""))
 	var sub := "Depth %d" % int(info.get("depth", 1))
 	if place != "":
 		sub = place + "  ·  " + sub
-	PartyDraw.text(self, Vector2(tx, 15), sub, Pal.INK8, PartyDraw.BOLD)
+	PartyDraw.text(self, Vector2(tx, 4), sub, Pal.INK9, PartyDraw.BOLD)
 	# health, far right
 	var mh := int(info.get("max_health", 0))
 	var r0 := sr.end.x - 8.0
@@ -237,17 +237,20 @@ func _draw_top_bar() -> void:
 		PartyDraw.text(self, Vector2(hx - 20, 15), "Health %d/%d" % [int(info.get("health", 0)), mh], Pal.INK8, PartyDraw.BOLD, UIText.BODY, true, r0 - hx + 20, HORIZONTAL_ALIGNMENT_RIGHT)
 		right = hx - 30
 		draw_rect(Rect2(right + 8, 5, 1, 19), Pal.INK4)
-	# the next fight: who, never their formation
+	# the next fight: who, never their formation (line 2, under the place)
 	var fight := String(info.get("fight", ""))
-	if fight != "":
+	if fight != "" and mode != "review":
 		var opp := String(info.get("opponent", ""))
 		var title := ("Next: " + opp) if opp != "" else "Next: a fight"
-		var w := PartyDraw.text_w(title, PartyDraw.BOLD)
-		var x := right - w
-		PartyDraw.text(self, Vector2(x, 4), title, Pal.INK10, PartyDraw.BOLD)
+		var x := tx
 		if KIND_ICONS.has(fight):
-			PartyDraw.tint_tex(self, KIND_ICONS[fight], Vector2(x - 12, 5), Pal.BLOOD4 if fight != "pvp" else Pal.VIOLET4)
-		PartyDraw.text(self, Vector2(right - 220, 15), "Their formation stays hidden until the fight", Pal.INK8, PartyDraw.BOLD, UIText.BODY, true, 220, HORIZONTAL_ALIGNMENT_RIGHT)
+			PartyDraw.tint_tex(self, KIND_ICONS[fight], Vector2(x, 16), Pal.BLOOD4 if fight != "pvp" else Pal.VIOLET4)
+			x += 12
+		PartyDraw.text(self, Vector2(x, 15), title, Pal.INK10, PartyDraw.BOLD)
+		x += PartyDraw.text_w(title, PartyDraw.BOLD)
+		var note := "  ·  their formation stays hidden"
+		if x + PartyDraw.text_w(note, PartyDraw.BOLD) <= right:
+			PartyDraw.text(self, Vector2(x, 15), note, Pal.INK8, PartyDraw.BOLD)
 
 
 # ------------------------------------------------------------------ demo
