@@ -1,0 +1,46 @@
+GIMP Palette
+Name: Echoing Depths Master
+Columns: 10
+#
+ 11  10  20	ink1
+ 21  19  39	ink2
+ 31  29  58	ink3
+ 44  42  82	ink4
+ 61  59 107	ink5
+ 82  82 135	ink6
+110 112 163	ink7
+147 150 192	ink8
+191 194 220	ink9
+236 238 247	ink10
+ 59  31  26	amber1
+106  52  32	amber2
+163  80  42	amber3
+214 120  47	amber4
+242 165  65	amber5
+251 210 122	amber6
+255 241 196	amber7
+ 18  50  74	crystal1
+ 28  90 115	crystal2
+ 42 143 163	crystal3
+ 79 196 201	crystal4
+162 239 230	crystal5
+ 29  51  38	life1
+ 47  90  58	life2
+ 79 138  74	life3
+139 191  90	life4
+ 74  20  36	blood1
+138  31  51	blood2
+210  59  69	blood3
+255 122 107	blood4
+ 74  74  80	fade1
+119 119 126	fade2
+167 167 173	fade3
+212 212 216	fade4
+ 92  58  46	skin1
+154 100  72	skin2
+217 160 122	skin3
+243 207 176	skin4
+ 59  31  92	violet1
+107  58 160	violet2
+167 109 224	violet3
+224 179 255	violet4

@@ -1,0 +1,15 @@
+{
+  "_doc": "Sample state for the standalone demo of scenes/encounter/encounter.tscn.",
+  "vault": "The Drowned Archive",
+  "depth": 4,
+  "lanterns": [3, 4],
+  "encounter": "weeping_colossus",
+  "demo_auto_choice": "pry_crystal",
+  "demo_auto_frame": 240,
+  "playlist": ["weeping_colossus", "even_odds", "hollow_hound", "light_left_burning", "last_name"],
+  "heroes": [
+    { "name": "Brannoc", "class": "fighter", "level": 2, "pos": [0, 1] },
+    { "name": "Ilse", "class": "healer", "level": 1, "pos": [1, 1] },
+    { "name": "Vesper", "class": "mage", "level": 2, "pos": [1, 0] }
+  ]
+}

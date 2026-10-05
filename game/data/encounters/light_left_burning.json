@@ -1,0 +1,43 @@
+{
+  "id": "light_left_burning",
+  "kind": "recruitment",
+  "title": "A Light Left Burning",
+  "art": {
+    "dir": "res://assets/encounter/campfire/",
+    "bg": "bg.png",
+    "offset": [0, 18],
+    "layers": [
+      { "id": "girl", "tex": "girl.png" },
+      { "tex": "glow.png", "blend": "add", "flicker": [0.2, 0.45] }
+    ],
+    "motes": { "rect": [190, 200, 30, 50], "count": 10, "colors": ["amber5", "amber6", "amber7"], "speed": 9},
+    "source": [150, 200]
+  },
+  "text": "A girl in a too-large coat sits by a dying [amber]lantern[/amber], a fresh cut across her palm, sharpening a knife she does not need. Her party went deeper three days ago. She has started to forget their faces.\n\n\"If you're going down,\" she says, \"I'm coming.\"",
+  "choices": [
+    {
+      "id": "tend_wounds",
+      "class": "healer",
+      "label": "Bind her hand",
+      "shift": { "good": 1, "law": 0},
+      "recruit": { "class": "rogue", "name": "Tamsin" },
+      "outcome": "Ilse cleans the cut and binds it. Tamsin flinches, then doesn't. She tells you their names while they are still there to tell, and shoulders her pack."
+    },
+    {
+      "id": "test_blade",
+      "class": "fighter",
+      "label": "Take her as your second",
+      "shift": { "good": 0, "law": 1},
+      "recruit": { "class": "rogue", "name": "Tamsin" },
+      "outcome": "Three passes. She is fast, and cheats, and grins when she loses. Brannoc nods once. That is enough."
+    },
+    {
+      "id": "read_her",
+      "class": "mage",
+      "label": "Take the faces she is losing",
+      "shift": { "good": -1, "law": -1},
+      "art": { "hide": ["girl"] },
+      "outcome": "Vesper takes the faces gently, the way you take a cup from someone asleep. Tamsin blinks, shoulders her pack, and walks back toward the surface, lighter and unsure why."
+    }
+  ]
+}

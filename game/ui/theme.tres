@@ -1,0 +1,278 @@
+[gd_resource type="Theme" load_steps=35 format=3]
+
+[ext_resource type="FontFile" path="res://assets/fonts/depths_sans.fnt" id="1_depths_sans"]
+[ext_resource type="FontFile" path="res://assets/fonts/depths_sans_bold.fnt" id="2_depths_sans_bold"]
+[ext_resource type="FontFile" path="res://assets/fonts/depths_serif.fnt" id="3_depths_serif"]
+[ext_resource type="Texture2D" path="res://ui/panel.png" id="4_panel"]
+[ext_resource type="Texture2D" path="res://ui/panel_dim.png" id="5_panel_dim"]
+[ext_resource type="Texture2D" path="res://ui/panel_rare.png" id="6_panel_rare"]
+[ext_resource type="Texture2D" path="res://ui/button_normal.png" id="7_button_normal"]
+[ext_resource type="Texture2D" path="res://ui/button_hover.png" id="8_button_hover"]
+[ext_resource type="Texture2D" path="res://ui/button_pressed.png" id="9_button_pressed"]
+[ext_resource type="Texture2D" path="res://ui/button_disabled.png" id="10_button_disabled"]
+[ext_resource type="Texture2D" path="res://ui/focus.png" id="11_focus"]
+[ext_resource type="Texture2D" path="res://ui/choice_normal.png" id="12_choice_normal"]
+[ext_resource type="Texture2D" path="res://ui/choice_hover.png" id="13_choice_hover"]
+[ext_resource type="Texture2D" path="res://ui/choice_pressed.png" id="14_choice_pressed"]
+[ext_resource type="Texture2D" path="res://ui/choice_disabled.png" id="15_choice_disabled"]
+[ext_resource type="Texture2D" path="res://ui/choice_rare.png" id="16_choice_rare"]
+[ext_resource type="Texture2D" path="res://ui/choice_rare_hover.png" id="17_choice_rare_hover"]
+[ext_resource type="Texture2D" path="res://ui/topbar.png" id="18_topbar"]
+
+[sub_resource type="StyleBoxTexture" id="sb_1"]
+content_margin_left = 8.0
+content_margin_top = 7.0
+content_margin_right = 8.0
+content_margin_bottom = 7.0
+texture = ExtResource("4_panel")
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_2"]
+content_margin_left = 8.0
+content_margin_top = 7.0
+content_margin_right = 8.0
+content_margin_bottom = 7.0
+texture = ExtResource("5_panel_dim")
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_3"]
+content_margin_left = 8.0
+content_margin_top = 7.0
+content_margin_right = 8.0
+content_margin_bottom = 7.0
+texture = ExtResource("6_panel_rare")
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_4"]
+content_margin_left = 10.0
+content_margin_top = 4.0
+content_margin_right = 10.0
+content_margin_bottom = 5.0
+texture = ExtResource("7_button_normal")
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_5"]
+content_margin_left = 10.0
+content_margin_top = 4.0
+content_margin_right = 10.0
+content_margin_bottom = 5.0
+texture = ExtResource("8_button_hover")
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_6"]
+content_margin_left = 10.0
+content_margin_top = 5.0
+content_margin_right = 10.0
+content_margin_bottom = 4.0
+texture = ExtResource("9_button_pressed")
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_7"]
+content_margin_left = 10.0
+content_margin_top = 4.0
+content_margin_right = 10.0
+content_margin_bottom = 5.0
+texture = ExtResource("10_button_disabled")
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_8"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+texture = ExtResource("11_focus")
+texture_margin_left = 6.0
+texture_margin_top = 6.0
+texture_margin_right = 6.0
+texture_margin_bottom = 6.0
+draw_center = false
+
+[sub_resource type="StyleBoxTexture" id="sb_9"]
+content_margin_left = 8.0
+content_margin_top = 5.0
+content_margin_right = 8.0
+content_margin_bottom = 5.0
+texture = ExtResource("12_choice_normal")
+texture_margin_left = 8.0
+texture_margin_top = 7.0
+texture_margin_right = 8.0
+texture_margin_bottom = 7.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_10"]
+content_margin_left = 8.0
+content_margin_top = 5.0
+content_margin_right = 8.0
+content_margin_bottom = 5.0
+texture = ExtResource("13_choice_hover")
+texture_margin_left = 8.0
+texture_margin_top = 7.0
+texture_margin_right = 8.0
+texture_margin_bottom = 7.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_11"]
+content_margin_left = 8.0
+content_margin_top = 5.0
+content_margin_right = 8.0
+content_margin_bottom = 5.0
+texture = ExtResource("14_choice_pressed")
+texture_margin_left = 8.0
+texture_margin_top = 7.0
+texture_margin_right = 8.0
+texture_margin_bottom = 7.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_12"]
+content_margin_left = 8.0
+content_margin_top = 5.0
+content_margin_right = 8.0
+content_margin_bottom = 5.0
+texture = ExtResource("15_choice_disabled")
+texture_margin_left = 8.0
+texture_margin_top = 7.0
+texture_margin_right = 8.0
+texture_margin_bottom = 7.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_13"]
+content_margin_left = 8.0
+content_margin_top = 5.0
+content_margin_right = 8.0
+content_margin_bottom = 5.0
+texture = ExtResource("16_choice_rare")
+texture_margin_left = 8.0
+texture_margin_top = 7.0
+texture_margin_right = 8.0
+texture_margin_bottom = 7.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_14"]
+content_margin_left = 8.0
+content_margin_top = 5.0
+content_margin_right = 8.0
+content_margin_bottom = 5.0
+texture = ExtResource("17_choice_rare_hover")
+texture_margin_left = 8.0
+texture_margin_top = 7.0
+texture_margin_right = 8.0
+texture_margin_bottom = 7.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="sb_15"]
+content_margin_left = 6.0
+content_margin_top = 2.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
+texture = ExtResource("18_topbar")
+texture_margin_left = 0.0
+texture_margin_top = 1.0
+texture_margin_right = 0.0
+texture_margin_bottom = 3.0
+draw_center = true
+
+[sub_resource type="StyleBoxEmpty" id="sb_16"]
+
+[resource]
+default_font = ExtResource("1_depths_sans")
+default_font_size = 11
+Label/colors/font_color = Color(0.7490, 0.7608, 0.8627, 1.0)
+Label/colors/font_shadow_color = Color(0.0431, 0.0392, 0.0784, 1.0)
+Label/constants/shadow_offset_x = 1
+Label/constants/shadow_offset_y = 1
+Label/constants/line_spacing = 0
+Label/font_sizes/font_size = 11
+Label/fonts/font = ExtResource("1_depths_sans")
+TitleLabel/base_type = &"Label"
+TitleLabel/colors/font_color = Color(0.9843, 0.8235, 0.4784, 1.0)
+TitleLabel/colors/font_shadow_color = Color(0.0431, 0.0392, 0.0784, 1.0)
+TitleLabel/font_sizes/font_size = 16
+TitleLabel/fonts/font = ExtResource("3_depths_serif")
+HeaderLabel/base_type = &"Label"
+HeaderLabel/colors/font_color = Color(0.9255, 0.9333, 0.9686, 1.0)
+HeaderLabel/font_sizes/font_size = 11
+HeaderLabel/fonts/font = ExtResource("2_depths_sans_bold")
+TagLabel/base_type = &"Label"
+TagLabel/colors/font_color = Color(0.3098, 0.7686, 0.7882, 1.0)
+TagLabel/font_sizes/font_size = 11
+TagLabel/fonts/font = ExtResource("2_depths_sans_bold")
+MutedLabel/base_type = &"Label"
+MutedLabel/colors/font_color = Color(0.4314, 0.4392, 0.6392, 1.0)
+GoldLabel/base_type = &"Label"
+GoldLabel/colors/font_color = Color(0.9843, 0.8235, 0.4784, 1.0)
+GoldLabel/font_sizes/font_size = 11
+GoldLabel/fonts/font = ExtResource("2_depths_sans_bold")
+RichTextLabel/colors/default_color = Color(0.7490, 0.7608, 0.8627, 1.0)
+RichTextLabel/colors/font_shadow_color = Color(0.0431, 0.0392, 0.0784, 1.0)
+RichTextLabel/constants/shadow_offset_x = 1
+RichTextLabel/constants/shadow_offset_y = 1
+RichTextLabel/constants/line_separation = 1
+RichTextLabel/font_sizes/normal_font_size = 11
+RichTextLabel/font_sizes/bold_font_size = 11
+RichTextLabel/fonts/normal_font = ExtResource("1_depths_sans")
+RichTextLabel/fonts/bold_font = ExtResource("2_depths_sans_bold")
+RichTextLabel/styles/normal = SubResource("sb_16")
+RichTextLabel/styles/focus = SubResource("sb_16")
+Button/colors/font_color = Color(0.9843, 0.8235, 0.4784, 1.0)
+Button/colors/font_hover_color = Color(1.0000, 0.9451, 0.7686, 1.0)
+Button/colors/font_pressed_color = Color(0.9255, 0.9333, 0.9686, 1.0)
+Button/colors/font_focus_color = Color(1.0000, 0.9451, 0.7686, 1.0)
+Button/colors/font_disabled_color = Color(0.4667, 0.4667, 0.4941, 1.0)
+Button/colors/font_outline_color = Color(0.0431, 0.0392, 0.0784, 1.0)
+Button/constants/outline_size = 0
+Button/constants/h_separation = 4
+Button/font_sizes/font_size = 11
+Button/fonts/font = ExtResource("2_depths_sans_bold")
+Button/styles/normal = SubResource("sb_4")
+Button/styles/hover = SubResource("sb_5")
+Button/styles/pressed = SubResource("sb_6")
+Button/styles/disabled = SubResource("sb_7")
+Button/styles/focus = SubResource("sb_8")
+ChoiceButton/base_type = &"Button"
+ChoiceButton/styles/normal = SubResource("sb_9")
+ChoiceButton/styles/hover = SubResource("sb_10")
+ChoiceButton/styles/pressed = SubResource("sb_11")
+ChoiceButton/styles/disabled = SubResource("sb_12")
+ChoiceButton/styles/focus = SubResource("sb_16")
+RareChoiceButton/base_type = &"Button"
+RareChoiceButton/styles/normal = SubResource("sb_13")
+RareChoiceButton/styles/hover = SubResource("sb_14")
+RareChoiceButton/styles/pressed = SubResource("sb_11")
+RareChoiceButton/styles/disabled = SubResource("sb_12")
+RareChoiceButton/styles/focus = SubResource("sb_16")
+PanelContainer/styles/panel = SubResource("sb_1")
+Panel/styles/panel = SubResource("sb_1")
+DimPanel/base_type = &"PanelContainer"
+DimPanel/styles/panel = SubResource("sb_2")
+RarePanel/base_type = &"PanelContainer"
+RarePanel/styles/panel = SubResource("sb_3")
+TopBar/base_type = &"PanelContainer"
+TopBar/styles/panel = SubResource("sb_15")

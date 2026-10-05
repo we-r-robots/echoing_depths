@@ -1,0 +1,58 @@
+{
+  "id": "weeping_colossus",
+  "kind": "riddle",
+  "title": "The Weeping Colossus",
+  "art": {
+    "dir": "res://assets/encounter/colossus/",
+    "bg": "bg.png",
+    "offset": [0, 18],
+    "layers": [
+      { "id": "crown", "tex": "crown.png" },
+      { "id": "glow", "tex": "glow.png", "blend": "add", "pulse": [0.12, 0.3, 3.4] },
+      { "id": "shine", "tex": "shine.png", "pulse": [0.0, 1.0, 2.6] },
+      { "frames": ["ripple_0.png", "ripple_1.png", "ripple_2.png", "ripple_3.png"], "fps": 5},
+      {
+        "id": "tears",
+        "frames": ["tears_0.png", "tears_1.png", "tears_2.png", "tears_3.png", "tears_4.png", "tears_5.png", "tears_6.png", "tears_7.png"],
+        "fps": 12
+      },
+      { "tex": "lantern_glow.png", "blend": "add", "flicker": [0.35, 0.7] }
+    ],
+    "motes": { "rect": [70, 40, 200, 220], "count": 22, "colors": ["crystal4", "crystal5", "crystal3"], "speed": 5},
+    "source": [147, 62]
+  },
+  "text": "Half-sunk in a still pool, a Lumari face as tall as a keep weeps [crystal]light[/crystal] into the black water. Letters older than any kingdom ring its brow and ask one thing:\n\n[amber]\"What is kept only by giving it away?\"[/amber]",
+  "choices": [
+    {
+      "id": "answer",
+      "class": "mage",
+      "label": "Answer: \"A memory.\"",
+      "shift": { "good": 0, "law": 1},
+      "outcome": "\"A memory,\" Vesper says. The colossus closes its eyes, and its light pours into her instead. For a breath she remembers a city of glass she has never seen.",
+      "art": { "hide": ["tears"] }
+    },
+    {
+      "id": "catch_tears",
+      "class": "healer",
+      "label": "Catch its tears",
+      "shift": { "good": 1, "law": 0},
+      "outcome": "Ilse cups the falling [crystal]light[/crystal] and hums until the weeping slows. The stone sighs. Something grateful settles behind her eyes, and stays.",
+      "art": { "hide": ["tears"] }
+    },
+    {
+      "id": "pry_crystal",
+      "class": "fighter",
+      "label": "Pry out the crystal",
+      "shift": { "good": -1, "law": -1},
+      "outcome": "Brannoc climbs the cheek and wrenches the crystal loose. The colossus does not scream. That is worse.\n\nWhat it held floods into him, [crystal]cold[/crystal] and enormous.",
+      "art": { "hide": ["crown", "glow", "shine"] }
+    },
+    {
+      "id": "steal_tear",
+      "class": "rogue",
+      "label": "Bottle a tear",
+      "shift": { "good": 0, "law": -1},
+      "outcome": "A tear of light, stoppered in a flask that once held cheap wine. It hums against the hip like a second heartbeat."
+    }
+  ]
+}

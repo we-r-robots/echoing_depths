@@ -1,0 +1,370 @@
+{
+ "fighter": {
+  "anims": {
+   "attack": {
+    "events": {
+     "impact": 3
+    },
+    "fps": 12,
+    "frames": 8,
+    "loop": false
+   },
+   "cast": {
+    "events": {
+     "impact": 5
+    },
+    "fps": 12,
+    "frames": 9,
+    "loop": false
+   },
+   "hit": {
+    "events": {},
+    "fps": 12,
+    "frames": 4,
+    "loop": false
+   },
+   "idle": {
+    "events": {},
+    "fps": 8,
+    "frames": 12,
+    "loop": true
+   },
+   "ko": {
+    "events": {},
+    "fps": 10,
+    "frames": 5,
+    "loop": false
+   }
+  },
+  "kind": "heroes",
+  "origin": [
+   32,
+   60
+  ],
+  "path": "res://assets/sprites/heroes/fighter/fighter.tres",
+  "size": [
+   64,
+   64
+  ]
+ },
+ "fx": {
+  "anims": {
+   "heal_glow": {
+    "events": {},
+    "fps": 12,
+    "frames": 8,
+    "loop": false
+   },
+   "hit_spark": {
+    "events": {},
+    "fps": 20,
+    "frames": 5,
+    "loop": false
+   },
+   "magic_burst": {
+    "events": {},
+    "fps": 16,
+    "frames": 7,
+    "loop": false
+   }
+  },
+  "kind": "fx",
+  "origin": [
+   24,
+   24
+  ],
+  "path": "res://assets/sprites/fx/fx/fx.tres",
+  "size": [
+   48,
+   48
+  ]
+ },
+ "healer": {
+  "anims": {
+   "attack": {
+    "events": {
+     "impact": 3
+    },
+    "fps": 14,
+    "frames": 7,
+    "loop": false
+   },
+   "cast": {
+    "events": {
+     "impact": 4
+    },
+    "fps": 10,
+    "frames": 7,
+    "loop": false
+   },
+   "hit": {
+    "events": {},
+    "fps": 12,
+    "frames": 4,
+    "loop": false
+   },
+   "idle": {
+    "events": {},
+    "fps": 6,
+    "frames": 12,
+    "loop": true
+   },
+   "ko": {
+    "events": {},
+    "fps": 10,
+    "frames": 5,
+    "loop": false
+   }
+  },
+  "kind": "heroes",
+  "origin": [
+   32,
+   60
+  ],
+  "path": "res://assets/sprites/heroes/healer/healer.tres",
+  "size": [
+   64,
+   64
+  ]
+ },
+ "mage": {
+  "anims": {
+   "attack": {
+    "events": {
+     "impact": 3
+    },
+    "fps": 14,
+    "frames": 7,
+    "loop": false
+   },
+   "cast": {
+    "events": {
+     "impact": 4
+    },
+    "fps": 10,
+    "frames": 7,
+    "loop": false
+   },
+   "hit": {
+    "events": {},
+    "fps": 12,
+    "frames": 4,
+    "loop": false
+   },
+   "idle": {
+    "events": {},
+    "fps": 6,
+    "frames": 12,
+    "loop": true
+   },
+   "ko": {
+    "events": {},
+    "fps": 10,
+    "frames": 5,
+    "loop": false
+   }
+  },
+  "kind": "heroes",
+  "origin": [
+   32,
+   60
+  ],
+  "path": "res://assets/sprites/heroes/mage/mage.tres",
+  "size": [
+   64,
+   64
+  ]
+ },
+ "rogue": {
+  "anims": {
+   "attack": {
+    "events": {
+     "impact": 2
+    },
+    "fps": 14,
+    "frames": 7,
+    "loop": false
+   },
+   "cast": {
+    "events": {
+     "impact": 3
+    },
+    "fps": 12,
+    "frames": 5,
+    "loop": false
+   },
+   "hit": {
+    "events": {},
+    "fps": 12,
+    "frames": 4,
+    "loop": false
+   },
+   "idle": {
+    "events": {},
+    "fps": 8,
+    "frames": 12,
+    "loop": true
+   },
+   "ko": {
+    "events": {},
+    "fps": 10,
+    "frames": 5,
+    "loop": false
+   }
+  },
+  "kind": "heroes",
+  "origin": [
+   32,
+   60
+  ],
+  "path": "res://assets/sprites/heroes/rogue/rogue.tres",
+  "size": [
+   64,
+   64
+  ]
+ },
+ "shardback": {
+  "anims": {
+   "attack": {
+    "events": {
+     "impact": 3
+    },
+    "fps": 14,
+    "frames": 6,
+    "loop": false
+   },
+   "cast": {
+    "events": {
+     "impact": 4
+    },
+    "fps": 12,
+    "frames": 7,
+    "loop": false
+   },
+   "hit": {
+    "events": {},
+    "fps": 12,
+    "frames": 4,
+    "loop": false
+   },
+   "idle": {
+    "events": {},
+    "fps": 7,
+    "frames": 8,
+    "loop": true
+   },
+   "ko": {
+    "events": {},
+    "fps": 10,
+    "frames": 5,
+    "loop": false
+   }
+  },
+  "kind": "monsters",
+  "origin": [
+   32,
+   60
+  ],
+  "path": "res://assets/sprites/monsters/shardback/shardback.tres",
+  "size": [
+   64,
+   64
+  ]
+ },
+ "warden": {
+  "anims": {
+   "attack": {
+    "events": {
+     "impact": 3
+    },
+    "fps": 12,
+    "frames": 7,
+    "loop": false
+   },
+   "cast": {
+    "events": {
+     "impact": 4
+    },
+    "fps": 10,
+    "frames": 7,
+    "loop": false
+   },
+   "hit": {
+    "events": {},
+    "fps": 12,
+    "frames": 4,
+    "loop": false
+   },
+   "idle": {
+    "events": {},
+    "fps": 7,
+    "frames": 8,
+    "loop": true
+   },
+   "ko": {
+    "events": {},
+    "fps": 9,
+    "frames": 5,
+    "loop": false
+   }
+  },
+  "kind": "monsters",
+  "origin": [
+   40,
+   76
+  ],
+  "path": "res://assets/sprites/monsters/warden/warden.tres",
+  "size": [
+   96,
+   80
+  ]
+ },
+ "wisp": {
+  "anims": {
+   "attack": {
+    "events": {
+     "impact": 3
+    },
+    "fps": 14,
+    "frames": 6,
+    "loop": false
+   },
+   "cast": {
+    "events": {
+     "impact": 4
+    },
+    "fps": 12,
+    "frames": 7,
+    "loop": false
+   },
+   "hit": {
+    "events": {},
+    "fps": 12,
+    "frames": 4,
+    "loop": false
+   },
+   "idle": {
+    "events": {},
+    "fps": 8,
+    "frames": 8,
+    "loop": true
+   },
+   "ko": {
+    "events": {},
+    "fps": 10,
+    "frames": 5,
+    "loop": false
+   }
+  },
+  "kind": "monsters",
+  "origin": [
+   32,
+   60
+  ],
+  "path": "res://assets/sprites/monsters/wisp/wisp.tres",
+  "size": [
+   64,
+   64
+  ]
+ }
+}

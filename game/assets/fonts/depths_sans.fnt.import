@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://bsra7mqtuj2lq"
+path="res://.godot/imported/depths_sans.fnt-7b4de430f1e129b5543e2ca9b06dc152.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/depths_sans.fnt"
+dest_files=["res://.godot/imported/depths_sans.fnt-7b4de430f1e129b5543e2ca9b06dc152.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

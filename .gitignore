@@ -1,0 +1,13 @@
+# Godot
+game/.godot/
+game/export_presets.cfg.bak
+*.import.tmp
+# Reference captures of other games: comparison only, never shipped or committed
+references/
+# Capture outputs
+captures/
+
+# Generated/local files
+__pycache__/
+*.pyc
+game/gdextension_interface.h

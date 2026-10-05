@@ -1,0 +1,406 @@
+{
+  "updated": "2026-10-04 22:05",
+  "bars": [
+    {
+      "name": "Sea of Stars",
+      "covers": "Pixel art, animation, battle presentation, UI"
+    },
+    {
+      "name": "Super Auto Pets",
+      "covers": "Readability and punch of auto-combat"
+    },
+    {
+      "name": "Slay the Spire",
+      "covers": "Encounter-choice screens"
+    },
+    {
+      "name": "60 fps",
+      "covers": "Measurable: frame budget on every build"
+    }
+  ],
+  "pieces": [
+    {
+      "id": "setup",
+      "name": "Project, capture tools, references",
+      "bar": "-",
+      "wave": 0,
+      "status": "won",
+      "rounds": [],
+      "note": "Godot 4.7 project at 640x360, unattended screenshot and video capture, blind A/B tool, reference footage of all three games, master palette."
+    },
+    {
+      "id": "combat-core",
+      "name": "Combat simulation core",
+      "bar": "Spec + tests (deterministic, fast)",
+      "wave": 1,
+      "status": "won",
+      "rounds": [
+        {
+          "winner": "bar",
+          "gap": "Abilities get starved: 40% of heroes never fire their ability and 28% charge up then die unseen, because each hero waits about 7 s between turns. Super Auto Pets shows every promised trigger fire within seconds."
+        },
+        {
+          "winner": "bar",
+          "gap": "Sudden-death damage events break the documented event format and crash anything reading them (12% of fights). Formation effects are still invisible for 40% of sides, and abilities now fire so often they lose their punch."
+        },
+        {
+          "winner": "bar",
+          "gap": "Close. Every measured target passes now, but Backstab and Execute ignored the back-row halving (a spec rule with no exceptions), formation cues are too frequent and include effects under 10%, and some fights have long boring tails."
+        },
+        {
+          "winner": "bar",
+          "gap": "The last-unit sudden death made the arena the killer in a third of fights (now removed: sudden death is time-only, per the user). Backstab still bypassed the back-row halving under a new name."
+        },
+        {
+          "winner": "bar",
+          "gap": "Formation cues fired on units that weren't doing the named trigger in 54% of cases (a queue to show every effect made them lie). Fading, back-row rule and all targets now hold."
+        },
+        {
+          "winner": "ours",
+          "gap": "PASSED round 6: readability holds up against Super Auto Pets, and every target and spec rule is met (truthful cues, back row always half, time-only Fading, deterministic Echo replays, about 1.4-1.7 ms per fight)."
+        }
+      ]
+    },
+    {
+      "id": "hero-sprites",
+      "name": "Hero and monster sprites",
+      "bar": "Sea of Stars",
+      "wave": 1,
+      "status": "building",
+      "rounds": [
+        {
+          "winner": "bar",
+          "gap": "Sea of Stars won blind for both heroes and monsters. Our attacks only swing the weapon arm on a rigid body, idles are a 1-pixel bob, and KO poses look like the standing sprite rotated.",
+          "image": "captures/hero-sprites/r4/f00060.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Sea of Stars won blind again on both pairs. Idles still freeze the legs and pelvis (the 1-pixel bob is now decorated with cloth flutter), attacks have no anticipation or lunge, and the Mage's head floats above the collar.",
+          "image": "captures/hero-sprites/r5/f00060.png"
+        }
+      ],
+      "preview": "captures/hero-sprites/r5/f00060.png",
+      "note": "4 heroes and 3 Vault monsters with idle, attack, cast, hit and KO animations, shown on the 2x4 formation grid. Critic round 1 judging blind against Sea of Stars."
+    },
+    {
+      "id": "encounter-screen",
+      "name": "Encounter choice screen",
+      "bar": "Slay the Spire",
+      "wave": 1,
+      "status": "building",
+      "rounds": [
+        {
+          "winner": "bar",
+          "gap": "Ours won both blind pairs (the Weeping Colossus), but the other four encounters' illustrations read as placeholder art next to Slay the Spire, so the set as a whole loses.",
+          "image": "captures/encounter-screen/r3/f00180.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Ours won 1 of 6 blind pairs (the Colossus). The Keeper, the hound, the girl and the old woman are still built from shaded shapes and read as placeholder art; they need hand-placed pixel figures. Text is also too small for a phone.",
+          "image": "captures/encounter-screen/all_hollow_hound_r4/f00180.png"
+        }
+      ],
+      "note": "Built: five encounters, illustrated scenes, hero-bound choices with memory and alignment shift, animated resolution. Critic round 1 judging blind.",
+      "preview": "captures/encounter-screen/all_hollow_hound_r4/f00180.png"
+    },
+    {
+      "id": "battle-scene",
+      "name": "Battle scene presentation",
+      "bar": "Sea of Stars + Super Auto Pets",
+      "wave": 2,
+      "status": "building",
+      "rounds": [
+        {
+          "winner": "bar",
+          "gap": "Sea of Stars won blind. The fight plays in a 110 px strip with 20 px units that overlap, squeezed between heavy HUD bands. Formation effects show only as tiny text, not on the board.",
+          "image": "captures/battle-scene/r3/f00600.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Won 1 of 3 blind pairs (beat a Super Auto Pets battle frame). Lost to Sea of Stars: too busy, no single focus, and the board sits too high so the top row and numbers clip into the HUD.",
+          "image": "captures/battle-scene/r4/f00600.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Won 1 of 4 blind pairs. Old damage numbers pile up across actions, the big starburst came back on heavy hits, and formation effects still read as small floating text rather than something on the board.",
+          "image": "captures/battle-scene/r5/f00600.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Won 1 of 4 blind pairs. Damage numbers still outlive their action and drift from their targets, the Fading shows for only about 3 s before turning into a plain label, and abilities feel big only in the bottom panel.",
+          "image": "captures/battle-scene/r6/f00600.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Won 1 of 4 blind pairs. Damage numbers float far above their targets (likely a camera-zoom coordinate bug), and the Fading lasts only 2 s in the demo before leaving a stray label over VICTORY.",
+          "image": "captures/battle-scene/r7/monsters/f00600.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Close: won 3 of 5 blind pairs, including the Fading frame, but lost 2 of 3 against real Sea of Stars combat. Back-row attackers barely move, so you can't tell who hit whom without the caption, and the enemy side is crowded.",
+          "image": "captures/battle-scene/r8/f01500.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Lost all 3 pairs against real Sea of Stars combat frames (won 2 against idle Super Auto Pets frames). Spec holds and the earlier fixes landed, but the board has no spectacle: eight small, similarly lit units, and ability effects only a few pixels across.",
+          "image": "captures/battle-scene/r9/f00600.png"
+        }
+      ],
+      "preview": "captures/battle-scene/r9/f00600.png",
+      "note": "FF1-style side view, 2-column x 4-row grid per side, formation banners with buff and debuff, ATB and HP bars, ability cues. Critic round 1 judging blind against Sea of Stars and Super Auto Pets."
+    },
+    {
+      "id": "alignment-ui",
+      "name": "Alignment grid and memories UI",
+      "bar": "Sea of Stars",
+      "wave": 2,
+      "status": "building",
+      "rounds": [
+        {
+          "winner": "bar",
+          "gap": "Sea of Stars won both blind pairs. Our screen is a dense wall of small text across four panels; the grid needs to dominate and the legend needs to shrink to one detail line.",
+          "image": "captures/alignment-ui/r5/f00060.png"
+        }
+      ],
+      "preview": "captures/alignment-ui/r5/f00060.png",
+      "note": "Hero detail screen: 5x5 alignment grid with memory trail, Relic offset, hidden class regions and corner rarity; stats, gear, ability; Advance or Hold Back prompt. Critic round 1 judging blind against Sea of Stars menus."
+    },
+    {
+      "id": "party-formation",
+      "name": "Party pick and formation screen",
+      "bar": "Super Auto Pets",
+      "wave": 2,
+      "status": "queued",
+      "rounds": []
+    },
+    {
+      "id": "run-loop",
+      "name": "Run loop: hidden map, phases, Echo PvP",
+      "bar": "Spec + playthrough",
+      "wave": 3,
+      "status": "queued",
+      "rounds": []
+    },
+    {
+      "id": "lanternrest",
+      "name": "Lanternrest hub",
+      "bar": "Sea of Stars",
+      "wave": 3,
+      "status": "queued",
+      "rounds": []
+    },
+    {
+      "id": "title",
+      "name": "Title screen",
+      "bar": "Sea of Stars",
+      "wave": 3,
+      "status": "queued",
+      "rounds": []
+    }
+  ],
+  "log": [
+    {
+      "t": "19:40",
+      "msg": "Project set up: Godot 4.7 at 640x360, capture tools, blind A/B tool, master palette, reference footage of all three bars."
+    },
+    {
+      "t": "19:40",
+      "msg": "Wave 1 starting: combat core, hero sprites, encounter screen."
+    },
+    {
+      "t": "19:40",
+      "msg": "Hero sprites builder started."
+    },
+    {
+      "t": "19:40",
+      "msg": "Encounter screen builder started."
+    },
+    {
+      "t": "19:52",
+      "msg": "Reference footage expanded: Sea of Stars town and menus, real Slay the Spire event screens (replaced a board-game clip downloaded by mistake)."
+    },
+    {
+      "t": "20:01",
+      "msg": "Combat core built: 50 tests pass, 0.86 ms per fight, median fight 24.6 s, no stalemates. Critic round 1 started."
+    },
+    {
+      "t": "20:07",
+      "msg": "Combat core round 1: critic FAILED it. All measurements held, but abilities often never fire on screen. Sent back to the builder."
+    },
+    {
+      "t": "20:12",
+      "msg": "Paused: usage cap reached. Resuming after 9:20pm ET."
+    },
+    {
+      "t": "21:21",
+      "msg": "Resumed after the usage reset: combat core fixes, hero sprites and encounter screen builders all continuing."
+    },
+    {
+      "t": "21:24",
+      "msg": "Encounter screen built (five illustrated encounters, shared UI theme and original pixel fonts). Critic round 1 judging blind."
+    },
+    {
+      "t": "21:24",
+      "msg": "Wave 2 started early: alignment grid and hero detail screen builder running."
+    },
+    {
+      "t": "21:26",
+      "msg": "Hero sprites built: 4 heroes and 3 Vault monsters with full animation sets. Showcase being re-laid out on the spec's 2x4 formation grid before its critic round."
+    },
+    {
+      "t": "21:26",
+      "msg": "Spec non-negotiables added to the build guide (2-column x 4-row formation per side, visible formation buffs). Every critic now fails a piece that breaks them."
+    },
+    {
+      "t": "21:26",
+      "msg": "Encounter screen round 1: critic picked ours blind on both pairs, but FAILED the piece. Only the Colossus holds up and the other four illustrations need to match it. Sent back to the builder."
+    },
+    {
+      "t": "21:27",
+      "msg": "Combat core round 2 fixes in: 93% of heroes now fire their ability (was 60%), 4.2 s between turns, formation effects signed and visible, Echo validation hardened. 58 tests pass. Critic round 2 started."
+    },
+    {
+      "t": "21:28",
+      "msg": "Battle scene builder started: FF1-style side view, 2-column x 4-row grid per side, formation banner with buff and debuff, playback of the combat log."
+    },
+    {
+      "t": "21:30",
+      "msg": "Sprite showcase re-laid out on the 2x4 formation grid per side. Hero sprites critic round 1 started (blind vs Sea of Stars, at matched pixel scale)."
+    },
+    {
+      "t": "21:33",
+      "msg": "Hero sprites round 1: Sea of Stars won blind on heroes and monsters. Key poses being redrawn as whole-body drawings; showcase becomes a labelled gallery."
+    },
+    {
+      "t": "21:35",
+      "msg": "Combat core round 2: FAILED. Round-1 targets all pass, but sudden-death events crash readers, many formation effects are still invisible, and abilities are now too frequent. Sent back."
+    },
+    {
+      "t": "21:44",
+      "msg": "Encounter screen round 2 built: all four weaker illustrations redone, art reacts to outcomes, recruits join, advancement shown before the pick. Critic round 2 judging six blind pairs."
+    },
+    {
+      "t": "21:46",
+      "msg": "Night mode: no new pieces will start. Pieces already running continue their loops until done or until the usage cap."
+    },
+    {
+      "t": "21:48",
+      "msg": "Encounter screen round 2: ours won 1 of 6 blind pairs. Figures are being repainted as hand-placed pixel art, and text enlarged for phones."
+    },
+    {
+      "t": "21:50",
+      "msg": "Hero sprites round 2 built: whole-body key poses, 12-frame idles with cloth and hair motion, collapsed KO poses, hit recoil, new monster faces. Showcase is now a labelled gallery. Critic round 2 judging."
+    },
+    {
+      "t": "21:53",
+      "msg": "Alignment screen built and in critic round 1. Blind comparison tool fixed so small game captures and full-HD references are scaled the same way."
+    },
+    {
+      "t": "21:55",
+      "msg": "Hero sprites round 2: Sea of Stars won blind again. Key poses now being hand-placed as full-body pixel maps, with pixel-measured pass checks for idle and attack motion."
+    },
+    {
+      "t": "21:55",
+      "msg": "Combat core round 3 fixes in: crash fixed with a full event-format test, formation effects shown for every formation, abilities 27% of actions (was 43%), Echo loader hardened. 65 tests pass. Critic round 3 started."
+    },
+    {
+      "t": "21:56",
+      "msg": "Alignment screen round 1: Sea of Stars won both blind pairs (too dense, grid not dominant). Sent back. Open question for the user logged: the Fighter's starting alignment."
+    },
+    {
+      "t": "21:59",
+      "msg": "Paused at 93% of the session limit. All agents stopped cleanly; resume notes updated."
+    },
+    {
+      "t": "07:50",
+      "msg": "Resumed with a small budget, closing existing loops only: combat core critic round 3 and battle scene critic round 1 running. Sprites, encounter art and alignment screen reworks are on hold."
+    },
+    {
+      "t": "07:52",
+      "msg": "Battle scene round 1: FAILED (fight too small on screen, formation effects only as tiny text). Spec layout confirmed. Sent back to the builder."
+    },
+    {
+      "t": "07:53",
+      "msg": "Combat core round 3: FAILED but close. All measurements pass; remaining: remove the back-row exception, trim formation cues, shorten boring tails. Sent back."
+    },
+    {
+      "t": "08:01",
+      "msg": "Battle scene round 2 built: 2x camera so units are about 80 px tall, formation effects light up the grid tiles, hit-stop and ability flashes, short victory hold. Critic round 2 judging."
+    },
+    {
+      "t": "08:02",
+      "msg": "Battle scene round 2: won 1 of 3 blind pairs (beat Super Auto Pets). Still loses to Sea of Stars on focus and clipping. Round 3 fixes underway."
+    },
+    {
+      "t": "08:04",
+      "msg": "Combat core round 4 fixes in: back-row rule restored for every hit, formation cues down to about 3 per fight (all 10% or more), long tails 2.7% (was 10-15%). 67 tests pass. Critic round 4 started."
+    },
+    {
+      "t": "08:12",
+      "msg": "Battle scene round 3 built: board lowered with a centre gap, focus dimming on non-acting units, big formation badges, smaller hit sparks, no READY clutter. Critic round 3 judging four blind pairs."
+    },
+    {
+      "t": "08:13",
+      "msg": "Battle scene round 3: won 1 of 4 blind pairs. Popups now limited to the current action, flashes capped, formation effects to be shown on the board. Round 4 underway."
+    },
+    {
+      "t": "08:17",
+      "msg": "Combat core round 4: FAILED. Your call confirmed: the last-unit trigger made sudden death decide a third of fights. Now time-based only and themed as the Fading. Backstab's back-row bypass removed for real."
+    },
+    {
+      "t": "08:21",
+      "msg": "Battle scene round 4 built: popups cleared per action, small hit sparks only, on-board formation tile fills, ability beats, and sudden death presented as the Fading (the arena drains to grey). Critic round 4 judging."
+    },
+    {
+      "t": "08:22",
+      "msg": "Battle scene round 4: won 1 of 4 blind pairs. Stale numbers not actually fixed; the builder must now self-verify with contact sheets before reporting."
+    },
+    {
+      "t": "08:28",
+      "msg": "Combat core round 5 fixes in: sudden death is time-based only and called the Fading (a tick decides the last KO in 5.8% of fights, was 32%), back-row halving applies to every hit, every formation effect shows once per fight. 68 tests pass. Critic round 5 waits for the next session."
+    },
+    {
+      "t": "08:39",
+      "msg": "Battle scene round 5 fixes in (popups pinned to their targets, deeper Fading, ability moments on the board). Critic round 5 waits for the next session. All agents idle."
+    },
+    {
+      "t": "21:27",
+      "msg": "New session: combat core critic round 5 and battle scene critic round 5 running."
+    },
+    {
+      "t": "21:28",
+      "msg": "Battle scene round 5: 1 of 4 blind wins. Lead diagnosed the floating numbers as a camera-zoom coordinate bug; the builder must verify on screen pixels this time. The Fading needs to run 8 s or more in the demo."
+    },
+    {
+      "t": "21:37",
+      "msg": "Combat core round 5: FAILED on formation cues naming the wrong unit (54%). Rule now: cues only when true; uncued effects shown in the fight-start banner. Everything else holds."
+    },
+    {
+      "t": "21:42",
+      "msg": "Battle scene round 6 built: numbers anchored on their targets (the real cause was the anchor point, not the camera), the Fading runs about 10 s in the PvP demo and clears on VICTORY. Critic round 6 judging five blind pairs."
+    },
+    {
+      "t": "21:42",
+      "msg": "Combat core round 6 fixes in: formation cues are now always truthful (0 of 4141 mismatched, was 54%), back-row labels name attacker or target, Fading wording in the narration. Critic round 6 started."
+    },
+    {
+      "t": "21:44",
+      "msg": "Battle scene round 6: best yet, won 3 of 5 blind pairs (incl. the Fading frame). Fixes confirmed for numbers and the Fading. Remaining: attacker travel, crowding, caption gaps."
+    },
+    {
+      "t": "21:45",
+      "msg": "Combat core PASSED (critic round 6). First piece to beat its bar. Minor polish items logged for the formation redesign."
+    },
+    {
+      "t": "22:03",
+      "msg": "Battle scene round 7 built: attackers visibly travel or fire projectiles, no edge clipping, Sentinel given room, formation glints on hits. Critic round 7 judging five blind pairs against real combat frames only."
+    },
+    {
+      "t": "22:05",
+      "msg": "Battle scene round 7: lost all 3 pairs against real Sea of Stars combat. Spec and earlier fixes hold; gap is spectacle (ability effects too small, no single focus). Paused for the user's direction."
+    }
+  ],
+  "questions": [
+    "Fighter starting alignment: it starts at (0,+1) on the neutral axis, so it has no single super-rare far corner as the spec describes. Starting positions are an open question in the spec. Pick a start for the Fighter (e.g. off-axis), or accept two equally rare far corners."
+  ]
+}

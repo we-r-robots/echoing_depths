@@ -1,0 +1,43 @@
+{
+  "_doc": "Display + rule config for encounter screens. Positions are [good, law] on the 5x5 grid (-2..2): +good = Mercy, -good = Cruelty, +law = Order, -law = Freedom. Colours are master-palette names. Class block holds display data only; starting positions are read from core/data/classes.gd (start_alignment).",
+  "grid_min": -2,
+  "grid_max": 2,
+  "advance_threshold": 3,
+  "axes": {
+    "good": { "pos": "Mercy", "neg": "Cruelty", "pos_color": "amber6", "neg_color": "blood4" },
+    "law": { "pos": "Order", "neg": "Freedom", "pos_color": "ink10", "neg_color": "violet4" }
+  },
+  "kinds": {
+    "riddle": { "label": "Riddle", "icon": "res://ui/icons/kind_riddle.png", "color": "crystal4" },
+    "chance": { "label": "Chance", "icon": "res://ui/icons/kind_chance.png", "color": "amber5" },
+    "monster": { "label": "Monster", "icon": "res://ui/icons/kind_monster.png", "color": "blood4" },
+    "recruitment": { "label": "Recruitment", "icon": "res://ui/icons/kind_recruitment.png", "color": "life4" },
+    "moral": { "label": "Judgment", "icon": "res://ui/icons/kind_moral.png", "color": "violet4" }
+  },
+  "classes": {
+    "fighter": {
+      "name": "Fighter",
+      "color": "blood3",
+      "icon": "res://ui/icons/class_fighter.png",
+      "portrait": "res://assets/encounter/portraits/fighter.png"
+    },
+    "rogue": {
+      "name": "Rogue",
+      "color": "life4",
+      "icon": "res://ui/icons/class_rogue.png",
+      "portrait": "res://assets/encounter/portraits/rogue.png"
+    },
+    "healer": {
+      "name": "Healer",
+      "color": "amber5",
+      "icon": "res://ui/icons/class_healer.png",
+      "portrait": "res://assets/encounter/portraits/healer.png"
+    },
+    "mage": {
+      "name": "Mage",
+      "color": "violet3",
+      "icon": "res://ui/icons/class_mage.png",
+      "portrait": "res://assets/encounter/portraits/mage.png"
+    }
+  }
+}

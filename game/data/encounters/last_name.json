@@ -1,0 +1,51 @@
+{
+  "id": "last_name",
+  "kind": "moral",
+  "title": "The Last Name in Hollowmere",
+  "art": {
+    "dir": "res://assets/encounter/hollowmere/",
+    "bg": "bg.png",
+    "offset": [0, 18],
+    "layers": [
+      { "tex": "glow.png", "blend": "add", "pulse": [0.15, 0.35, 4.0] },
+      { "id": "woman", "tex": "woman.png" },
+      { "id": "ribbon", "tex": "ribbon.png" }
+    ],
+    "motes": { "rect": [20, 60, 300, 170], "count": 30, "colors": ["fade3", "fade4", "ink8"], "speed": 2},
+    "source": [100, 206]
+  },
+  "text": "An old woman stands where a village used to be. The [fade]Fading[/fade] took Hollowmere at dawn; by dusk she will not remember it was ever there.\n\nShe holds out a stitched name-ribbon. \"Someone should keep this. I can't anymore.\"",
+  "choices": [
+    {
+      "id": "carry_it",
+      "class": "healer",
+      "label": "Carry the ribbon",
+      "shift": { "good": 1, "law": 0},
+      "outcome": "Forty-one names, stitched in red. Ilse reads each one aloud. The old woman smiles at the ones she still knows.",
+      "art": { "hide": ["ribbon"] }
+    },
+    {
+      "id": "promise",
+      "class": "fighter",
+      "label": "Swear to restore it",
+      "shift": { "good": 0, "law": 1},
+      "outcome": "An oath, spoken plainly. She does not believe it. She takes his hand anyway, and the village lives a little longer in him."
+    },
+    {
+      "id": "let_forget",
+      "class": "mage",
+      "label": "Let her forget",
+      "shift": { "good": 1, "law": -1},
+      "outcome": "Vesper takes the grief and leaves the woman only the morning. She wanders off, humming. The ribbon stays in Vesper's hand, heavier than silk should be.",
+      "art": { "hide": ["woman", "ribbon"] }
+    },
+    {
+      "id": "take_ribbon",
+      "class": "rogue",
+      "label": "Take it to sell",
+      "shift": { "good": -1, "law": 0},
+      "outcome": "Somebody in Lanternrest will pay for real thread. The names inside it don't weigh anything at all.",
+      "art": { "hide": ["ribbon"] }
+    }
+  ]
+}

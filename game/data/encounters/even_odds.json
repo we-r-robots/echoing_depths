@@ -1,0 +1,63 @@
+{
+  "id": "even_odds",
+  "kind": "chance",
+  "title": "The Keeper of Even Odds",
+  "art": {
+    "dir": "res://assets/encounter/odds/",
+    "bg": "bg.png",
+    "offset": [0, 18],
+    "layers": [
+      { "id": "keeper", "tex": "keeper.png" },
+      { "id": "lit", "tex": "lit.png" },
+      { "id": "dark", "tex": "dark.png" },
+      { "id": "awake", "tex": "awake.png", "hidden": true},
+      { "id": "glow", "tex": "glow.png", "blend": "add", "pulse": [0.15, 0.4, 2.2] }
+    ],
+    "motes": { "rect": [60, 120, 90, 120], "count": 12, "colors": ["amber5", "amber6"], "speed": 4},
+    "source": [92, 190]
+  },
+  "text": "A brass automaton kneels in the dust, one [amber]lantern[/amber] lit in its left hand, one dark in its right. A plaque at its knees reads, in the old script: [fade]ONE WILL WARM YOU. ONE WILL REMEMBER YOU.[/fade]\n\nIt waits for you to choose a hand.",
+  "choices": [
+    {
+      "id": "lit_hand",
+      "class": "healer",
+      "label": "Take the lit lantern",
+      "shift": { "good": 1, "law": 0},
+      "outcome": [
+        {
+          "weight": 1,
+          "text": "The flame gutters, then steadies in Ilse's grip. Warmth, and with it a stranger's lullaby she now knows by heart."
+        },
+        {
+          "weight": 1,
+          "text": "The lantern goes dark the moment it leaves the brass hand. Still, in the smoke, Ilse sees a child's face, and keeps it."
+        }
+      ],
+      "art": { "hide": ["lit", "glow"] }
+    },
+    {
+      "id": "dark_hand",
+      "class": "rogue",
+      "label": "Snatch the dark one",
+      "shift": { "good": 0, "law": -1},
+      "outcome": "The automaton's fingers close on nothing. Inside the dark lantern, something remembers being a candle.",
+      "art": { "hide": ["dark"] }
+    },
+    {
+      "id": "both_hands",
+      "class": "fighter",
+      "label": "Break both hands",
+      "shift": { "good": -2, "law": 0},
+      "outcome": "Brass shrieks. Both lanterns spill: one fire, one memory. The automaton watches you with no expression at all.",
+      "art": { "hide": ["lit", "dark", "glow"] }
+    },
+    {
+      "id": "wind_key",
+      "class": "mage",
+      "label": "Wind the key",
+      "shift": { "good": 0, "law": 1},
+      "outcome": "Gears turn for the first time in a thousand years. It bows, sets both lanterns down, and walks into the dark to finish an errand nobody remembers.",
+      "art": { "show": ["awake"] }
+    }
+  ]
+}

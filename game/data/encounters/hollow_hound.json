@@ -1,0 +1,52 @@
+{
+  "id": "hollow_hound",
+  "kind": "monster",
+  "title": "The Hound That Forgot Its Name",
+  "art": {
+    "dir": "res://assets/encounter/hound/",
+    "bg": "bg.png",
+    "offset": [0, 18],
+    "layers": [
+      { "tex": "mist.png", "blend": "add", "pulse": [0.2, 0.5, 5.0] },
+      { "id": "hound", "tex": "hound.png" },
+      { "id": "eye", "tex": "glow.png", "blend": "add", "pulse": [0.3, 0.75, 1.6] }
+    ],
+    "motes": { "rect": [150, 100, 120, 170], "count": 26, "colors": ["fade2", "fade3", "fade4"], "speed": 3},
+    "source": [150, 190]
+  },
+  "text": "Something the size of a cart-horse paces the corridor ahead. Where the [fade]Fading[/fade] has touched it, the hound is simply gone: a gray shape with a red eye, hunting by the sound of remembered names.\n\nIt has heard yours.",
+  "choices": [
+    {
+      "id": "stand_ground",
+      "class": "fighter",
+      "label": "Stand in its path",
+      "shift": { "good": 1, "law": 0},
+      "outcome": "It hits Brannoc like a falling door. He does not fall. When it is over, the hound's last memory, a boy and a stick, is his to carry.",
+      "art": { "hide": ["hound", "eye"] }
+    },
+    {
+      "id": "name_it",
+      "class": "healer",
+      "label": "Call it by a name",
+      "shift": { "good": 2, "law": 0},
+      "outcome": "\"Ash,\" Ilse says, and the gray flickers. For a moment it is only a dog. It lies down at her feet and fades, content to be someone's.",
+      "art": { "hide": ["hound", "eye"] }
+    },
+    {
+      "id": "burn_gray",
+      "class": "mage",
+      "label": "Burn the gray out",
+      "shift": { "good": 0, "law": -1},
+      "outcome": "Violet fire, and a howl that echoes long after the hound is ash. Vesper breathes in the smoke and tastes a kennel, rain, a master's voice.",
+      "art": { "hide": ["hound", "eye"] }
+    },
+    {
+      "id": "lure_dark",
+      "class": "rogue",
+      "label": "Lure it to the pit",
+      "shift": { "good": -1, "law": 0},
+      "outcome": "A whistle, a feint, a long fall. It never makes a sound on the way down.",
+      "art": { "hide": ["hound", "eye"] }
+    }
+  ]
+}
