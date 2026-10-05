@@ -1,7 +1,7 @@
 # Task: High-Resolution UI Text Layer
 *Approved by the user, 2026-10-05. Read docs/BUILD.md (especially "Spec non-negotiables") and docs/RESUME.md first.*
 
-**Status (2026-10-05):** milestones 1–4 are built and pushed. Critic round 1 FAILED (2 of 5 blind pairs). The round-2 fix list, the open question for the user and how to run the next round are in docs/tasks/hires-ui-round1.md. Round-2 fixes are built (local); captures in captures/hires-ui/r2/, awaiting critic round 2 (record at the end of docs/tasks/hires-ui-round1.md).
+**Status (2026-10-05):** milestones 1–4 are built and pushed. Critic rounds 1 and 2 FAILED (2 of 5 blind pairs each; records in docs/tasks/hires-ui-round1.md and hires-ui-round2.md). Round-3 fixes are built; captures in captures/hires-ui/r3/, awaiting critic round 3 (build record at the end of docs/tasks/hires-ui-round2.md).
 
 ## Decision
 The **world** (battle stage, sprites, encounter illustrations, effects) stays pixel art authored at **640x360**, integer-scaled to the screen. **All UI text and UI chrome** (menus, cards, tooltips, captions, banners, damage numbers and tags, HUD, roster panels) moves to a **higher-resolution UI layer**, so text has more pixels per glyph and reads clearly on a phone.

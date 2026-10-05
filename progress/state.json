@@ -713,6 +713,10 @@
     {
       "t": "17:00",
       "msg": "playable-flow: title -> run -> results -> Lanternrest playable; settings, PvP splash, crests, run save; 146 tests, smoke PASS"
+    },
+    {
+      "t": "17:08",
+      "msg": "hires-ui round-3 build (local): numbers on their own head (legacy world-px band clamps removed; BattleFX.number_anchor tested), two-line crystal caption, setup tips in the panel, encounter wide backdrop, calmer draft/encounter/hero detail (ability short label + tooltip), 48 px hit areas, cue plates, hound capture. Captures captures/hires-ui/r3/; awaiting critic round 3."
     }
   ],
   "questions": [
