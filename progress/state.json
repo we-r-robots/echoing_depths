@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 11:17",
+  "updated": "2026-10-05 11:18",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -108,7 +108,7 @@
       "name": "Battle scene presentation",
       "bar": "Sea of Stars + Super Auto Pets",
       "wave": 2,
-      "status": "building",
+      "status": "judging",
       "rounds": [
         {
           "winner": "bar",
@@ -151,7 +151,7 @@
           "image": "captures/battle-scene/r11/f00600.png"
         }
       ],
-      "preview": "captures/battle-scene/r11/f00600.png",
+      "preview": "captures/battle-scene/r13/f00600.png",
       "note": "Switching the formation banner to the shared effect icons (icons only, tooltips on hover or tap)."
     },
     {
@@ -175,7 +175,7 @@
       "name": "Hero draft and formation setup screens",
       "bar": "Super Auto Pets team screen + Sea of Stars menus",
       "wave": 2,
-      "status": "building",
+      "status": "judging",
       "rounds": [
         {
           "winner": "bar",
@@ -193,7 +193,7 @@
           "image": "captures/party-formation/r7/f00420.png"
         }
       ],
-      "preview": "captures/party-formation/r7/f00420.png",
+      "preview": "captures/party-formation/r9/f00540.png",
       "note": "Hero draft and formation setup: drag or tap onto the 2x4 grid, live shape naming with bonus, behaviour, cost and growth path, locked shapes shown as Strays, opponent formation hidden."
     },
     {
@@ -599,6 +599,10 @@
     {
       "t": "11:17",
       "msg": "Battle banner switched to your icons: each effect a chip with a tooltip, and the chip pulses when its behaviour fires. Tooltip duplicate-title bug sent to the shared component's owner."
+    },
+    {
+      "t": "11:18",
+      "msg": "Tooltip fixed. Battle critic round 9 and setup screens critic round 4 running in parallel."
     }
   ],
   "questions": [
