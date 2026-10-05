@@ -14,7 +14,7 @@ const ICON_ABILITY = preload("res://assets/party/ability.png")
 const STAT_NAMES := {"hp_pct": "HP", "atk_pct": "ATK", "def_pct": "DEF", "mag_pct": "MAG", "spd_pct": "SPD",
 	"crit_add": "CRIT", "charge_pct": "CHARGE", "heal_pct": "HEAL", "dmg_taken_pct": "DMG TAKEN"}
 const PANEL_W := 182
-## Short cost labels for the banner (the full sentence is on the intro card).
+## Short cost labels for the banner (the full sentence is in the chips' tooltips).
 const COST_SHORT := {"kindred": "Back unguarded", "vigil": "No front line", "lamplight": "Front takes extra hit",
 	"tidebreak": "Spd -5%", "choir": "No front line", "keystone": "Gap draws melee", "hearth": "One wall",
 	"seawall": "Spd -3%, no back row", "lumari_chorus": "No front line", "vault_door": "No standout",
@@ -117,6 +117,7 @@ func tick(vdt: float) -> void:
 			(c[0] as Control).visible = show_chips
 	if not _chips[0].is_empty() or not _chips[1].is_empty():
 		_place_chips()
+	_place_intro()
 	if _pulse_layer != null:
 		_pulse_layer.queue_redraw()
 	flash_a = maxf(0.0, flash_a - vdt * 5.0)
@@ -343,6 +344,7 @@ func build_banner() -> void:
 		_pulse_layer.draw.connect(_draw_chip_pulses)
 		add_child(_pulse_layer)
 	move_child(_pulse_layer, -1)
+	_build_intro()
 	move_child(speed_btn, -1)
 	move_child(skip_btn, -1)
 	_place_chips()
@@ -593,8 +595,121 @@ func _draw_row(side: int, u, p: Vector2) -> void:
 
 
 # --- intro cards --------------------------------------------------------------------------------
-## One card per side: the shape's name, its bonus (green), its behaviour in a sentence and its cost
-## (red). Sized to its text.
+## One card per side (BUILD.md: effects are icons): the shape's name, one row of shared stat chips
+## (green ▲ gains, red ▼ costs, short labels) and the behaviour glyph with its short label
+## (20 characters or fewer). Every chip opens the shared Tip with the full sentence.
+const INTRO_W := 296.0
+const INTRO_GAP := 10.0
+var _intro: Array = [null, null]          # side -> Control holding the card's EffectChips
+var _intro_rows: Array = [[], []]         # side -> [[[effect, label_w], ...], ...] per row
+
+
+## Effects for the intro card: rows [stat chips], [behaviour]. Class bonds stay on the banner.
+func _intro_effects(side: int) -> Array:
+	var stats: Array = []
+	var beh: Array = []
+	for e: Dictionary in _banner_effects(side):
+		var k := String(e.get("kind", ""))
+		if k == "bond":
+			continue
+		var c := e.duplicate()
+		if k == "stat":
+			c["title"] = String(e.get("short", e.get("title", "")))
+		if k == "behaviour":
+			beh.append(c)
+		else:
+			stats.append(c)
+	if stats.is_empty() and beh.is_empty():
+		# a shape the icon set doesn't cover (the Crystal): its behaviour as one glyph
+		var form: Dictionary = b.sides[side].get("formation", {})
+		var bd: Dictionary = form.get("behaviour", {})
+		if not bd.is_empty():
+			beh.append({"icon": EffectIcons.behaviour_icon(String(bd.get("id", ""))), "sign": 0, "kind": "behaviour",
+				"title": "Never acts" if String(form.get("id", form.get("shape", ""))) == "crystal_chamber" else UIText.fit(String(bd.get("name", "")), 110.0, BOLD, UIText.LABEL),
+				"name": String(bd.get("name", "")), "text": String(bd.get("text", ""))})
+	return [stats, beh]
+
+
+func _build_intro() -> void:
+	for side in 2:
+		if _intro[side] != null:
+			(_intro[side] as Control).queue_free()
+		var box := Control.new()
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(box)
+		_intro[side] = box
+		var rows: Array = []
+		var tw := INTRO_W - 24.0
+		for list: Array in _intro_effects(side):
+			if list.is_empty():
+				continue
+			var row: Array = []
+			for e: Dictionary in list:
+				row.append([e, _chip_label_w(String(e["title"]))])
+			# one row: if the labels don't fit, stat chips show just the value ("+40%"; the icon
+			# names the stat), then labels drop from the end (the tooltip still says it all)
+			if _row_w(row) > tw:
+				for item: Array in row:
+					var e: Dictionary = item[0]
+					if String(e.get("kind", "")) == "stat":
+						e["title"] = String(e["title"]).get_slice(" ", String(e["title"]).count(" "))
+						item[1] = _chip_label_w(String(e["title"]))
+			var k := row.size() - 1
+			while _row_w(row) > tw and k >= 0:
+				row[k][1] = 0
+				k -= 1
+			rows.append(row)
+		_intro_rows[side] = rows
+		for row: Array in rows:
+			for it: Array in row:
+				var chip := EffectChip.new()
+				box.add_child(chip)
+				chip.setup(it[0], "below", int(it[1]))
+				it.append(chip)
+		box.visible = false
+
+
+func _chip_label_w(t: String) -> float:
+	return ceilf(6.0 + UIText.width(t, BOLD, UIText.LABEL) + 2.0)
+
+
+func _row_w(row: Array) -> float:
+	var w := 0.0
+	for it: Array in row:
+		w += EffectIcons.CHIP + float(it[1])
+	return w + INTRO_GAP * maxf(0.0, row.size() - 1)
+
+
+func _intro_rect(side: int) -> Rect2:
+	var h := 8.0 + UIText.ascent(SERIF, UIText.HEADING) + 8.0
+	h += (_intro_rows[side] as Array).size() * (EffectIcons.CHIP + 5.0) + 3.0
+	var cw := INTRO_W
+	return Rect2(_l + 6.0 if side == 0 else _r - 6.0 - cw, 6, cw, ceilf(h))
+
+
+## Places and fades the card's chips (called every tick while the intro shows).
+func _place_intro() -> void:
+	var on := intro_t >= 0.0 and intro_t <= intro_len + 0.4
+	var fade := 1.0 - clampf((intro_t - (intro_len - 0.35)) / 0.3, 0.0, 1.0)
+	for side in 2:
+		var box: Control = _intro[side]
+		if box == null:
+			continue
+		var a := clampf((intro_t - 0.15 - side * 0.15) / 0.2, 0.0, 1.0) * fade
+		box.visible = on and a > 0.0
+		if not box.visible:
+			continue
+		box.modulate = Color(1, 1, 1, a)
+		var r := _intro_rect(side)
+		var y := r.position.y + 8.0 + UIText.ascent(SERIF, UIText.HEADING) + 8.0
+		for row: Array in _intro_rows[side]:
+			var x := roundf(r.get_center().x - _row_w(row) / 2.0)
+			for it: Array in row:
+				(it[2] as Control).position = Vector2(x, y)
+				x += EffectIcons.CHIP + float(it[1]) + INTRO_GAP
+			y += EffectIcons.CHIP + 5.0
+
+
 func _draw_intro() -> void:
 	var it := intro_t
 	var fade := 1.0 - clampf((it - (intro_len - 0.35)) / 0.3, 0.0, 1.0)
@@ -603,43 +718,10 @@ func _draw_intro() -> void:
 		if a <= 0.0:
 			continue
 		var sc: Color = b.side_colors[side]
-		var form: Dictionary = b.sides[side].get("formation", {})
-		var beh: Dictionary = form.get("behaviour", {})
-		var cw := 296.0
-		var tw := cw - 24.0
-		var p := _badge_parts(side)
-		var locked := bool(form.get("locked", false))
-		var bt := String(beh.get("name", "")) + ": " + String(beh.get("text", ""))
-		if locked:
-			bt = "Locked: fights as Strays (no shape behaviour)"
-		var lines := UIText.wrap_lines(bt, tw, SANS, UIText.BODY)
-		var cost := String(form.get("cost", "")) if not locked else ""
-		var cost_lines := UIText.wrap_lines("▼ Cost: " + cost, tw, BOLD, UIText.LABEL) if cost != "" else PackedStringArray()
-		var lh := UIText.line_h(SANS, UIText.BODY)
-		var h := 10.0 + UIText.ascent(SERIF, UIText.HEADING) + 8.0
-		if p[1] != "":
-			h += lh + 3.0
-		h += lines.size() * lh
-		if not cost_lines.is_empty():
-			h += 3.0 + cost_lines.size() * lh
-		h = ceilf(h + 8.0)
-		var r := Rect2(_l + 6.0 if side == 0 else _r - 6.0 - cw, 6, cw, h)
+		var r := _intro_rect(side)
 		_panel_bg(r, sc, a, 0.5)
-		var cx := r.get_center().x
-		var y := r.position.y + 10.0
-		UIText.outlined(self, Vector2(cx, y), p[0], Color(sc.lerp(Pal.INK10, 0.35), a), SERIF, UIText.HEADING, 1, Pal.INK1, false)
-		y += UIText.ascent(SERIF, UIText.HEADING) + 8.0
-		if p[1] != "":
-			UIText.outlined(self, Vector2(cx, y), "▲ " + p[1], Color(Pal.LIFE4, a), BOLD, UIText.LABEL, 1, Pal.INK1, false)
-			y += lh + 3.0
-		for l in lines:
-			UIText.outlined(self, Vector2(cx, y), l, Color(Pal.INK10, a), SANS, UIText.BODY, 1, Pal.INK1, false)
-			y += lh
-		if not cost_lines.is_empty():
-			y += 3.0
-			for l in cost_lines:
-				UIText.outlined(self, Vector2(cx, y), l, Color(Pal.BLOOD4, a), BOLD, UIText.LABEL, 1, Pal.INK1, false)
-				y += lh
+		UIText.outlined(self, Vector2(r.get_center().x, r.position.y + 8.0), _badge_parts(side)[0],
+			Color(sc.lerp(Pal.INK10, 0.35), a), SERIF, UIText.HEADING, 1, Pal.INK1, false)
 
 
 # --- Crystal: memory lore caption and fragment banner -----------------------------------------------

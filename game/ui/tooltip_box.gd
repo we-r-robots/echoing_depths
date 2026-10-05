@@ -14,6 +14,8 @@ var _title := ""
 var _lines: Array = []
 var _accent := Pal.CRYSTAL4
 var _shown := false
+var _entries: Array = []        # [[effect or {}, PackedStringArray lines], ...]
+const ENTRY_INDENT := 26        # icon chip (20) + gap
 
 
 func _ready() -> void:
@@ -64,14 +66,24 @@ func open(c: Control, pin: bool) -> void:
 	_accent = d.get("accent", Pal.CRYSTAL4)
 	var place := String(d.get("place", "auto"))
 	var use_zone := place == "zone" and Tip.zone.size.x > 40
-	var max_w := MAX_W if not use_zone else int(Tip.zone.size.x) - 8
+	var max_w := int(d.get("width", MAX_W)) if not use_zone else int(Tip.zone.size.x) - 8
 	_lines = Array(UIText.wrap_lines(String(d.get("body", "")), max_w - PAD * 2, UIText.SANS, UIText.BODY)) if String(d.get("body", "")) != "" else []
 	var w := UIText.width(_title, UIText.BOLD, UIText.LABEL) + PAD * 2
 	for l: String in _lines:
 		w = maxf(w, UIText.width(l, UIText.SANS, UIText.BODY) + PAD * 2)
-	w = ceilf(w)
 	var lh := UIText.line_h(UIText.SANS, UIText.BODY)
 	var h := ceilf(PAD + lh + (3 + _lines.size() * lh if not _lines.is_empty() else 0.0) + PAD - 2)
+	_entries = []
+	for en: Dictionary in d.get("entries", []):
+		var has_icon := not (en.get("effect", {}) as Dictionary).is_empty()
+		var ind := ENTRY_INDENT if has_icon else 0
+		var ls := UIText.wrap_lines(String(en.get("text", "")), max_w - PAD * 2 - ind, UIText.SANS, UIText.BODY)
+		for l: String in ls:
+			w = maxf(w, UIText.width(l, UIText.SANS, UIText.BODY) + PAD * 2 + ind)
+		_entries.append([en.get("effect", {}), ls])
+		h += 6 + maxf(ls.size() * lh, EffectIcons.CHIP if has_icon else 0.0)
+	w = ceilf(w)
+	h = ceilf(h)
 	var a := c.get_global_rect()
 	var view := c.get_viewport_rect()   # (this box may not be in the tree yet on its first open)
 	var x0 := view.position.x + 4
@@ -160,3 +172,19 @@ func _draw() -> void:
 	for l: String in _lines:
 		UIText.draw(self, p, l, Pal.INK10, UIText.SANS, UIText.BODY)
 		p.y += lh
+	for en: Array in _entries:
+		p.y += 6
+		var e: Dictionary = en[0]
+		var ls: PackedStringArray = en[1]
+		var x := p.x
+		var block := ls.size() * lh
+		if not e.is_empty():
+			EffectIcons.draw_effect(self, Vector2(x, p.y), e)
+			x += ENTRY_INDENT
+			block = maxf(block, EffectIcons.CHIP)
+		# one-line sentences sit centred on their icon; longer ones start at its top
+		var ty := p.y + (roundf((EffectIcons.CHIP - lh) / 2.0) if ls.size() == 1 and not e.is_empty() else 0.0)
+		for l: String in ls:
+			UIText.draw(self, Vector2(x, ty), l, Pal.INK10, UIText.SANS, UIText.BODY)
+			ty += lh
+		p.y += block

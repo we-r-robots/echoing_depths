@@ -205,8 +205,20 @@ static func _stat_effect(m: Dictionary, who: Dictionary, sign: int) -> Dictionar
 	if stat == "dmg_taken_pct":
 		stat_word = "dmg taken"
 	var title := "%s %s %+d%%" % [_scope_short(String(m["scope"]), who), stat_word, pct]
-	return {"icon": stat_icon(stat), "sign": sign, "kind": "stat", "title": title,
+	return {"icon": stat_icon(stat), "sign": sign, "kind": "stat", "title": title, "short": short_stat(stat, v),
 		"name": String(STAT_CATEGORY.get(stat, "Effect")), "text": _mod_sentence(subj[0], subj[1], stat, v)}
+
+
+const STAT_SHORT := {
+	"hp_pct": "HP", "atk_pct": "Atk", "def_pct": "Def", "mag_pct": "Mag", "spd_pct": "Spd", "crit_add": "Crit",
+	"charge_pct": "Charge", "heal_pct": "Heal", "dmg_taken_pct": "Dmg taken",
+}
+
+
+## The shortest label for a stat effect, with no subject ("Crit +15%"): the chip row on the
+## battle intro cards, where the tooltip names who gets it.
+static func short_stat(stat: String, v: float) -> String:
+	return "%s %+d%%" % [STAT_SHORT.get(stat, stat.capitalize()), roundi(v * 100.0)]
 
 
 const STAT_CATEGORY := {

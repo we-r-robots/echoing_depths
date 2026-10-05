@@ -8,6 +8,10 @@ extends RefCounted
 ##     place: "auto" (above, else below), "below", "left" / "right" (beside the control), or
 ##     "zone": inside the screen's free zone set with Tip.set_zone(rect) (e.g. empty floor on a
 ##     board, so the tip covers neither the list nor the heroes); falls back to "left".
+##   opts (optional): {"entries": [{"effect": EffectIcons effect or {}, "text": String}, ...]} draws a
+##     list of icon + sentence rows under the body (the setup card's Details: the long read the
+##     player asks for, in the same box as every other tooltip); "width": the box's max width;
+##     "wire": false sets the content without hover / tap wiring (the owner opens it with show_for).
 ##   Tip.set_zone(Rect2)     # global rect for "zone" tips (Rect2() clears it)
 ##   Tip.detach(control)
 ##   Tip.show_for(control)   # open programmatically (demos, tutorials); Tip.close() closes
@@ -21,9 +25,11 @@ const HOLD_TIME := 0.35
 static var _node: Node = null
 
 
-static func attach(c: Control, title: String, body: String, accent := Pal.CRYSTAL4, place := "auto") -> void:
-	c.set_meta("tip", {"title": title, "body": body, "accent": accent, "place": place})
-	if c.has_meta("tip_wired"):
+static func attach(c: Control, title: String, body: String, accent := Pal.CRYSTAL4, place := "auto", opts := {}) -> void:
+	var d := {"title": title, "body": body, "accent": accent, "place": place}
+	d.merge(opts)
+	c.set_meta("tip", d)
+	if not bool(opts.get("wire", true)) or c.has_meta("tip_wired"):
 		return
 	c.set_meta("tip_wired", true)
 	if c.mouse_filter == Control.MOUSE_FILTER_IGNORE:

@@ -44,12 +44,61 @@ func _ready() -> void:
 	add_child(_lock_tip)
 
 
+## Details (BUILD.md: the one exemption from effects-as-icons): every effect's full sentence with
+## its icon, plus the growth path, in the shared tooltip box beside the card. The card's rows stay.
 func toggle_details() -> void:
 	details = not details
-	_details_btn.text = "Back" if details else "Details"
 	Tip.close()
-	_rebuild_chips()
+	if details:
+		Tip.attach(_details_btn, _details_title(), "", Pal.AMBER5, "left", {"entries": _details_entries(), "width": 300, "wire": false})
+		Tip.show_for(_details_btn)
+	_details_btn.text = "Close" if details else "Details"
 	queue_redraw()
+
+
+func _details_title() -> String:
+	var shape: Dictionary = _ev.get("shape", {})
+	match String(_ev.get("state", "")):
+		"unformed", "locked_unformed":
+			return "No formation"
+		"locked_fallback":
+			return "%s, fighting as %s" % [shape.get("name", ""), _ev["effective"].get("name", "")]
+	return String(shape.get("name", ""))
+
+
+func _details_entries() -> Array:
+	var out: Array = []
+	if _ev.is_empty():
+		return out
+	var shape: Dictionary = _ev["shape"]
+	if bool(_ev["locked"]):
+		var as_text := "fighting as %s." % _ev["effective"]["name"] if String(_ev["state"]) == "locked_fallback" else "no formation."
+		out.append({"effect": {"icon": preload("res://ui/effect_icons/lock.png"), "sign": 0, "kind": "note"},
+			"text": "%s is locked: %s %s" % [shape["name"], as_text, FormationWords.unlock_hint(String(shape["id"]), unlocked)]})
+	for e: Dictionary in _effects:
+		out.append({"effect": e, "text": String(e["text"])})
+	if String(_ev["state"]) in ["strays", "unformed", "locked_unformed"]:
+		return out
+	var names_of := func(list: Array) -> String:
+		var n: PackedStringArray = []
+		for sh: Dictionary in list:
+			n.append(String(sh["name"]) + ("" if FormationWords.is_unlocked(String(sh["id"]), unlocked) else " (locked)"))
+		return ", ".join(n)
+	var from := FormationWords.parents(cells)
+	if from.is_empty():
+		out.append({"effect": {}, "text": "Grows from: nothing. It's a first shape (two heroes)."})
+	else:
+		out.append({"effect": {}, "text": "Grows from: %s." % names_of.call(from)})
+	var into: Array = []
+	for e: Dictionary in FormationWords.children(cells):
+		into.append(e["shape"])
+	if int(shape.get("size", 0)) >= 4:
+		out.append({"effect": {}, "text": "Full grown: four is the most."})
+	elif into.is_empty():
+		out.append({"effect": {}, "text": "With one more hero: no free slot to grow into."})
+	else:
+		out.append({"effect": {}, "text": "With one more hero: %s." % names_of.call(into)})
+	return out
 
 
 func show_cells(c: Array, unlocked_ids: Array, n_placed: int, n_party: int, is_preview := false,
@@ -121,9 +170,8 @@ func _rebuild_chips() -> void:
 	_sections.clear()
 	_lock_tip.visible = false
 	_growth_y = 0
-	if details or _ev.is_empty() or (_ev["shape"] as Dictionary).is_empty():
+	if _ev.is_empty() or (_ev["shape"] as Dictionary).is_empty():
 		return
-	var state := String(_ev["state"])
 	var y := 66
 	var blocks := [["note", "stat+", "behaviour"], ["cost"], ["bond"]]
 	var first := true
@@ -175,6 +223,9 @@ func open_tip(k: int) -> void:
 
 
 func _process(delta: float) -> void:
+	if details and not Tip.is_open_for(_details_btn):
+		details = false
+		_details_btn.text = "Details"
 	if _flash > 0.0:
 		_flash = maxf(0.0, _flash - delta * 2.5)
 		queue_redraw()
@@ -192,9 +243,6 @@ func _draw() -> void:
 	var locked: bool = _ev["locked"]
 	var strays := String(_ev["state"]) in ["strays", "unformed"]
 	_draw_title(shape, locked, strays)
-	if details:
-		_draw_details(shape, locked, strays)
-		return
 	for sec: Array in _sections:
 		draw_rect(Rect2(10, sec[0], W - 20, 1), Pal.INK3)
 	_draw_growth_block(shape, strays)
@@ -310,45 +358,6 @@ func _draw_title(shape: Dictionary, locked: bool, strays: bool) -> void:
 		draw_texture(LOCK, Vector2(56, 43), Pal.FADE4)
 		lx = 64
 	PartyDraw.text(self, Vector2(lx, 40), line, line_col, PartyDraw.BOLD)
-
-
-## Same sentences and icons as the chips, in the same order, plus the growth path.
-func _draw_details(shape: Dictionary, locked: bool, strays: bool) -> void:
-	var y := 66
-	if locked:
-		draw_texture(LOCK, Vector2(12, y + 2), Pal.FADE4)
-		var as_text := "fighting as %s." % _ev["effective"]["name"] if String(_ev["state"]) == "locked_fallback" else "no formation."
-		y = _para("%s (locked): %s %s" % [shape["name"], as_text, FormationWords.unlock_hint(String(shape["id"]), unlocked)],
-			Vector2(22, y), W - 30, Pal.FADE4, PartyDraw.BOLD) + 6
-	for e: Dictionary in _effects:
-		EffectIcons.draw_effect(self, Vector2(8, y), e)
-		var ty := _para(String(e["text"]), Vector2(32, y), W - 40, Pal.INK9 if not locked else Pal.FADE4, PartyDraw.BOLD)
-		y = maxi(ty, y + EffectIcons.CHIP) + 4
-	if strays:
-		return
-	var from := FormationWords.parents(cells)
-	var into := FormationWords.children(cells)
-	if y > H - 100:
-		return
-	y += 2
-	PartyDraw.header(self, Vector2(8, y), W - 16, "Grows from", Pal.INK7)
-	y += 13
-	if from.is_empty():
-		PartyDraw.text(self, Vector2(10, y + 3), "The first shapes: two heroes", Pal.INK7)
-		y += 21
-	else:
-		y = _chip_flow(from, y)
-	PartyDraw.header(self, Vector2(8, y), W - 16, "With one more hero", Pal.INK7)
-	y += 13
-	if int(shape["size"]) >= 4:
-		PartyDraw.text(self, Vector2(10, y + 3), "Full grown: four is the most", Pal.INK7)
-	elif into.is_empty():
-		PartyDraw.text(self, Vector2(10, y + 3), "No free slot to grow into", Pal.INK7)
-	else:
-		var arr: Array = []
-		for e: Dictionary in into:
-			arr.append(e["shape"])
-		_chip_flow(arr, y)
 
 
 func _chip_flow(shapes: Array, y: int) -> int:
