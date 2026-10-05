@@ -54,24 +54,26 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	badge.position = Vector2(27, py + 21)
 	_ignore(badge)
 
-	# line 1: [Hero] action
-	var l1 := _row(Vector2(42, 4), 4)
+	# line 1: the hero's name in their class colour, then the action
+	var l1 := _row(Vector2(42, 4), 6)
 	var who := Label.new()
 	who.theme_type_variation = &"GoldLabel"
-	who.text = "[%s]" % h["name"]
+	who.text = String(h["name"])
 	who.add_theme_color_override("font_color", UIText.legible(cc))
 	l1.add_child(who)
 	var what := Label.new()
 	what.theme_type_variation = &"GoldLabel"
 	what.text = c.get("label", "")
+	what.add_theme_color_override("font_color", Pal.INK10)
 	l1.add_child(what)
 
 	# line 2: memory and what it does to the hero (bold, bright: these are the stakes)
 	var l2 := _row(Vector2(42, 17), 3)
 	l2.add_child(_icon("res://ui/icons/memory_gem.png", Color.WHITE, 1))
 	l2.add_child(_label("+1 Memory", Pal.CRYSTAL5, true))
-	l2.add_child(_label("Lv %d\u2192%d" % [lv, lv + 1], Pal.INK10, true))
+	l2.add_child(_label("Lv %d \u2192 %d" % [lv, lv + 1], Pal.INK10, true))
 	if awakens:
+		l2.add_child(_spacer(4))   # lead space before the tag (critic r1: it jammed into the "3")
 		l2.add_child(_pill("Ready to Awaken", Pal.AMBER6, Pal.AMBER3))
 
 	# line 3: the move the hero actually makes (edge-clamped), always with a number
@@ -91,7 +93,7 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 		l3.add_child(_label("(capped at edge)", Pal.INK8))
 	elif strong:
 		l3.add_child(_icon("res://ui/icons/star.png", Pal.AMBER6, 2))
-		l3.add_child(_label("Strong shift", Pal.AMBER6))
+		l3.add_child(_label("Strong shift", Pal.AMBER6, true))
 	if c.has("recruit"):
 		l3.add_child(_spacer(2))
 		l3.add_child(_pill("+ %s joins" % c["recruit"]["name"], Pal.LIFE4, Pal.LIFE2))
@@ -179,6 +181,13 @@ func _spacer(w: int) -> Control:
 	return c
 
 
+func _ready() -> void:
+	focus_entered.connect(queue_redraw)
+	focus_exited.connect(queue_redraw)
+	mouse_entered.connect(queue_redraw)
+	mouse_exited.connect(queue_redraw)
+
+
 func _process(delta: float) -> void:
 	if not strong:
 		return
@@ -191,6 +200,13 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	# the selected row (focus or pointer): a lifted fill and a strong crystal border, so it can't
+	# be mistaken for the strong-shift studs
+	if has_focus() or is_hovered():
+		var r := Rect2(Vector2(2, 2), size - Vector2(4, 4))
+		draw_rect(r, Color(Pal.INK4, 0.55))
+		PartyDraw.outline(self, r, Pal.CRYSTAL4)
+		PartyDraw.outline(self, r.grow(-1), Color(Pal.CRYSTAL2, 0.8))
 	if not strong:
 		return
 	# gold studs on the chamfered ends mark a strong shift

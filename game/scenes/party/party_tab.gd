@@ -88,7 +88,7 @@ func _draw() -> void:
 			draw_rect(p, Pal.INK1)
 			draw_rect(p.grow(-1), Pal.CRYSTAL4 if i < n else Pal.INK4)
 		if n > th:
-			PartyDraw.text(self, Vector2(x + th * 5 + 1, 15), "+%d" % (n - th), Pal.CRYSTAL4)
+			PartyDraw.text(self, Vector2(x + th * 5 + 1, 15), "+%d" % (n - th), Pal.CRYSTAL4, PartyDraw.BOLD)
 	else:
 		PartyDraw.tint_tex(self, STAR, Vector2(x, 17), Pal.AMBER5)
 	if _badge:

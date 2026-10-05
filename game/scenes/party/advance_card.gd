@@ -125,7 +125,7 @@ func _draw() -> void:
 	PartyDraw.text(self, Vector2(x, 20), "%s's Path" % String(hero.get("name", "")), Pal.AMBER6, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
 	var eff := PartyModel.effective(hero)
 	var region := PartyModel.region_of(eff)
-	PartyDraw.text(self, Vector2(x, 38), "They stand in %s." % PartyModel.region_words(region).replace("Neutral cross", "the neutral cross"), Pal.INK8)
+	PartyDraw.text(self, Vector2(x, 38), "They stand in %s." % PartyModel.region_words(region).replace("Neutral cross", "the neutral cross"), Pal.INK8, PartyDraw.BOLD)
 	_draw_advance(Rect2(6, 52, W - 12, 128))
 	_draw_hold(Rect2(6, 184, W - 12, 74))
 	# pointer hand beside the focused button
@@ -147,8 +147,8 @@ func _draw_advance(r: Rect2) -> void:
 	var x := r.position.x + 5
 	var y := r.position.y
 	PartyDraw.text(self, Vector2(x, y + 2), "ADVANCE", Pal.AMBER6 if lit else Pal.AMBER5, PartyDraw.BOLD)
-	var lv := "Lv %d  →  Lv 1" % int(hero.get("level", 1))
-	PartyDraw.text(self, Vector2(r.position.x, y + 2), lv, Pal.INK8, PartyDraw.SANS, PartyDraw.SANS_SIZE, true, r.size.x - 6, HORIZONTAL_ALIGNMENT_RIGHT)
+	var lv := "Lv %d \u2192 1" % int(hero.get("level", 1))
+	PartyDraw.text(self, Vector2(r.position.x, y + 2), lv, Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, r.size.x - 6, HORIZONTAL_ALIGNMENT_RIGHT)
 	var adv := PartyModel.advanced_copy(hero)
 	var id := String(adv["class"])
 	var known := id != "" and id in codex
@@ -178,8 +178,8 @@ func _draw_advance(r: Rect2) -> void:
 		if i % 2 == 0:
 			draw_rect(Rect2(r.position.x + 2, ry, r.size.x - 4, 12), Pal.INK3 if lit else Pal.INK2)
 		PartyDraw.tint_tex(self, HeroCard.ICONS[k], Vector2(cx[0], ry + 3), HeroCard.STAT_COLORS[k], false)
-		PartyDraw.text(self, Vector2(cx[0] + 10, ry + 1), PartyModel.STAT_LABELS[k], Pal.INK8)
-		PartyDraw.text(self, Vector2(cx[1], ry + 1), str(a[k]), Pal.INK8, PartyDraw.SANS, PartyDraw.SANS_SIZE, true, 26, HORIZONTAL_ALIGNMENT_RIGHT)
+		PartyDraw.text(self, Vector2(cx[0] + 10, ry + 1), PartyModel.STAT_LABELS[k], Pal.INK8, PartyDraw.BOLD)
+		PartyDraw.text(self, Vector2(cx[1], ry + 1), str(a[k]), Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, 26, HORIZONTAL_ALIGNMENT_RIGHT)
 		PartyDraw.text(self, Vector2(cx[2], ry + 1), "→", Pal.INK8, PartyDraw.BOLD)
 		PartyDraw.text(self, Vector2(cx[3], ry + 1), str(b[k]), Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, 26, HORIZONTAL_ALIGNMENT_RIGHT)
 		var d := int(b[k]) - int(a[k])
@@ -219,7 +219,7 @@ func _draw_hold(r: Rect2) -> void:
 	var y := r.position.y
 	PartyDraw.text(self, Vector2(x, y + 2), "HOLD BACK", Pal.CRYSTAL5 if lit else Pal.CRYSTAL4, PartyDraw.BOLD)
 	var lv := "up to Lv %d" % PartyModel.max_level(hero)
-	PartyDraw.text(self, Vector2(r.position.x, y + 2), lv, Pal.INK8, PartyDraw.SANS, PartyDraw.SANS_SIZE, true, r.size.x - 6, HORIZONTAL_ALIGNMENT_RIGHT)
+	PartyDraw.text(self, Vector2(r.position.x, y + 2), lv, Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, r.size.x - 6, HORIZONTAL_ALIGNMENT_RIGHT)
 	var cls := PartyModel.class_name_of(String(hero["class"]))
 	var ab := String(PartyModel.ability_of(String(hero["class"])).get("name", ""))
 	var lines := [
@@ -229,7 +229,7 @@ func _draw_hold(r: Rect2) -> void:
 	var ly := y + 16
 	for l: Array in lines:
 		PartyDraw.text(self, Vector2(x, ly), l[0], l[2], PartyDraw.BOLD)
-		PartyDraw.text(self, Vector2(x + 8, ly), l[1], Pal.INK8)
+		PartyDraw.text(self, Vector2(x + 8, ly), l[1], Pal.INK8, PartyDraw.BOLD)
 		ly += 11
 	# what holding back could reach
 	ly += 3

@@ -42,6 +42,7 @@ var caption_target := -1
 var caption_text := ""
 var caption_t := 9.0
 var caption_ability := false
+var caption_area := "single"
 var cutin_uid := -1
 var cutin_name := ""
 var cutin_t := 9.0
@@ -155,7 +156,8 @@ func screen_flash(c: Color, a: float) -> void:
 	flash_a = maxf(flash_a, a)
 
 
-func show_caption(uid: int, text: String, target: int, is_ability: bool) -> void:
+func show_caption(uid: int, text: String, target: int, is_ability: bool, area := "single") -> void:
+	caption_area = area
 	caption_uid = uid
 	caption_text = text
 	caption_target = target
@@ -480,9 +482,22 @@ func _draw_caption() -> void:
 	var sz := UIText.NUMBER
 	var who: String = u.label
 	var what := caption_text
+	# every caption says whom it is aimed at: a name, or "all foes" / "all allies" / "self"
 	var tgt := ""
-	if caption_target >= 0 and caption_target != caption_uid:
-		tgt = b.units[caption_target].label
+	var tc: Color = b.side_colors[1 - u.side]
+	match caption_area:
+		"all_enemies":
+			tgt = "all foes"
+		"all_allies":
+			tgt = "all allies"
+			tc = sc
+	if tgt == "" and caption_target >= 0:
+		if caption_target == caption_uid:
+			tgt = "self"
+			tc = sc
+		else:
+			tgt = b.units[caption_target].label
+			tc = b.side_colors[b.units[caption_target].side]
 	var gap := UIText.width(" ", BOLD, sz)
 	var arrow_w := 14.0
 	var room := r.size.x - 16.0
@@ -490,13 +505,20 @@ func _draw_caption() -> void:
 	var w_what := UIText.width(what, BOLD, sz)
 	var w_tgt := UIText.width(tgt, BOLD, sz) if tgt != "" else 0.0
 	var total := w_who + gap * 2.0 + w_what + (arrow_w + w_tgt if tgt != "" else 0.0)
-	if total > room and tgt != "":
-		tgt = ""   # one caption size always: drop the target name rather than shrink
-		total = w_who + gap * 2.0 + w_what
+	# one caption size always: when it doesn't fit, long names give way first (with an ellipsis),
+	# so the target stays
+	if total > room and w_who > 60.0:
+		who = UIText.fit(who, maxf(60.0, w_who - (total - room)), BOLD, sz)
+		w_who = UIText.width(who, BOLD, sz)
+		total = w_who + gap * 2.0 + w_what + (arrow_w + w_tgt if tgt != "" else 0.0)
+	if total > room and w_tgt > 60.0:
+		tgt = UIText.fit(tgt, maxf(60.0, w_tgt - (total - room)), BOLD, sz)
+		w_tgt = UIText.width(tgt, BOLD, sz)
+		total = w_who + gap * 2.0 + w_what + arrow_w + w_tgt
 	if total > room:
-		what = UIText.fit(what, room - w_who - gap * 2.0, BOLD, sz)
+		what = UIText.fit(what, room - w_who - gap * 2.0 - (arrow_w + w_tgt if tgt != "" else 0.0), BOLD, sz)
 		w_what = UIText.width(what, BOLD, sz)
-		total = w_who + gap * 2.0 + w_what
+		total = w_who + gap * 2.0 + w_what + (arrow_w + w_tgt if tgt != "" else 0.0)
 	var y := UIText.centered_y(r.position.y, r.size.y, BOLD, sz)
 	var x := roundf(_c - total / 2.0)
 	x = UIText.outlined(self, Vector2(x, y), who, sc.lerp(Pal.INK10, 0.35), BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
@@ -505,7 +527,6 @@ func _draw_caption() -> void:
 		var cy := r.get_center().y
 		_tri[0] = Vector2(x + 4, cy - 4); _tri[1] = Vector2(x + 10, cy); _tri[2] = Vector2(x + 4, cy + 4)
 		draw_colored_polygon(_tri, Pal.INK8)
-		var tc: Color = b.side_colors[b.units[caption_target].side]
 		UIText.outlined(self, Vector2(x + arrow_w, y), tgt, tc.lerp(Pal.INK10, 0.35), BOLD, sz, 0, Pal.INK1, false)
 
 
@@ -811,7 +832,7 @@ func _draw_end() -> void:
 	var col := Pal.AMBER6 if win else (Pal.FADE3 if winner == -1 else Pal.BLOOD4)
 	var h := 72.0 * a
 	var cy := 150.0
-	draw_rect(Rect2(0, cy - h * 0.5, _vw, h), Color(Pal.INK1, 0.85))
+	draw_rect(Rect2(0, cy - h * 0.5, _vw, h), Color(Pal.INK1, 0.95))
 	draw_rect(Rect2(0, cy - h * 0.5, _vw, 1), Color(col, a))
 	draw_rect(Rect2(0, cy + h * 0.5 - 1, _vw, 1), Color(col, a))
 	if h < 68.0:

@@ -268,7 +268,7 @@ func _draw_growth_block(shape: Dictionary, strays: bool) -> void:
 		title = "WITH ONE MORE HERO"
 		for e: Dictionary in FormationWords.children(_ev["sub_cells"] if not (_ev["sub_cells"] as Array).is_empty() else cells):
 			list.append(e["shape"])
-	PartyDraw.text(self, Vector2(10, y), title, Pal.INK8, PartyDraw.SANS, UIText.BODY, false)
+	PartyDraw.text(self, Vector2(10, y), title, Pal.INK8, PartyDraw.BOLD, UIText.BODY, false)
 	y += 12
 	if list.is_empty():
 		PartyDraw.text(self, Vector2(10, y + 3), "No free slot to grow", Pal.INK8, PartyDraw.BOLD)

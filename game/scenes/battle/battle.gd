@@ -597,7 +597,7 @@ func _behaviour_cue(ev: Dictionary, u) -> void:
 	stage.slot_pulse[Vector3i(s, u.col, u.row)] = 1.4
 	u.buff_glow = 0.6
 	u.buff_color = sc
-	fx.cue(name_, u.position + Vector2(0, 18), sc, 0.0)
+	fx.cue(name_, u.position + Vector2(0, 22), sc, 0.0)
 	match eff:
 		"shoulder_to_shoulder":     # a charge pulse travels from the hit partner and fills this gauge
 			if r != null:
@@ -740,7 +740,7 @@ func _memory_cue(ev: Dictionary, u) -> void:
 		"mirror": "Woven likeness", "last_stand": "Last stand", "draw_memory": "Draw",
 		"hasten_fading": "Close the Vault", "dim_lantern": "Dim the lantern"}
 	var col := Pal.VIOLET4
-	fx.cue(String(behs.get(eff, ev.get("name", ""))), u.position + Vector2(0, 18), col, 0.0)
+	fx.cue(String(behs.get(eff, ev.get("name", ""))), u.position + Vector2(0, 22), col, 0.0)
 	u.buff_glow = 0.7
 	u.buff_color = col
 	match eff:
@@ -815,7 +815,7 @@ func _play_pending_move() -> void:
 	u.buff_glow = 1.1
 	u.buff_color = side_colors[s].lerp(Pal.INK10, 0.4)
 	fx.light(dest + Vector2(0, -12), side_colors[s], 2, 0.6, 1.2)
-	fx.cue("Hold the door", dest + Vector2(0, 18), sc, 0.0)
+	fx.cue("Hold the door", dest + Vector2(0, 22), sc, 0.0)
 	fx.trail(u.position, dest, sc)
 	stage.slot_pulse[Vector3i(s, u.col, u.row)] = 1.8
 	hud.pulse_badge(s, 9)
@@ -1003,7 +1003,7 @@ func _on_action_start(ev: Dictionary) -> void:
 	var is_ab := String(ev.get("kind", "basic")) == "ability"
 	var aid := String(ev.get("action", ""))
 	var cols := _fx_cols(aid)
-	hud.show_caption(a.uid, String(ev.get("name", aid)), tid if String(ev.get("area", "single")) != "all_allies" else -1, is_ab)
+	hud.show_caption(a.uid, String(ev.get("name", aid)), tid if area != "all_allies" else -1, is_ab, area)
 	match anim:
 		"melee", "melee_big", "dash", "slam", "slam_big":
 			if tgt != null:
@@ -1219,7 +1219,7 @@ func _on_damage(ev: Dictionary) -> void:
 	if was_split or pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
 		var main := int(_cur_action.get("target", -1))
 		if main >= 0 and main < units.size() and main != dst:
-			fx.link_last(units[main].head() + Vector2(0, 6))
+			fx.link_last(units[main].top() + Vector2(0, -2))
 	if pid == "hearthguard":
 		var backs := 0
 		for n in units:
@@ -1358,16 +1358,19 @@ func _formation_line(side: int, form: Dictionary) -> int:
 ## action sits beside the first. Tall units near the top band get it beside the head instead.
 func _num_pos(T, uid: int) -> Vector2:
 	var k := int((_stack.get(uid, [0.0, 0]) as Array)[1])
-	var p: Vector2 = T.head() + Vector2(0.0, 6.0)   # baseline: the number sits on top of the head
+	# baseline 2 world px above the top of the sprite's real bounds (critic r1: a fixed height put
+	# a tall sentinel's number on its chest and a small rat's high over its neighbour)
+	var p: Vector2 = T.top() + Vector2(0.0, -2.0)
 	if T.is_crystal:
 		p = T.position + Vector2(0.0, -50.0)
 	if p.y < 140.0:
-		p = Vector2(T.head().x - 12.0 * T.facing, 140.0)   # tall unit: on its face, below the top band
+		# too tall for the band under the banners: beside its head, on the side facing the field
+		p = Vector2(T.top().x + (T.top_h * 0.3 + 10.0) * T.facing, 140.0)
 	# measured in SCREEN pixels through the live canvas transform (camera zoom + offset):
 	# centre of the drawn number vs the target's on-screen head top
 	var drawn := Vector2(clampf(p.x, 186.0, 454.0), maxf(p.y, 140.0)) + Vector2(0, -fx.NUM_H * 0.5)
 	var xf := view.get_canvas_transform()
-	_num_max_dist = maxf(_num_max_dist, (xf * drawn).distance_to(xf * T.head()))
+	_num_max_dist = maxf(_num_max_dist, (xf * drawn).distance_to(xf * T.top()))
 	return p
 
 

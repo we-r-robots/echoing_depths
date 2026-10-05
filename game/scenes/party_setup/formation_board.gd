@@ -493,7 +493,7 @@ func _draw_bench() -> void:
 		return
 	if dragging_to_bench or (_dragging >= 0 and placement[_dragging] is Array) or (held >= 0 and placement[held] is Array):
 		PartyDraw.soft_outline(self, br.grow(-2), Pal.AMBER5 if dragging_to_bench else Pal.AMBER3)
-	PartyDraw.text(self, Vector2(0, 6), "BENCH", Pal.INK9, PartyDraw.SANS, UIText.BODY, false, BENCH_OPEN, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(0, 6), "BENCH", Pal.INK9, PartyDraw.BOLD, UIText.BODY, false, BENCH_OPEN, HORIZONTAL_ALIGNMENT_CENTER)
 	var shown := 0
 	for i in heroes.size():
 		var k := _bench_index(i)
@@ -563,11 +563,11 @@ func _draw_field() -> void:
 	var bx := feet_of([1, 0]).x - 50
 	var fx := feet_of([0, 0]).x - 50
 	PartyDraw.text(self, Vector2(bx, 5), "BACK", Pal.CRYSTAL4, PartyDraw.BOLD, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(bx, 16), "deals and takes", Pal.INK9, PartyDraw.SANS, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(bx, 26), "half physical", Pal.INK9, PartyDraw.SANS, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(bx, 16), "deals and takes", Pal.INK9, PartyDraw.BOLD, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(bx, 26), "half physical", Pal.INK9, PartyDraw.BOLD, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
 	PartyDraw.text(self, Vector2(fx, 5), "FRONT", Pal.AMBER5, PartyDraw.BOLD, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(fx, 16), "melee hits", Pal.INK9, PartyDraw.SANS, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(fx, 26), "here first", Pal.INK9, PartyDraw.SANS, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(fx, 16), "melee hits", Pal.INK9, PartyDraw.BOLD, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(fx, 26), "here first", Pal.INK9, PartyDraw.BOLD, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
 	var ev := FormationWords.evaluate(placed_cells(), unlocked)
 	var shape: Dictionary = ev["shape"]
 	var sid := String(shape.get("id", ""))

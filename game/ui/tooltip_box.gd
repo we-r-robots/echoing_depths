@@ -67,19 +67,19 @@ func open(c: Control, pin: bool) -> void:
 	var place := String(d.get("place", "auto"))
 	var use_zone := place == "zone" and Tip.zone.size.x > 40
 	var max_w := int(d.get("width", MAX_W)) if not use_zone else int(Tip.zone.size.x) - 8
-	_lines = Array(UIText.wrap_lines(String(d.get("body", "")), max_w - PAD * 2, UIText.SANS, UIText.BODY)) if String(d.get("body", "")) != "" else []
+	_lines = Array(UIText.wrap_lines(String(d.get("body", "")), max_w - PAD * 2, UIText.BOLD, UIText.BODY)) if String(d.get("body", "")) != "" else []
 	var w := UIText.width(_title, UIText.BOLD, UIText.LABEL) + PAD * 2
 	for l: String in _lines:
-		w = maxf(w, UIText.width(l, UIText.SANS, UIText.BODY) + PAD * 2)
-	var lh := UIText.line_h(UIText.SANS, UIText.BODY)
+		w = maxf(w, UIText.width(l, UIText.BOLD, UIText.BODY) + PAD * 2)
+	var lh := UIText.line_h(UIText.BOLD, UIText.BODY)
 	var h := ceilf(PAD + lh + (3 + _lines.size() * lh if not _lines.is_empty() else 0.0) + PAD - 2)
 	_entries = []
 	for en: Dictionary in d.get("entries", []):
 		var has_icon := not (en.get("effect", {}) as Dictionary).is_empty()
 		var ind := ENTRY_INDENT if has_icon else 0
-		var ls := UIText.wrap_lines(String(en.get("text", "")), max_w - PAD * 2 - ind, UIText.SANS, UIText.BODY)
+		var ls := UIText.wrap_lines(String(en.get("text", "")), max_w - PAD * 2 - ind, UIText.BOLD, UIText.BODY)
 		for l: String in ls:
-			w = maxf(w, UIText.width(l, UIText.SANS, UIText.BODY) + PAD * 2 + ind)
+			w = maxf(w, UIText.width(l, UIText.BOLD, UIText.BODY) + PAD * 2 + ind)
 		_entries.append([en.get("effect", {}), ls])
 		h += 6 + maxf(ls.size() * lh, EffectIcons.CHIP if has_icon else 0.0)
 	w = ceilf(w)
@@ -165,12 +165,12 @@ func _draw() -> void:
 	draw_rect(Rect2(r.position.x + 1, r.end.y - 1, r.size.x - 2, 1), Pal.INK5)
 	draw_rect(Rect2(r.position.x, r.position.y + 1, 1, r.size.y - 2), Pal.INK5)
 	draw_rect(Rect2(r.end.x - 1, r.position.y + 1, 1, r.size.y - 2), Pal.INK5)
-	var lh := UIText.line_h(UIText.SANS, UIText.BODY)
+	var lh := UIText.line_h(UIText.BOLD, UIText.BODY)
 	var p := Vector2(r.position.x + PAD, r.position.y + PAD - 2)
 	UIText.draw(self, p, _title, _accent, UIText.BOLD, UIText.LABEL)
 	p.y += lh + 3
 	for l: String in _lines:
-		UIText.draw(self, p, l, Pal.INK10, UIText.SANS, UIText.BODY)
+		UIText.draw(self, p, l, Pal.INK10, UIText.BOLD, UIText.BODY)
 		p.y += lh
 	for en: Array in _entries:
 		p.y += 6
@@ -185,6 +185,6 @@ func _draw() -> void:
 		# one-line sentences sit centred on their icon; longer ones start at its top
 		var ty := p.y + (roundf((EffectIcons.CHIP - lh) / 2.0) if ls.size() == 1 and not e.is_empty() else 0.0)
 		for l: String in ls:
-			UIText.draw(self, Vector2(x, ty), l, Pal.INK10, UIText.SANS, UIText.BODY)
+			UIText.draw(self, Vector2(x, ty), l, Pal.INK10, UIText.BOLD, UIText.BODY)
 			ty += lh
 		p.y += block

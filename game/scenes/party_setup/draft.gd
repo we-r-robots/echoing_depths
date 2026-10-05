@@ -185,10 +185,9 @@ func _draw() -> void:
 	# top bar
 	UIFrame.top_bar(self)
 	PartyDraw.text(self, Vector2(l + 10, UIText.centered_y(0, 28, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)), "Choose two heroes", Pal.AMBER6, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
-	var tx := l + 16 + PartyDraw.text_w("Choose two heroes", PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
-	PartyDraw.text(self, Vector2(tx, 5), "to begin the descent", Pal.INK9, PartyDraw.BOLD)
-	var sub := "More can join on the road: four at most."
-	PartyDraw.text(self, Vector2(tx, 15), sub, Pal.INK8, PartyDraw.BOLD)
+	# one serif title, one sans subtitle on the same line (critic r1: a sentence split across faces)
+	var tx := l + 18 + PartyDraw.text_w("Choose two heroes", PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
+	PartyDraw.text(self, Vector2(tx, UIText.centered_y(0, 28, PartyDraw.BOLD)), "More can join on the road, up to four.", Pal.INK9, PartyDraw.BOLD)
 	# pick slots, right
 	var px := r0 - 8
 	for k in range(need - 1, -1, -1):
@@ -214,4 +213,4 @@ func _draw() -> void:
 		return
 	var pw := PartyDraw.pill(self, Vector2(bb.position.x + 6, bb.position.y + 6), "ALIGNMENT", Pal.AMBER6, Pal.AMBER1, Pal.AMBER4)
 	PartyDraw.text(self, Vector2(bb.position.x + 12 + pw, ty),
-		"Each class starts at a fixed place. Your choices shift it and set the advanced class.", Pal.INK9)
+		"Each class starts at a fixed place; your choices move it.", Pal.INK9, PartyDraw.BOLD)

@@ -96,6 +96,7 @@ var _sprite_h := 64
 var _ox := 32
 var _oy := 60
 var height := 40           # visible sprite height (for popups and plates)
+var top_h := 40.0          # world px from the feet to the top of the idle sprite's opaque pixels
 
 
 func setup(u: Dictionary, sprite_meta: Dictionary, shadow_tex: Texture2D, echo: bool, col_side: Color, swaps: Array) -> void:
@@ -196,6 +197,7 @@ func setup(u: Dictionary, sprite_meta: Dictionary, shadow_tex: Texture2D, echo: 
 	spr.animation_finished.connect(_on_anim_finished)
 	spr.play(&"idle")
 	spr.frame = (uid * 2) % maxi(1, spr.sprite_frames.get_frame_count(&"idle"))
+	top_h = _idle_top(frames)
 	_bob_t = uid * 0.37
 
 
@@ -480,3 +482,32 @@ func chest() -> Vector2:
 
 func head() -> Vector2:
 	return position + Vector2(0, -height)
+
+
+## Top of the sprite's real bounds (its tallest idle frame), for numbers and tags: a small rat
+## gets them just over its ears, a tall sentinel over its crown.
+func top() -> Vector2:
+	return position + Vector2(0, -top_h)
+
+
+func _idle_top(frames: SpriteFrames) -> float:
+	if frames == null or not frames.has_animation(&"idle"):
+		return float(height)
+	var best := _oy
+	for i in mini(4, frames.get_frame_count(&"idle")):
+		var tex := frames.get_frame_texture(&"idle", i)
+		var img: Image = tex.get_image() if tex != null else null
+		if img == null:
+			continue
+		if img.is_compressed():
+			img.decompress()
+		var found := false
+		for y in mini(img.get_height(), _oy):
+			for x in img.get_width():
+				if img.get_pixel(x, y).a > 0.5:
+					best = mini(best, y)
+					found = true
+					break
+			if found:
+				break
+	return float(_oy - best) if best < _oy else float(height)

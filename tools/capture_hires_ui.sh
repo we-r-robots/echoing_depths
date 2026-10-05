@@ -95,7 +95,7 @@ if want videos; then
   echo "videos (1920x1080)"
   mkdir -p "$OUT/battle" "$OUT/crystal"
   CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle.tscn "$OUT/battle/fight.mp4" 2250 >/dev/null
-  CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle_crystal.tscn "$OUT/crystal/crystal_demo.mp4" 3600 >/dev/null
+  CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle_crystal.tscn "$OUT/crystal/crystal_demo.mp4" 3500 >/dev/null
 fi
 
 if want crops; then
@@ -134,7 +134,7 @@ fi
 
 if want before_after; then
   # Old 640x360 capture shown x3 (nearest, as it was on a 1080p screen) beside the new 1920x1080
-  # capture of the same design-space region. Needs before/ and the new stills (setup, battle,
+  # capture of the same design-space region, then both again at phone size (halved). Needs before/ and the new stills (setup, battle,
   # encounter, draft).
   echo "before_after"
   python3 - "$OUT" <<'EOF'
@@ -145,6 +145,7 @@ out = os.path.join(root, 'before_after')
 cases = {
     'setup_card': ('before/setup/f00420.png', 'setup/1080/tooltip_open.png', (424, 34, 634, 200)),
     'setup_board_labels': ('before/setup/f00420.png', 'setup/1080/tooltip_open.png', (60, 34, 330, 140)),
+    'setup_whole': ('before/setup/f00420.png', 'setup/1080/tooltip_open.png', (0, 0, 640, 360)),
     'battle_roster': ('before/battle/f00600.png', 'battle/1080/numbers_crit_firestorm.png', (0, 270, 330, 360)),
     'battle_banner': ('before/battle/f00600.png', 'battle/1080/numbers_crit_firestorm.png', (0, 0, 330, 60)),
     'encounter_text': ('before/encounter/f00480.png', 'encounter/1080/colossus_resolved.png', (336, 60, 636, 180)),
@@ -160,12 +161,19 @@ for name, (b, a, (x0, y0, x1, y1)) in cases.items():
     before = before.resize((before.width * 3, before.height * 3), Image.NEAREST)
     after = Image.open(ap).convert('RGB').crop((x0 * 3, y0 * 3, x1 * 3, y1 * 3))
     w, h = before.width, before.height
-    img = Image.new('RGB', (w * 2 + 30, h + 40), (24, 24, 24))
+    # second row: the same pair at phone size (the 1080p frame shown 960 px wide, LANCZOS)
+    bh = before.resize((w // 2, h // 2), Image.LANCZOS)
+    ah = after.resize((w // 2, h // 2), Image.LANCZOS)
+    img = Image.new('RGB', (w * 2 + 30, h + 40 + h // 2 + 40), (24, 24, 24))
     d = ImageDraw.Draw(img)
     d.text((8, 12), 'BEFORE: 640x360 frame shown x3 at 1080p', fill=(230, 230, 230))
     d.text((w + 38, 12), 'AFTER: native 1920x1080 UI layer (same region)', fill=(230, 230, 230))
     img.paste(before, (0, 40))
     img.paste(after, (w + 30, 40))
+    d.text((8, h + 52), 'PHONE SIZE (frame shown 960 px wide): before', fill=(230, 230, 230))
+    d.text((w + 38, h + 52), 'PHONE SIZE: after', fill=(230, 230, 230))
+    img.paste(bh, (0, h + 80))
+    img.paste(ah, (w + 30, h + 80))
     img.save(os.path.join(out, name + '.png'))
     print('   ', name, img.size)
 EOF

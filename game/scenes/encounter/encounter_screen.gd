@@ -38,8 +38,9 @@ var _layer: Control
 var _legend: Control
 var _body_top := 92
 var _clock := 0.0
-## The text column's x: COL_X in the 640x360 frame; on wide screens it anchors to the right edge
-## (the painting stays at the left edge and every encounter painting ends in plain ink on the right).
+## The text column's x: COL_X in the 640x360 frame. On wide screens the painting and the column
+## move together as one group, centred in the view (critic r1: anchoring them to opposite edges
+## left a band of dead black between the art and its words).
 var col_x := COL_X
 
 
@@ -85,7 +86,8 @@ func show_encounter(id: String) -> void:
 # ------------------------------------------------------------------------------------------ build
 
 func _build() -> void:
-	col_x = COL_X + roundi(UIFrame.right(self) - 640.0)
+	var fx := UIText.frame_rect(self).position.x
+	col_x = COL_X + roundi(fx)
 	var back := ColorRect.new()
 	back.color = Pal.INK1
 	back.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -95,6 +97,7 @@ func _build() -> void:
 	_art = EncounterArt.new()
 	_layer.add_child(_art)
 	_art.setup(encounter["art"])
+	_art.position.x = fx
 
 	_build_top_bar()
 
@@ -141,6 +144,8 @@ func _build() -> void:
 	_body.position = Vector2(col_x + 6, 92)
 	_body.size = Vector2(COL_W - 12, 120)
 	_body.text = "[center]" + EncounterDB.markup(encounter["text"]) + "[/center]"
+	# the prose in the bold face: 2-unit stems stay 2 px when a 1080p frame is shown phone-sized
+	_body.add_theme_font_override("normal_font", UIText.BOLD)
 	_layer.add_child(_body)
 
 	_choice_box = VBoxContainer.new()
@@ -186,7 +191,7 @@ func _layout() -> void:
 
 func _text_height(bb: String) -> int:
 	var plain := RegEx.create_from_string("\\[[^\\]]*\\]").sub(bb, "", true)
-	var font := get_theme_font("normal_font", "RichTextLabel")
+	var font: Font = UIText.BOLD   # the prose face (see _build)
 	var lines := UIText.wrap_lines(plain, COL_W - 12, font, UIText.BODY).size()
 	return ceili(lines * UIText.line_h(font, UIText.BODY))
 
@@ -438,12 +443,9 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 	_text(_card, "absorbed", Vector2(mx + 17, 18), Pal.INK8, &"HeaderLabel")
 	_text(_card, "LEVEL", Vector2(mx, 37), Pal.INK8, &"HeaderLabel")
 	var lv_old := _text(_card, str(int(before["level"])), Vector2(mx + 30, 34), Pal.INK10, &"TitleLabel")
-	var lv_arrow := TextureRect.new()
-	lv_arrow.texture = load("res://ui/icons/chevron.png")
-	lv_arrow.modulate = Pal.INK6
-	lv_arrow.position = Vector2(mx + 42, 39)
+	# one arrow for every level and stat change in the game: "2 → 3" (critic r1 found three)
+	var lv_arrow := _text(_card, "\u2192", Vector2(mx + 40, 36), Pal.INK8, &"HeaderLabel")
 	lv_arrow.visible = false
-	_add(_card, lv_arrow)
 	var lv_new := _text(_card, str(int(hero["level"])), Vector2(mx + 49, 34), Pal.CRYSTAL5, &"TitleLabel")
 	lv_new.visible = false
 	var pips := Control.new()

@@ -90,3 +90,27 @@ static func _scripts(dir: String) -> Array[String]:
 		if f.ends_with(".gd"):
 			out.append(dir.path_join(f))
 	return out
+
+
+static func _lum(c: Color) -> float:
+	var f := func(v: float) -> float: return v / 12.92 if v <= 0.03928 else pow((v + 0.055) / 1.055, 2.4)
+	return 0.2126 * f.call(c.r) + 0.7152 * f.call(c.g) + 0.0722 * f.call(c.b)
+
+
+static func contrast(a: Color, b: Color) -> float:
+	var la := _lum(a)
+	var lb := _lum(b)
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
+
+## Critic r1: the muted tier (INK7 3.9:1, INK6 2.5:1) faded out at phone size. UIText.legible lifts
+## every mid-dark palette tone to a sibling that reads at 4.5:1 or better on the panel inks.
+func test_text_colours_meet_the_contrast_floor() -> void:
+	for k: String in UIText.READABLE:
+		var src := Pal.c(k.to_lower())
+		var out := UIText.legible(Color(src, 0.5))
+		check(out.a == 0.5, "%s keeps its alpha" % k)
+		for bg: Color in [Pal.INK1, Pal.INK2, Pal.INK3]:
+			check(contrast(Color(out, 1.0), bg) >= 4.5, "%s as text reads >= 4.5:1 on the panel inks (%.2f)" % [k, contrast(out, bg)])
+	eq(UIText.legible(Pal.INK10), Pal.INK10, "bright colours pass through")
+	eq(UIText.legible(Pal.INK1), Pal.INK1, "dark text on light fills passes through")

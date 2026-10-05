@@ -101,7 +101,7 @@ func apply_change(change: Dictionary, dur := 0.6) -> void:
 ## Screen position of the art's memory source (where absorbed memories fly from).
 func source_point() -> Vector2:
 	var s: Array = art.get("source", [160, 120])
-	return Vector2(s[0], s[1]) + _offset
+	return Vector2(s[0], s[1]) + _offset + position
 
 
 func _process(delta: float) -> void:

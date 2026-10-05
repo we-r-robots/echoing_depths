@@ -239,7 +239,7 @@ func _draw_stats(y: int) -> void:
 		var r := Rect2(x, y + 12, cw, 27)
 		PartyDraw.row(self, Rect2(r.position, Vector2(cw, 12)))
 		PartyDraw.tint_tex(self, ICONS[s], Vector2(x + 3, y + 14), STAT_COLORS[s])
-		PartyDraw.text(self, Vector2(x + 12, y + 12), PartyModel.STAT_LABELS[s], Pal.INK8)
+		PartyDraw.text(self, Vector2(x + 12, y + 12), PartyModel.STAT_LABELS[s], Pal.INK8, PartyDraw.BOLD)
 		var well := Rect2(x, y + 25, cw, 13)
 		PartyDraw.inset(self, well)
 		PartyDraw.text(self, Vector2(x, y + 26), str(st[s]), Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, cw - 4, HORIZONTAL_ALIGNMENT_RIGHT)
@@ -274,7 +274,7 @@ func _draw_equipment(y: int) -> void:
 			PartyDraw.text(self, Vector2(28, ry + 3), String(it.get("name", id)), name_col, PartyDraw.BOLD)
 			var sw := PartyModel.item_stat_words(it)
 			if slot != "relic":
-				PartyDraw.text(self, Vector2(28, ry + 3), sw, Pal.INK8, PartyDraw.SANS, PartyDraw.SANS_SIZE, true, W - 16 - 24, HORIZONTAL_ALIGNMENT_RIGHT)
+				PartyDraw.text(self, Vector2(28, ry + 3), sw, Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, W - 16 - 24, HORIZONTAL_ALIGNMENT_RIGHT)
 			else:
 				# BOUND tag with a lock
 				var bw := PartyDraw.text_w("BOUND", PartyDraw.BOLD) + 14
@@ -298,7 +298,7 @@ func _draw_equipment(y: int) -> void:
 					var word := "%+d %s" % [absi(v), PartyModel.axis_word(pair[0], v)]
 					PartyDraw.text(self, Vector2(ax + 9, ry + 14), word, col, PartyDraw.BOLD)
 					ax += 13 + PartyDraw.text_w(word, PartyDraw.BOLD)
-				PartyDraw.text(self, Vector2(ax, ry + 14), "offset  " + sw, Pal.AMBER4)
+				PartyDraw.text(self, Vector2(ax, ry + 14), "offset  " + sw, Pal.AMBER4, PartyDraw.BOLD)
 		ry += rh
 
 
@@ -313,8 +313,8 @@ func _draw_ability(y: int) -> void:
 	var tag := "replaced on advancing" if PartyModel.tier(hero) == "base" else "advanced ability"
 	PartyDraw.text(self, Vector2(28, y + 12), tag, Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, W - 16 - 20, HORIZONTAL_ALIGNMENT_RIGHT)
 	var desc := PartyModel.ability_desc(a)
-	var lines := UIText.wrap_lines(desc, W - 36, UIText.SANS, UIText.BODY)
+	var lines := UIText.wrap_lines(desc, W - 36, UIText.BOLD, UIText.BODY)
 	var ly := y + 24.0
 	for i in mini(3, lines.size()):
-		UIText.draw(self, Vector2(28, ly), lines[i], Pal.INK9, UIText.SANS, UIText.BODY)
-		ly += UIText.line_h(UIText.SANS, UIText.BODY)
+		UIText.draw(self, Vector2(28, ly), lines[i], Pal.INK9, UIText.BOLD, UIText.BODY)
+		ly += UIText.line_h(UIText.BOLD, UIText.BODY)
