@@ -122,7 +122,7 @@ The other dormant templates (The Last Blade of Veil, The Grey Shepherd, The Debt
 4. **Summons and shapes: undecided.** User idea: in the formation setup screen the player picks the tile a summoner summons to; if two summoners target the same tile and a cast lands while that tile's summon is still alive, the summon levels up instead of being replaced.
 5. *(Corner shape/ability stealers: not yet answered.)*
 6. **Legendary sacrifice: undecided.** The user's only idea so far is sacrificing another hero, which may be hard to balance.
-7. **Names:** the user is fine with letting players rename heroes. (Question 7 was about class and Legendary names; still open.)
+7. **Names:** Legendary names are lore and decided by us (the user and the team), not generated. Players may rename heroes so they "remember" their own story. Suggested reconciliation (pending user OK): the Legendary title stays fixed and the hero's personal name is renamable, e.g. "Brannoc, the Red Tide". Class names in this draft are still up for the user's review.
 8. **No lean variants: every class is unique.** The grid's regions already divide the classes; don't tweak abilities by exact cell.
 
 ## 5. What I'd build first
