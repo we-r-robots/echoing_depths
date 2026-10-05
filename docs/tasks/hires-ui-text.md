@@ -1,7 +1,7 @@
 # Task: High-Resolution UI Text Layer
 *Approved by the user, 2026-10-05. Read docs/BUILD.md (especially "Spec non-negotiables") and docs/RESUME.md first.*
 
-**Status (2026-10-05):** milestones 1–4 are built and pushed. Critic rounds 1 and 2 FAILED (2 of 5 blind pairs each; records in docs/tasks/hires-ui-round1.md and hires-ui-round2.md). Critic round 3 FAILED (0/5 overall, 3/5 at phone size; docs/tasks/hires-ui-round3.md). Critic round 4 FAILED (2/5; docs/tasks/hires-ui-round4.md). Round-5 fixes are built; captures in captures/hires-ui/r5/ and captures/flow/r5/, awaiting critic round 5 (build record at the end of docs/tasks/hires-ui-round4.md).
+**Status (2026-10-05):** milestones 1–4 are built and pushed. Critic rounds 1 and 2 FAILED (2 of 5 blind pairs each; records in docs/tasks/hires-ui-round1.md and hires-ui-round2.md). Critic round 3 FAILED (0/5 overall, 3/5 at phone size; docs/tasks/hires-ui-round3.md). Critic round 4 FAILED (2/5; docs/tasks/hires-ui-round4.md). Critic round 5 FAILED (2/7; docs/tasks/hires-ui-round5.md). Round-6 fixes are built; captures in captures/hires-ui/r6/ and captures/flow/r6/, awaiting critic round 6 (build record at the end of docs/tasks/hires-ui-round5.md).
 
 ## Decision
 The **world** (battle stage, sprites, encounter illustrations, effects) stays pixel art authored at **640x360**, integer-scaled to the screen. **All UI text and UI chrome** (menus, cards, tooltips, captions, banners, damage numbers and tags, HUD, roster panels) moves to a **higher-resolution UI layer**, so text has more pixels per glyph and reads clearly on a phone.

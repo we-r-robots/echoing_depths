@@ -7,15 +7,16 @@ extends RefCounted
 ##   - sideways, keeping its centre inside its own unit's body span (never drifting onto a
 ##     neighbour's column), and
 ##   - down over its own body (to just under its own plate) or a little up (RISE_UP),
-## and never stacks upward. A candidate box is legal when it
-##   - overlaps no other unit's body box, HP plate or ATB/charge marker,
-##   - overlaps no label already placed this action and no HUD rect (banners, roster, caption),
+## and never stacks upward. A candidate box is legal when it (the bar, coordinator 2026-10-05: like
+## TFT / Octopath / SAP, a number may overlap a neighbour's sprite; it must never read as the wrong
+## unit's hit, merge with another number, or cover HUD text)
+##   - overlaps no label already placed this action and no HUD rect (banners, roster, caption,
+##     the Crystal's bar), and
 ##   - stays inside the field, and
 ##   - is nearer its own unit's body than any other unit's body (centre to box distance).
 ## The legal box with the least movement wins (moving up costs more than down, sideways a little
-## more than down). When no box is legal (very rare: a full grid in the Fading) the box with the
-## least overlap, weighted toward other units' bars and heads, wins: the label still never leaves
-## its own unit's span.
+## more than down, a little cost for covering a neighbour). When no box is legal the box with the
+## least overlap wins: the label still never leaves its own unit's span.
 
 ## A unit as the solver sees it: {uid: int, body: Rect2, bar: Rect2}. body is the opaque core of the
 ## idle sprite (columns at least 30% filled, so a thin blade sticking out doesn't count), from the
@@ -28,6 +29,7 @@ const GAP := 1.0             # air between a label and another label (world px)
 const W_UP := 3.0            # cost per world px moved up
 const W_DOWN := 1.0          # cost per world px moved down
 const W_SIDE := 1.5          # cost per world px moved sideways
+const W_SPRITE := 0.05       # cost per world px² over a neighbour's sprite or bar (soft)
 
 
 ## Places one label. `size` is the label's box size, `pref` its preferred box bottom-centre,
@@ -72,10 +74,14 @@ static func place(size: Vector2, pref: Vector2, own: Dictionary, units: Array, p
 			if cost >= best_cost:
 				continue
 			var box := Rect2(roundf(x - size.x * 0.5), y - size.y, size.x, size.y)
-			var ov := overlap(box, others, placed, blocked, field)
+			var ov := overlap(box, placed, blocked, field)
 			if ov <= 0.0 and nearest_is_own(box, body, others):
-				best = box
-				best_cost = cost
+				# legal; covering a neighbour's sprite or bar is allowed but costs a little, so a
+				# clear spot near the head wins over an equal one on a neighbour
+				cost += sprite_overlap(box, others) * W_SPRITE
+				if cost < best_cost:
+					best = box
+					best_cost = cost
 			elif best_cost == INF:
 				var c2 := ov * 100.0 + cost + (0.0 if nearest_is_own(box, body, others) else 5000.0)
 				if c2 < fb_cost:
@@ -100,13 +106,18 @@ static func _steps(px: float, lo: float, hi: float) -> Array[float]:
 	return out
 
 
-## Weighted overlap of a box with other units' bodies and bars, placed labels, HUD rects and the
-## outside of the field (0 = legal).
-static func overlap(box: Rect2, others: Array, placed: Array, blocked: Array, field: Rect2) -> float:
+## Area of a box over other units' bodies and bars (soft: allowed, a little costly).
+static func sprite_overlap(box: Rect2, others: Array) -> float:
 	var ov := 0.0
 	for u: Dictionary in others:
 		ov += _area(box, u.get("body", Rect2()))
-		ov += _area(box, u.get("bar", Rect2())) * 2.0
+		ov += _area(box, u.get("bar", Rect2()))
+	return ov
+
+
+## Weighted overlap of a box with placed labels, HUD rects and the outside of the field (0 = legal).
+static func overlap(box: Rect2, placed: Array, blocked: Array, field: Rect2) -> float:
+	var ov := 0.0
 	for r: Rect2 in placed:
 		ov += _area(box, r.grow(GAP)) * 3.0
 	for r: Rect2 in blocked:

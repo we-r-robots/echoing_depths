@@ -1,7 +1,8 @@
 extends "res://tests/test_case.gd"
 ## World labels (damage/heal numbers, CRIT!, KO!, tags, formation cues) under load (hires-ui round 6).
-## The layout solver (scenes/battle/label_layout.gd) must keep every label nearest its own unit and
-## off every other unit's body, HP plate and charge marker, off the HUD and off the other labels.
+## The layout solver (scenes/battle/label_layout.gd) must keep (a) every label nearest its own unit
+## and within its horizontal span, (b) off every other label, (c) off the HUD (banners, caption,
+## roster, the Crystal's bar). Overlapping a neighbour's sprite or bar is allowed.
 ## The synthetic tests pack the 2x4 grid; the real-fight tests play the demo fights (Cleave crit,
 ## Firestorm on all foes, the Fading, monster KOs, the Crystal) through the real battle scene and
 ## check every label the moment it is placed.
@@ -42,11 +43,7 @@ func _check_label(box: Rect2, uid: int, geo: Array, placed: Array, blocked: Arra
 	if own.is_empty():
 		check(false, "%s: its unit %d is on the field" % [what, uid])
 		return
-	for g: Dictionary in others:
-		var bd: Rect2 = g["body"]
-		var br: Rect2 = g["bar"]
-		check(not box.intersection(bd).has_area(), "%s %s overlaps unit %d's body %s" % [what, box, g["uid"], bd])
-		check(not box.intersection(br).has_area(), "%s %s overlaps unit %d's HP plate %s" % [what, box, g["uid"], br])
+	# (overlapping a neighbour's sprite or HP bar is allowed: coordinator 2026-10-05)
 	for r: Rect2 in placed:
 		check(not box.intersection(r).has_area(), "%s %s overlaps another label %s" % [what, box, r])
 	for r: Rect2 in blocked:

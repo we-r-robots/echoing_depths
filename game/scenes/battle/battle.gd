@@ -1399,6 +1399,9 @@ func _layout_ctx(keep := -1) -> void:
 		var p0: Vector2 = to_world * r.position
 		var p1: Vector2 = to_world * r.end
 		bl.append(Rect2(p0, p1 - p0))
+	# the Crystal's integrity bar is HUD too: no label covers it
+	if crystal_uid >= 0 and crystal_uid < units.size() and units[crystal_uid].alive:
+		bl.append(units[crystal_uid].plate_rect())
 	fx.blocked = bl
 
 
