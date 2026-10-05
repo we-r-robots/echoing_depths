@@ -11,3 +11,4 @@ captures/
 __pycache__/
 *.pyc
 game/gdextension_interface.h
+.claude/worktrees/
