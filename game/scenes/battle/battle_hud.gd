@@ -290,7 +290,7 @@ func build_banner() -> void:
 		for eff: Dictionary in _banner_effects(side):
 			var chip := EffectChip.new()
 			add_child(chip)
-			chip.setup(eff, true)
+			chip.setup(eff, "below")
 			_chips[side].append([chip, eff])
 	if _pulse_layer == null:
 		_pulse_layer = Control.new()

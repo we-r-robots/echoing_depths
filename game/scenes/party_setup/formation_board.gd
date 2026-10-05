@@ -16,8 +16,9 @@ signal changed                  # placement changed (a drop or a tap-place)
 signal preview_changed          # the drag target changed (preview_cells() differs)
 signal held_changed
 
-const BENCH := Rect2(0, 0, 40, 318)
-const FIELD := Rect2(44, 0, 364, 318)
+const BENCH_OPEN := 40
+const BENCH_SHUT := 12
+const RIGHT := 408
 const ROW_DY := 44
 const SKEW := 40                # x step per row (the battle's lean, at 2x)
 const COL_DX := 96              # back column sits this far left of the front
@@ -61,6 +62,10 @@ var _flash := 0.0
 var _flash_cells: Array = []
 var _dust: Array = []
 var _last_shape := ""
+var _bench_w := float(BENCH_OPEN)
+var _hover: Variant = null      # slot under a hovering mouse (PC), for the result plate
+## Horizontal shift of the grid so it stays centred as the bench opens and closes.
+static var ox := 0.0
 
 
 func _ready() -> void:
@@ -135,7 +140,24 @@ func _add_sprite(i: int, slot: Variant) -> void:
 static func feet_of(c: Array) -> Vector2:
 	var col := int(c[0])
 	var row := int(c[1])
-	return Vector2(FRONT_X0 - COL_DX * col + SKEW * row, ROW0_Y + ROW_DY * row)
+	return Vector2(roundf(FRONT_X0 - COL_DX * col + SKEW * row + ox), ROW0_Y + ROW_DY * row)
+
+
+func bench_rect() -> Rect2:
+	return Rect2(0, 0, roundf(_bench_w), 318)
+
+
+func field_rect() -> Rect2:
+	var bw := roundf(_bench_w)
+	return Rect2(bw + 4, 0, RIGHT - bw - 4, 318)
+
+
+func _bench_wanted() -> bool:
+	if waiting_count() > 0:
+		return true
+	if _dragging >= 0 and placement[_dragging] is Array:
+		return true
+	return held >= 0 and placement[held] is Array
 
 
 ## Is p inside slot c's floor tile (a parallelogram leaning with the rows)?
@@ -285,7 +307,7 @@ static func _toast_for(ev: Dictionary) -> String:
 	if String(shape["id"]) == "strays":
 		return "Strays"
 	if ev["locked"]:
-		return "%s  (locked)" % shape["name"]
+		return ""   # the persistent unlock line below says it
 	return "%s formed" % shape["name"]
 
 
@@ -341,6 +363,10 @@ func pointer_down(p: Vector2) -> void:
 
 
 func pointer_move(p: Vector2) -> void:
+	if _press < 0 and _dragging < 0:
+		var hv: Variant = cell_at(p)
+		if hv != _hover:
+			_hover = hv
 	if _press >= 0 and _dragging < 0 and p.distance_to(_press_at) > DRAG_START:
 		_dragging = _press
 		var origin: Vector2 = _pos[_dragging] if placement[_dragging] is Array else p + Vector2(0, 30)
@@ -353,7 +379,7 @@ func pointer_move(p: Vector2) -> void:
 		var t: Variant = cell_at(feet)
 		if t == null:
 			t = cell_at(p)
-		if t == null and BENCH.grow(4).has_point(p):
+		if t == null and bench_rect().grow(4).has_point(p):
 			t = "bench"
 		if t != _target:
 			_target = t
@@ -375,7 +401,7 @@ func pointer_up(p: Vector2) -> void:
 		_press = -1
 		return
 	var c: Variant = cell_at(p)
-	var on_bench := BENCH.has_point(p)
+	var on_bench := bench_rect().has_point(p)
 	if held >= 0:
 		var hit := hero_at_point(p)
 		if hit == held:
@@ -410,6 +436,9 @@ func pointer_up(p: Vector2) -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	toast_t -= delta
+	var goal := float(BENCH_OPEN if _bench_wanted() else BENCH_SHUT)
+	_bench_w = move_toward(_bench_w, goal, delta * 220.0)
+	ox = roundf((_bench_w - BENCH_OPEN) / 2.0)
 	_flash = maxf(0.0, _flash - delta * 1.6)
 	for d: Array in _dust:
 		d[1] = float(d[1]) + delta
@@ -450,12 +479,17 @@ func _draw() -> void:
 
 
 func _draw_bench() -> void:
+	var br := bench_rect()
 	var dragging_to_bench: bool = _dragging >= 0 and _target is String and _target == "bench"
-	var holding_placed: bool = held >= 0 and placement[held] is Array
-	PartyDraw.panel(self, BENCH, 0, &"DimPanel")
-	if dragging_to_bench or holding_placed or (_dragging >= 0 and placement[_dragging] is Array):
-		PartyDraw.soft_outline(self, BENCH.grow(-2), Pal.AMBER5 if dragging_to_bench else Pal.AMBER3)
-	PartyDraw.text(self, Vector2(0, 6), "BENCH", Pal.INK7, PartyDraw.SANS, 11, false, 40, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.panel(self, br, 0, &"DimPanel")
+	if br.size.x < BENCH_OPEN - 2:
+		# collapsed: a thin strip; it opens when a hero needs the bench
+		for k in 4:
+			draw_rect(Rect2(br.size.x / 2.0 - 1, 40 + k * 70, 2, 30), Pal.INK3)
+		return
+	if dragging_to_bench or (_dragging >= 0 and placement[_dragging] is Array) or (held >= 0 and placement[held] is Array):
+		PartyDraw.soft_outline(self, br.grow(-2), Pal.AMBER5 if dragging_to_bench else Pal.AMBER3)
+	PartyDraw.text(self, Vector2(0, 6), "BENCH", Pal.INK9, PartyDraw.SANS, 11, false, BENCH_OPEN, HORIZONTAL_ALIGNMENT_CENTER)
 	var shown := 0
 	for i in heroes.size():
 		var k := _bench_index(i)
@@ -472,8 +506,8 @@ func _draw_bench() -> void:
 		var m := Color.WHITE if i != _dragging else Color(0.55, 0.55, 0.65)
 		draw_texture(_portraits[i], r.position + Vector2(3, 3), m)
 		draw_rect(Rect2(r.position.x + 1, r.end.y - 2, r.size.x - 2, 1), Pal.c(info["color"]))
-	for k in range(shown, MAX_PARTY):
-		PartyDraw.dashed_outline(self, _bench_rect(k), Pal.INK4)
+	if dragging_to_bench or (_dragging >= 0 and placement[_dragging] is Array):
+		PartyDraw.dashed_outline(self, _bench_rect(shown), Pal.AMBER4, int(_t * 8.0) % 4)
 
 
 func _fill_tile(c: Array, fill: Color, edge: Color, lit := Color(0, 0, 0, 0)) -> void:
@@ -519,16 +553,17 @@ func _outline_tile(c: Array, col: Color, grow := 0) -> void:
 
 
 func _draw_field() -> void:
-	PartyDraw.panel(self, FIELD, 0, &"DimPanel")
+	var field := field_rect()
+	PartyDraw.panel(self, field, 0, &"DimPanel")
 	# column headings over the top row
 	var bx := feet_of([1, 0]).x - 50
 	var fx := feet_of([0, 0]).x - 50
 	PartyDraw.text(self, Vector2(bx, 5), "BACK", Pal.CRYSTAL4, PartyDraw.BOLD, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(bx, 16), "deals and takes", Pal.INK8, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(bx, 26), "half physical", Pal.INK8, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(bx, 16), "deals and takes", Pal.INK9, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(bx, 26), "half physical", Pal.INK9, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
 	PartyDraw.text(self, Vector2(fx, 5), "FRONT", Pal.AMBER5, PartyDraw.BOLD, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(fx, 16), "melee hits", Pal.INK8, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(fx, 26), "here first", Pal.INK8, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(fx, 16), "melee hits", Pal.INK9, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(fx, 26), "here first", Pal.INK9, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
 	var ev := FormationWords.evaluate(placed_cells(), unlocked)
 	var shape: Dictionary = ev["shape"]
 	var sid := String(shape.get("id", ""))
@@ -585,9 +620,15 @@ func _draw_field() -> void:
 			dc.a = 1.0 - a
 			draw_rect(Rect2(p + Vector2(sx * spread, -1 - roundi(a * 4)), Vector2(2, 2)), dc)
 	# a short line for a moment after a change
-	if toast_t > 0.0 and toast != "" and hl < 0:
+	if toast_t > 0.0 and toast != "" and hl < 0 and not locked:
 		var col := Pal.AMBER6 if toast.ends_with("formed") else Pal.FADE4
-		PartyDraw.text(self, Vector2(FIELD.position.x, FIELD.end.y - 18), toast, col, PartyDraw.BOLD, 11, true, FIELD.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		PartyDraw.text(self, Vector2(field.position.x, field.end.y - 18), toast, col, PartyDraw.BOLD, 11, true, field.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	elif locked and hl < 0:
+		var msg := "%s is locked: unlock it at the Training Grounds" % shape["name"]
+		var mw := PartyDraw.text_w(msg, PartyDraw.BOLD) + 12
+		var mx := field.position.x + roundi((field.size.x - mw) / 2.0)
+		draw_texture(LOCK, Vector2(mx, field.end.y - 16), Pal.FADE4)
+		PartyDraw.text(self, Vector2(mx + 10, field.end.y - 18), msg, Pal.FADE4, PartyDraw.BOLD)
 
 
 static func _key(c: Array) -> int:
@@ -607,14 +648,16 @@ func _label_plate(c: Array, nm: String, color: Color, edge: Color, lock: bool, y
 	PartyDraw.text(self, Vector2(tx, plate.position.y + 1), nm, color, PartyDraw.BOLD, 11, false)
 
 
-func _growth_label(c: Array, shape: Dictionary) -> void:
-	var ok := FormationWords.is_unlocked(String(shape["id"]), unlocked)
+## A free slot next to the shape: a quiet dashed outline and a "+" (its name is on the card).
+func _growth_label(c: Array, _shape: Dictionary) -> void:
 	_dashed_tile(c, Pal.INK5)
 	var f := feet_of(c)
-	draw_texture(PLUS, Vector2(f.x - 7, f.y - 15), Pal.INK6)
-	_label_plate(c, String(shape["name"]), Pal.INK9 if ok else Pal.FADE3, Pal.INK4, not ok, 2)
+	draw_texture(PLUS, Vector2(f.x - 2, f.y - 3), Pal.INK6)
 
 
+## While a hero is held or dragged: every free slot is outlined in the colour of its result
+## (crystal = an active shape, grey = Strays or locked). Only the slot under the drag target or
+## the hovering mouse gets a name plate.
 func _drop_label(c: Array, i: int, occ: int) -> void:
 	var is_target: bool = _dragging >= 0 and _target is Array and int(_target[0]) == int(c[0]) and int(_target[1]) == int(c[1])
 	if is_target:
@@ -625,25 +668,16 @@ func _drop_label(c: Array, i: int, occ: int) -> void:
 		return
 	var res := FormationWords.evaluate(placed_cells(moved(i, c)), unlocked)
 	var shape: Dictionary = res["shape"]
-	var nm := "No shape"
-	var color := Pal.FADE3
-	var lock := false
-	var edge := Pal.INK4
-	if not shape.is_empty():
-		nm = String(shape["name"])
-		if String(shape["id"]) == "strays":
-			color = Pal.FADE3
-		elif res["locked"]:
-			color = Pal.FADE4
-			lock = true
-		else:
-			color = Pal.CRYSTAL5
-			edge = Pal.CRYSTAL3
-	_dashed_tile(c, Pal.CRYSTAL3 if color == Pal.CRYSTAL5 else Pal.INK5, int(_t * 8.0) % 4)
-	_label_plate(c, nm, color, edge, lock)
+	var good: bool = not shape.is_empty() and String(shape["id"]) != "strays" and not res["locked"]
+	_dashed_tile(c, Pal.CRYSTAL3 if good else Pal.INK5, int(_t * 8.0) % 4)
+	var hovered: bool = _dragging < 0 and _hover is Array and int(_hover[0]) == int(c[0]) and int(_hover[1]) == int(c[1])
+	if hovered and not shape.is_empty():
+		_label_plate(c, String(shape["name"]), Pal.CRYSTAL5 if good else Pal.FADE4,
+			Pal.CRYSTAL3 if good else Pal.INK4, bool(res["locked"]))
 
 
-## Crystal links on the floor between edge-adjacent heroes of the shape (none for Strays).
+## Crystal links across the floor gaps between edge-adjacent heroes of the shape (none for
+## Strays). Drawn on the floor in the gap between two tiles, never under a hero's feet.
 func _draw_bonds(sid: String, locked: bool) -> void:
 	if sid == "" or sid == "strays":
 		return
@@ -653,21 +687,25 @@ func _draw_bonds(sid: String, locked: bool) -> void:
 			dc.append(placement[i])
 	var c1 := Pal.CRYSTAL4 if not locked else Pal.FADE3
 	var c2 := Pal.CRYSTAL2 if not locked else Pal.FADE1
+	var lit := int(_t * 2.0) % 2 == 0
 	for a: Array in dc:
 		for b: Array in dc:
-			var link := (int(a[0]) == int(b[0]) and int(b[1]) == int(a[1]) + 1) or (int(a[1]) == int(b[1]) and int(a[0]) == 1 and int(b[0]) == 0)
-			if not link:
-				continue
-			var pa := feet_of(a) + Vector2(0, 2)
-			var pb := feet_of(b) + Vector2(0, 2)
-			var n := int(maxf(absf(pb.x - pa.x), absf(pb.y - pa.y)))
-			for s in range(0, n + 1):
-				var q := pa.lerp(pb, float(s) / n).round()
-				draw_rect(Rect2(q - Vector2(1, 1), Vector2(3, 3)), c2)
-			var ph := int(_t * 30.0) % 12
-			for s in range(0, n + 1):
-				var q := pa.lerp(pb, float(s) / n).round()
-				draw_rect(Rect2(q, Vector2(1, 1)), c1 if (s + ph) % 12 < 9 or locked else Pal.CRYSTAL5)
+			if int(a[0]) == int(b[0]) and int(b[1]) == int(a[1]) + 1:
+				# same column, next row: a short leaning bar from a's front edge to b's back edge
+				var fa := feet_of(a)
+				var y0 := int(fa.y) + TILE_BOT + 1
+				var y1 := int(feet_of(b).y) - TILE_TOP - 1
+				for y in range(y0, y1 + 1):
+					var x := roundi(fa.x + (y - fa.y) * SLOPE)
+					draw_rect(Rect2(x - 4, y, 9, 1), c2)
+					draw_rect(Rect2(x - 2, y, 5, 1), c1 if lit or locked else Pal.CRYSTAL5)
+			elif int(a[1]) == int(b[1]) and int(a[0]) == 1 and int(b[0]) == 0:
+				# same row, back to front: a short bar across the gap between the two tiles
+				var fb := feet_of(a)
+				var x0 := int(fb.x) + TILE_HW + 1
+				var x1 := int(feet_of(b).x) - TILE_HW - 1
+				draw_rect(Rect2(x0, fb.y - 2, x1 - x0 + 1, 5), c2)
+				draw_rect(Rect2(x0, fb.y - 1, x1 - x0 + 1, 3), c1 if lit or locked else Pal.CRYSTAL5)
 
 
 ## Above the sprites: name plates under the feet; role tags (hidden while dragging a preview).
@@ -686,7 +724,7 @@ func _draw_overlay() -> void:
 		var f := (_pos[i] as Vector2).round()
 		var nm := String(heroes[i].get("name", "?"))
 		var w := PartyDraw.text_w(nm, PartyDraw.BOLD) + 6
-		var plate := Rect2(roundi(f.x - w / 2.0), f.y + 3, w, 12)
+		var plate := Rect2(roundi(f.x - 8 - w / 2.0), f.y + 3, w, 12)
 		_overlay.draw_rect(plate, Pal.INK1)
 		_overlay.draw_rect(Rect2(plate.position.x, plate.end.y - 1, plate.size.x, 1), Pal.c(_infos[i]["color"]))
 		PartyDraw.text(_overlay, plate.position + Vector2(3, 0), nm, Pal.INK10 if i != held else Pal.AMBER6, PartyDraw.BOLD, 11, false)

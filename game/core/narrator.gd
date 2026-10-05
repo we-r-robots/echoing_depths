@@ -7,13 +7,16 @@ const COL_NAMES := ["front", "back"]
 const MOD_TEXT := {"back_row_attacker": "attacker in back row", "back_row_target": "target in back row",
 	"back_row_both": "both in back row", "execute": "EXECUTE", "crit": "CRIT",
 	"sudden_death": "the Fading", "brace": "braced", "share_the_blow": "shared blow", "flank": "flank",
-	"hearthguard": "hearthguard", "echo_step": "echo step", "chorus_splash": "chorus splash"}
+	"hearthguard": "hearthguard", "echo_step": "echo step", "chorus_splash": "chorus splash", "harvest": "grief", "mirror": "woven"}
 const BEH_TEXT := {"shoulder_to_shoulder": "shoulder to shoulder, gains charge", "covering_fire": "covering fire, targets the attacker",
 	"guardian": "guardian intercepts the hit", "brace": "braces, neighbours share the blow", "opening_volley": "opening volley, acts early",
 	"flank": "flanks the enemy in its row", "hearthguard": "hearthguard, takes less damage", "share_the_blow": "shares the blow down the wall",
 	"chorus_splash": "chorus, splash +10%", "keepers_ring": "keeper's ring, can't be targeted", "shardpoint": "shardpoint, the tip gains charge",
 	"echo_step": "echo step, splash halved", "scattered": "scattered, splash can't spread", "draws_melee": "draws the melee",
-	"taunt": "the lit post taunts melee"}
+	"taunt": "the lit post taunts melee", "kindle": "kindles another memory", "shield_crystal": "stands in the crossing, takes the Crystal's blow",
+	"harvest": "grieves the fallen, hits harder", "mirror": "weaves the heroes' formation into herself",
+	"last_stand": "will not fall yet", "draw_memory": "draws charge out of a hero", "hasten_fading": "closes the Vault, the Fading draws nearer",
+	"dim_lantern": "dims the lantern, the heroes' formation goes dark"}
 const STAT_TEXT := {"hp_pct": "max HP", "atk_pct": "Atk", "def_pct": "Def", "mag_pct": "Mag", "spd_pct": "Spd",
 	"crit_add": "crit", "charge_pct": "charge", "heal_pct": "healing", "dmg_taken_pct": "damage taken"}
 
@@ -82,6 +85,14 @@ static func narrate(events: Array) -> PackedStringArray:
 						what = "%s draws %s" % ["the lit post" if ev["effect"] == "taunt" else "it", cur_action]
 					lines.append(t + "    ~ %s: %s: %s%s" % [ev["name"], what, who,
 						(" (vs %s)" % _tag(units[rel])) if rel >= 0 else ""])
+			"spawn":
+				var su: Dictionary = ev["unit"]
+				units[int(ev["uid"])] = su
+				lines.append(t + "** The Crystal releases a memory: %s (%s row %d). \"%s\"" % [_tag(su),
+					COL_NAMES[int(ev["slot"][0])], int(ev["slot"][1]) + 1, ev["lore"]])
+			"crystal_fragment":
+				lines.append(t + "** The Crystal cracks: fragment %d of 4 (integrity %d/%d)" % [int(ev["index"]),
+					int(ev["integrity"]), int(ev["max_integrity"])])
 			"formation_move":
 				lines.append(t + "    ~ Hold the door: %s steps forward from the back row into row %d" % [
 					_tag(units[int(ev["uid"])]), int(ev["to"][1]) + 1])
@@ -97,7 +108,11 @@ static func narrate(events: Array) -> PackedStringArray:
 					int(ev["tick"]), roundi(float(ev["hp_pct"]) * 100.0), float(ev["damage_mult"]), float(ev["heal_mult"])])
 			"fight_end":
 				var w := int(ev["winner"])
-				lines.append(t + "== %s (%s)" % ["DRAW" if w < 0 else "Side %s wins" % ["AB"[w]], ev["reason"]])
+				if ev["reason"] == "shard":
+					lines.append(t + "== The fourth fragment frees a whole Shard. Victory.")
+				else:
+					lines.append(t + "== %s (%s)%s" % ["DRAW" if w < 0 else "Side %s wins" % ["AB"[w]], ev["reason"],
+						"  fragments chipped: %d" % int(ev.get("fragments", 0)) if int(ev.get("fragments", 0)) > 0 else ""])
 	return lines
 
 

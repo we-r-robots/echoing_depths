@@ -75,44 +75,84 @@ func show_cells(c: Array, unlocked_ids: Array, n_placed: int, n_party: int, is_p
 	queue_redraw()
 
 
+const GROUPS := [["stat+", "GAINS", Pal.LIFE4], ["behaviour", "BEHAVIOUR", Pal.CRYSTAL4],
+	["cost", "COSTS", Pal.BLOOD4], ["bond", "CLASS BOND", Pal.AMBER5]]
+const ROW := 21
+var _sections: Array = []       # [y, label, color] section headers drawn on the card
+var _growth_y := 0
+
+
+static func _group_of(e: Dictionary) -> String:
+	var k := String(e["kind"])
+	if k == "stat":
+		return "stat+" if int(e["sign"]) > 0 else "cost"
+	if k == "note":
+		return "cost"
+	return k
+
+
 func _rebuild_chips() -> void:
 	for ch in _chips:
 		Tip.detach(ch)
 		ch.queue_free()
 	_chips.clear()
+	_sections.clear()
 	_lock_tip.visible = false
+	_growth_y = 0
 	if details or _ev.is_empty() or (_ev["shape"] as Dictionary).is_empty():
 		return
 	var locked: bool = _ev["locked"]
-	var y := 66
+	var y := 64
+	var active: Array = _effects
 	if locked:
-		y += 26   # the "Fights as Strays" line sits first
-	var prev_kind := ""
-	for e: Dictionary in _effects:
-		var ee := e.duplicate()
-		if locked:
-			ee["text"] = "Once unlocked: " + String(e["text"])
-		var kind := String(e["kind"])
-		if prev_kind != "" and kind != prev_kind:
-			y += 5   # a small gap between groups: bonus | behaviour | cost | bonds
-		if y + EffectIcons.CHIP > H - 36:
-			break
-		var chip := EffectChip.new()
-		add_child(chip)
-		chip.position = Vector2(10, y)
-		chip.setup(ee, true, W - 40)
-		if locked:
-			chip.modulate = Color(0.6, 0.6, 0.65)
-		_chips.append(chip)
-		y += EffectIcons.CHIP + 3
-		prev_kind = kind
+		# a locked shape fights as Strays: Strays' effects (core data) are what applies
+		var strays: Dictionary = FormationWords.shape_by_id("strays")
+		active = EffectIcons.formation_effects(strays, {}, FormationWords.Formation.compositions(bases))
+		_sections.append([y, "FIGHTS AS STRAYS", Pal.INK9])
+		y += 12
+	for g: Array in GROUPS:
+		var items: Array = []
+		for e: Dictionary in active:
+			if _group_of(e) == g[0]:
+				items.append(e)
+		if items.is_empty():
+			continue
+		_sections.append([y, String(g[1]), g[2]])
+		y += 12
+		for e: Dictionary in items:
+			if y + EffectIcons.CHIP > H - 36:
+				break
+			var chip := EffectChip.new()
+			add_child(chip)
+			chip.position = Vector2(10, y)
+			chip.setup(e, "left", W - 40)
+			_chips.append(chip)
+			y += ROW
+		y += 4
 	if locked:
+		# the shape's own effects, greyed, as one row of icons (each still has its tooltip)
+		_sections.append([y, "UNLOCK AT THE TRAINING GROUNDS", Pal.INK8])
+		y += 12
 		_lock_tip.visible = true
-		_lock_tip.position = Vector2(8, 64)
-		_lock_tip.size = Vector2(W - 16, 20)
-		var sid := String(_ev["shape"]["id"])
+		_lock_tip.position = Vector2(8, y - 12)
+		_lock_tip.size = Vector2(W - 16, 11)
 		Tip.attach(_lock_tip, "Locked", "%s fights as Strays until unlocked. %s" % [_ev["shape"]["name"],
-			FormationWords.unlock_hint(sid, unlocked)], Pal.FADE4)
+			FormationWords.unlock_hint(String(_ev["shape"]["id"]), unlocked)], Pal.FADE4, "left")
+		var x := 10
+		for e: Dictionary in _effects:
+			if String(e["kind"]) == "bond" or x + EffectIcons.CHIP > W - 8:
+				continue
+			var ee := e.duplicate()
+			ee["text"] = "Once unlocked: " + String(e["text"])
+			var chip := EffectChip.new()
+			add_child(chip)
+			chip.position = Vector2(x, y)
+			chip.setup(ee, "left")
+			chip.locked = true
+			_chips.append(chip)
+			x += EffectIcons.CHIP + 4
+		y += ROW + 4
+	_growth_y = y
 
 
 ## Demo / tutorial: open the tooltip of effect chip k.
@@ -142,21 +182,52 @@ func _draw() -> void:
 	if details:
 		_draw_details(shape, locked, strays)
 		return
-	if locked and _lock_tip.visible:
-		var r := Rect2(_lock_tip.position, _lock_tip.size)
-		draw_rect(r, Pal.FADE1)
-		PartyDraw.soft_outline(self, r, Pal.FADE2)
-		draw_texture(LOCK, r.position + Vector2(6, 7), Pal.FADE4)
-		PartyDraw.text(self, r.position + Vector2(16, 4), "Locked: fights as Strays", Pal.INK10, PartyDraw.BOLD)
-	if not _chips.is_empty():
-		var hy := _chips[-1].position.y + EffectIcons.CHIP + 8
-		if hy < H - 46:
-			PartyDraw.text(self, Vector2(10, hy), "Tap a line to read it in full", Pal.INK6)
+	for sec: Array in _sections:
+		PartyDraw.header(self, Vector2(8, sec[0]), W - 16, String(sec[1]), sec[2])
+	_draw_growth_block(shape, strays)
+
+
+## Fills the card's foot: what one more hero would make (or, at four, what it grew from).
+func _draw_growth_block(shape: Dictionary, strays: bool) -> void:
+	var top := maxi(_growth_y, 0)
+	var bottom := H - 34
+	if top <= 0 or bottom - top < 40:
+		return
+	var y := top + 2
+	var list: Array = []
+	var title := ""
+	if strays:
+		title = "JOIN THEM TO FORM A SHAPE"
+	elif int(shape["size"]) >= 4 or placed < 2:
+		title = "GREW FROM"
+		list = FormationWords.parents(cells)
+	else:
+		title = "WITH ONE MORE HERO"
+		for e: Dictionary in FormationWords.children(cells):
+			list.append(e["shape"])
+	PartyDraw.header(self, Vector2(8, y), W - 16, title, Pal.INK8)
+	y += 13
+	if strays:
+		_para("Heroes edge to edge form a shape and earn its bonus.", Vector2(10, y), W - 20, Pal.INK9, PartyDraw.BOLD)
+		return
+	if list.is_empty():
+		PartyDraw.text(self, Vector2(10, y + 3), "No free slot to grow", Pal.INK8, PartyDraw.BOLD)
+		return
+	var x := 8
+	for sh: Dictionary in list:
+		var w := _chip_w(sh)
+		if x + w > W - 8:
+			x = 8
+			y += 21
+			if y + 19 > bottom:
+				break
+		_chip(sh, x, y)
+		x += w + 4
 
 
 func _draw_empty() -> void:
 	PartyDraw.text(self, Vector2(12, 10), "No shape yet", Pal.INK8, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
-	PartyDraw.text(self, Vector2(12, 31), "Place heroes side by side", Pal.INK7, PartyDraw.BOLD)
+	PartyDraw.text(self, Vector2(12, 31), "Place heroes side by side", Pal.INK9, PartyDraw.BOLD)
 	var y := 72
 	for l: String in ["Heroes edge to edge make a shape.", "Each shape grows from a smaller one.", "Apart, they fight as Strays."]:
 		draw_texture(DOT, Vector2(12, y + 4), Pal.CRYSTAL3)
@@ -206,7 +277,7 @@ func _draw_title(shape: Dictionary, locked: bool, strays: bool) -> void:
 	var sub := "not joined" if strays else FormationWords.size_word(shape)
 	if placed < party_size:
 		sub = "%d of %d placed" % [placed, party_size]
-	PartyDraw.text(self, Vector2(60 + pw, 33), sub, Pal.INK7)
+	PartyDraw.text(self, Vector2(60 + pw, 33), sub, Pal.INK9)
 
 
 ## Same sentences and icons as the chips, in the same order, plus the growth path.

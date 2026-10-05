@@ -88,6 +88,8 @@ static func color_of(e: Dictionary) -> Color:
 			return BEHAVIOUR
 		"bond":
 			return BOND
+		"note":
+			return Pal.INK9
 	return BUFF if int(e.get("sign", 0)) > 0 else COST
 
 
@@ -99,7 +101,8 @@ static func formation_effects(shape: Dictionary, who := {}, bonds: Array = []) -
 	var b: Dictionary = shape.get("behaviour", {})
 	if not b.is_empty():
 		out.append({"icon": behaviour_icon(String(b.get("id", ""))), "sign": 0, "kind": "behaviour",
-			"title": String(b.get("name", "")), "text": behaviour_sentence(shape, who)})
+			"title": behaviour_title(shape, who), "name": String(b.get("name", "")),
+			"text": "%s: %s" % [String(b.get("name", "")), behaviour_sentence(shape, who)]})
 	for m: Dictionary in shape.get("cost", {}).get("mods", []):
 		out.append(_stat_effect(m, who, -1))
 	var geo := _geo_cost(shape, who)
@@ -146,8 +149,40 @@ static func _geo_title(shape: Dictionary, who: Dictionary) -> String:
 		"vault_door":
 			return "Nothing above +5%"
 		"strays":
-			return "No behaviour"
+			return "Shape behaviours don't fire"
 	return "Cost"
+
+
+## Plain short label (<= ~20 chars) for a behaviour; the lore name goes in the tooltip.
+static func behaviour_title(shape: Dictionary, who := {}) -> String:
+	match String(shape.get("behaviour", {}).get("id", "")):
+		"shoulder_to_shoulder":
+			return "Hit one, both charge"
+		"covering_fire":
+			return "Partner strikes back"
+		"guardian":
+			return "Front blocks a spell"
+		"brace":
+			return "Middle shares hits"
+		"opening_volley":
+			return "Back row acts first"
+		"flank":
+			return "Flanker hits harder"
+		"hearthguard":
+			return "Post toughens"
+		"share_the_blow":
+			return "Hits spread a row"
+		"hold_the_door":
+			return "Back steps up"
+		"keepers_ring":
+			return "%s untargetable" % _one(who, "keeper", "Keeper")
+		"shardpoint":
+			return "Tip charges up"
+		"echo_step":
+			return "Splash halved"
+		"scattered":
+			return "Splash skips spread-out heroes"
+	return String(shape.get("behaviour", {}).get("name", ""))
 
 
 static func _class_plural(comp: Dictionary) -> String:
@@ -325,7 +360,7 @@ static func _geo_cost(shape: Dictionary, who := {}) -> String:
 		"seawall":
 			out.append("No back row: every hero takes full physical damage.")
 		"strays":
-			out.append("No shape behaviour fires.")
+			out.append("Shape behaviours don't fire while heroes stand apart: Strays keep only the gains above.")
 	return "" if out.is_empty() else String(out[0])
 
 
@@ -350,8 +385,8 @@ const CHIP := 20
 
 ## Draws one effect as a 20x20 chip at pos: a dark well, the icon tinted (green buff, red cost,
 ## crystal behaviour, amber bond) and a green up / red down arrow in the corner.
-static func draw_effect(ci: CanvasItem, pos: Vector2, e: Dictionary, lit := false) -> void:
-	var c := color_of(e)
+static func draw_effect(ci: CanvasItem, pos: Vector2, e: Dictionary, lit := false, locked := false) -> void:
+	var c := color_of(e) if not locked else Pal.FADE4
 	var r := Rect2(pos, Vector2(CHIP, CHIP))
 	ci.draw_rect(r, Pal.INK1)
 	ci.draw_rect(r.grow(-1), Pal.INK2 if not lit else Pal.INK3)
@@ -365,6 +400,8 @@ static func draw_effect(ci: CanvasItem, pos: Vector2, e: Dictionary, lit := fals
 		edge = Pal.CRYSTAL2
 	elif String(e.get("kind", "")) == "bond":
 		edge = Pal.AMBER3
+	if locked:
+		edge = Pal.FADE2
 	if lit:
 		edge = c
 	ci.draw_rect(Rect2(pos.x + 1, pos.y, CHIP - 2, 1), edge)
@@ -378,7 +415,7 @@ static func draw_effect(ci: CanvasItem, pos: Vector2, e: Dictionary, lit := fals
 	match int(e.get("sign", 0)):
 		1:
 			ci.draw_texture(UP, pos + Vector2(13, 14) + Vector2(1, 1), Pal.INK1)
-			ci.draw_texture(UP, pos + Vector2(13, 14), BUFF)
+			ci.draw_texture(UP, pos + Vector2(13, 14), BUFF if not locked else Pal.FADE3)
 		-1:
 			ci.draw_texture(DOWN, pos + Vector2(13, 14) + Vector2(1, 1), Pal.INK1)
-			ci.draw_texture(DOWN, pos + Vector2(13, 14), COST)
+			ci.draw_texture(DOWN, pos + Vector2(13, 14), COST if not locked else Pal.FADE3)

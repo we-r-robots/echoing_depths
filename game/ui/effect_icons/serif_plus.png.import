@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bu574hlsfyuys"
-path="res://.godot/imported/serif_plus.png-b4202df9b37db2fd7ef1ca14a059f5c0.ctex"
+uid="uid://dopynwrrk5oi5"
+path="res://.godot/imported/serif_plus.png-c9933630ba99b77c6c004a3cdbf81fb6.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/party_setup/serif_plus.png"
-dest_files=["res://.godot/imported/serif_plus.png-b4202df9b37db2fd7ef1ca14a059f5c0.ctex"]
+source_file="res://ui/effect_icons/serif_plus.png"
+dest_files=["res://.godot/imported/serif_plus.png-c9933630ba99b77c6c004a3cdbf81fb6.ctex"]
 
 [params]
 

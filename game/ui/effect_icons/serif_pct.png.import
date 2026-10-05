@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://h4n5h2qcjch"
-path="res://.godot/imported/serif_pct.png-88299ab536cbd7a2f623e0f49cfad42b.ctex"
+uid="uid://nokqom508fq"
+path="res://.godot/imported/serif_pct.png-1c763d50e997d50bf0df605d7e2340f6.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/party_setup/serif_pct.png"
-dest_files=["res://.godot/imported/serif_pct.png-88299ab536cbd7a2f623e0f49cfad42b.ctex"]
+source_file="res://ui/effect_icons/serif_pct.png"
+dest_files=["res://.godot/imported/serif_pct.png-1c763d50e997d50bf0df605d7e2340f6.ctex"]
 
 [params]
 

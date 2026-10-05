@@ -62,6 +62,11 @@ class Unit:
 	var dmg_taken := 1.0       # Keeper's Ring cost
 	var cover_target := -1     # Vigil covering fire: uid this unit's next basic action targets
 	var draw_effect := ""      # cue effect when this unit draws an attack ("draws_melee" / "taunt")
+	var inert := false         # the Crystal: never acts, never "stands" for KO / fight end
+	var span := 1              # rows occupied (the Crystal spans 2)
+	var mem: Dictionary = {}   # Crystal memory behaviour {id, ...} ({} for heroes / monsters)
+	var mem_id := ""
+	var stand_used := false    # Lumari knight's last stand
 
 
 var _rng: Rng
@@ -75,6 +80,19 @@ var _sd_ticks := 0
 var _gauge_max := 100000
 var _charge_max := 100
 var _seed := 0
+# Crystal of Remembrance (06-crystal-of-remembrance.md)
+var _crystal: Unit = null
+var _mem_queue: Array = []     # memory ids still to be released (start + one per fragment)
+var _mem_pending: Array = []   # released but waiting for a free slot: [id, reason]
+var _frags := 0
+var _shard_won := false
+var _sd_next := 0
+var _fallen_memories := 0
+var _ferry_count := 0
+var _mirror := ""              # Weaver: "guard" / "strike" (from the heroes' formation behaviour)
+var _dimmed_beh: Dictionary = {}   # heroes' behaviour saved while the Keeper dims the lantern
+const GUARD_BEHAVIOURS := ["hearthguard", "brace", "share_the_blow", "echo_step", "guardian", "keepers_ring",
+	"scattered", "hold_the_door", "shoulder_to_shoulder"]
 # hot tuning values, cached from _c at fight start
 var _k_scale := 1.0
 var _k_brm := 0.5
@@ -110,6 +128,15 @@ var _pend_blocked := false     # a hit at _pend_t carries a formation tag: no cu
 ## options:
 ##   "log": bool (default true)    -- false skips building events (faster)
 ##   "tuning": Dictionary          -- overrides keys of Tuning.COMBAT (tests)
+## The final chamber: `party` against the Crystal of Remembrance.
+## crystal: {"integrity": int (default Memories.CRYSTAL), "memories": [memory ids] (default
+## Memories.DEFAULT_SEQUENCE): one released at the start and one at each of fragments 1-3}.
+static func simulate_crystal(seed_value: int, party: Dictionary, crystal: Dictionary = {}, options: Dictionary = {}) -> Dictionary:
+	var opts := options.duplicate()
+	opts["crystal"] = crystal
+	return simulate(seed_value, party, {"heroes": []}, opts)
+
+
 static func simulate(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Dictionary = {}) -> Dictionary:
 	var sim := new()
 	return sim._run(seed_value, party_a, party_b, options)
@@ -119,8 +146,17 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 	var errs: Array[String] = []
 	for e in GameData.validate_party(party_a):
 		errs.append("side 0: " + e)
-	for e in GameData.validate_party(party_b):
-		errs.append("side 1: " + e)
+	var crystal_opts: Variant = options.get("crystal", null)
+	if crystal_opts == null:
+		for e in GameData.validate_party(party_b):
+			errs.append("side 1: " + e)
+	else:
+		if not (crystal_opts is Dictionary):
+			errs.append("crystal option must be a Dictionary")
+		else:
+			for mid: Variant in (crystal_opts as Dictionary).get("memories", []):
+				if not (mid is String) or not GameData.Memories.MEMORIES.has(String(mid)):
+					errs.append("unknown memory %s" % var_to_str(mid))
 	if not errs.is_empty():
 		return {"error": errs, "winner": -1, "events": []}
 
@@ -143,12 +179,14 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 	_k_fm_thr = float(_c["formation_mod_threshold"])
 	_k_jump = bool(_c["full_charge_jumps_queue"])
 
-	var side_info: Array = [_build_side(0, party_a), _build_side(1, party_b)]
+	var side_info: Array = [_build_side(0, party_a), _build_crystal_side(crystal_opts) if crystal_opts != null else _build_side(1, party_b)]
 	# initial gauges (seeded, in stable unit order)
 	var gmin := float(_c["initial_gauge_min"])
 	var gmax := float(_c["initial_gauge_max"])
 	var spread := int(_c["start_charge_spread"])
 	for u in _units:
+		if u.inert:
+			continue
 		u.gauge = int(_gauge_max * _rng.float_range(gmin, gmax))
 		u.charge = clampi(u.charge + _rng.int_range(-spread, spread), 0, _charge_max - 1)
 	var volley: Array = []
@@ -179,9 +217,11 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 				_proc(u, "hp_pct", "start", 0)   # one cue per side/source (rate-limited)
 		for u: Unit in volley:
 			_beh_cue(u, "start", 0, -1, float(_beh[u.side]["gauge"]))
+	if _crystal != null:
+		_release_memory(0, "start")
 
 	_now = int(_c["intro_ms"])
-	var sd_next := int(_c["sudden_death_start_ms"])
+	_sd_next = int(_c["sudden_death_start_ms"])
 	var sd_interval := int(_c["sudden_death_interval_ms"])
 	var max_ms := int(_c["max_fight_ms"])
 	var gap := int(_c["action_gap_ms"])
@@ -190,7 +230,12 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 		var alive0 := _alive_count(0)
 		var alive1 := _alive_count(1)
 
-		if alive0 == 0 or alive1 == 0:
+		if _crystal != null:
+			if alive0 == 0:
+				return _finish(1, "wipe")
+			if _shard_won:
+				return _finish(0, "shard")
+		elif alive0 == 0 or alive1 == 0:
 			var w := -1
 			if alive0 > 0:
 				w = 0
@@ -198,13 +243,13 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 				w = 1
 			return _finish(w, "wipe")
 		if _now >= max_ms:
-			return _finish(_hp_leader(), "timeout")
+			return _finish(1 if _crystal != null else _hp_leader(), "timeout")
 
 
 		# time until the next gauge fills
 		var best_dt := 1 << 40
 		for u in _units:
-			if not u.alive:
+			if not u.alive or u.inert:
 				continue
 			var need := _gauge_max - u.gauge
 			var dt := 0
@@ -214,13 +259,13 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 			if dt < best_dt:
 				best_dt = dt
 
-		if _now + best_dt >= sd_next and (best_dt > 0 or not _ready_pending()):
-			var run := maxi(0, sd_next - _now)
+		if _now + best_dt >= _sd_next and (best_dt > 0 or not _ready_pending()):
+			var run := maxi(0, _sd_next - _now)
 			_advance(run)
-			_now = maxi(_now, sd_next)
+			_now = maxi(_now, _sd_next)
 			var fired_at := _now
 			var outcome := _sudden_death_tick()
-			sd_next = fired_at + sd_interval   # from when the tick actually fired
+			_sd_next = fired_at + sd_interval   # from when the tick actually fired
 			if outcome != -2:
 				return _finish(outcome, "fading")
 			continue
@@ -230,17 +275,172 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 		# actor: fullest gauge, then higher Spd, then lower uid (stable)
 		var actor: Unit = null
 		for u in _units:
-			if not u.alive or u.gauge < _gauge_max:
+			if not u.alive or u.inert or u.gauge < _gauge_max:
 				continue
 			if actor == null or _acts_before(u, actor):
 				actor = u
 		actor.gauge = 0
 		var dur := _do_action(actor)
 		_now += dur
-		if _alive_count(0) == 0 or _alive_count(1) == 0:
+		if _side_down(0) or _side_down(1) or _shard_won:
 			continue  # loop head ends the fight at action end (no gap)
 		_now += gap
 	return {}
+
+
+## The Crystal's side: just the Crystal (2 middle back slots); memories spawn into it.
+func _build_crystal_side(opts: Dictionary) -> Dictionary:
+	var cd: Dictionary = GameData.Memories.CRYSTAL
+	var c := Unit.new()
+	c.uid = _units.size()
+	c.side = 1
+	c.name = "Crystal of Remembrance"
+	c.label = c.name
+	c.class_id = "crystal"
+	c.base_class = "crystal"
+	c.tier = "crystal"
+	c.col = 1
+	c.row = 1
+	c.span = 2
+	c.inert = true
+	c.max_hp = int(opts.get("integrity", cd["integrity"]))
+	c.hp = c.max_hp
+	c.atk = 1
+	c.def = int(cd["def"])
+	c.mag = int(cd["mag"])
+	c.raw_def = c.def
+	c.raw_mag = c.mag
+	c.spd = 1
+	c.roles = ["back"]
+	_units.append(c)
+	_sides[1].append(c)
+	_crystal = c
+	_mem_queue = (opts.get("memories", GameData.Memories.DEFAULT_SEQUENCE) as Array).duplicate()
+	var chamber := {"id": "crystal_chamber", "name": "Crystal of Remembrance",
+		"bonus": [], "behaviour": {"id": "none", "name": "Crystal", "text": "It never acts. Memories surface from it as it cracks."},
+		"cost": {"text": "", "mods": []}}
+	_shape[1] = chamber
+	_beh[1] = chamber["behaviour"]
+	_bid[1] = "none"
+	return {"side": 1, "name": "Crystal of Remembrance",
+		"formation": {"id": "crystal_chamber", "name": "Crystal of Remembrance", "shape": "crystal_chamber",
+			"shape_name": "Crystal of Remembrance", "locked": false, "buffs": [], "debuffs": [],
+			"behaviour": {"id": "none", "name": "Crystal", "text": chamber["behaviour"]["text"]}, "cost": ""},
+		"compositions": []}
+
+
+## Releases the next queued memory (at the start and at fragments 1-3).
+func _release_memory(t: int, reason: String) -> void:
+	if _mem_queue.is_empty():
+		return
+	_spawn_memory(String(_mem_queue.pop_front()), t, reason)
+
+
+## Spawns a memory into the first free enemy slot: front column (rows 1, 2, 0, 3), then the back
+## corners. With no free slot it waits and surfaces when a memory falls.
+func _spawn_memory(id: String, t: int, reason: String) -> void:
+	var taken := {}
+	for o: Unit in _sides[1]:
+		if o.alive:
+			for k in o.span:
+				taken[o.col * 4 + o.row + k] = true
+	var slot: Array = []
+	for cell: Array in [[0, 1], [0, 2], [0, 0], [0, 3], [1, 0], [1, 3]]:
+		if not taken.has(int(cell[0]) * 4 + int(cell[1])):
+			slot = cell
+			break
+	if slot.is_empty():
+		_mem_pending.append([id, reason])
+		return
+	var cdef := GameData.get_class_def(id)
+	var u := Unit.new()
+	u.uid = _units.size()
+	u.side = 1
+	u.class_id = id
+	u.mem_id = id
+	u.mem = cdef["behaviour"]
+	u.base_class = "memory"
+	u.tier = "memory"
+	u.name = String(cdef["name"])
+	var n := 1
+	for o: Unit in _sides[1]:
+		if o.name == u.name:
+			n += 1
+	u.label = u.name if n == 1 else "%s %d" % [u.name, n]
+	u.level = 1
+	u.col = int(slot[0])
+	u.row = int(slot[1])
+	u.roles = ["front" if u.col == 0 else "back"]
+	var st := HeroStats.compute({"class": id, "level": 1, "items": {}})
+	u.max_hp = int(st["hp"])
+	u.hp = u.max_hp
+	u.atk = int(st["atk"])
+	u.def = int(st["def"])
+	u.mag = int(st["mag"])
+	u.spd = int(st["spd"])
+	u.raw_atk = u.atk
+	u.raw_def = u.def
+	u.raw_mag = u.mag
+	u.crit = float(cdef["crit"])
+	u.charge_on_act = int(round(float(cdef["charge_on_act"]) * float(_c["charge_act_scale"])))
+	u.charge_on_hit = float(cdef["charge_on_hit"]) * float(_c["charge_hit_scale"])
+	u.basic = String(cdef["basic"])
+	u.ability = String(cdef["ability"])
+	u.rate = maxi(1, u.spd * int(_c["fill_per_spd_per_ms"]))
+	u.gauge = int(_gauge_max * _rng.float_range(float(_c["initial_gauge_min"]), float(_c["initial_gauge_max"])))
+	u.charge = clampi(int(cdef.get("start_charge", 0)) + int(_c["start_charge_bonus"]) \
+		+ _rng.int_range(-int(_c["start_charge_spread"]), int(_c["start_charge_spread"])), 0, _charge_max - 1)
+	_units.append(u)
+	_sides[1].append(u)
+	_alive[1] += 1
+	if _log:
+		_emit(t, {"type": "spawn", "side": 1, "uid": u.uid, "slot": [u.col, u.row], "unit": _unit_snapshot(u),
+			"memory": id, "chapter": int(cdef["chapter"]), "lore": String(cdef["lore"]), "reason": reason})
+	match String(u.mem["id"]):
+		"mirror":   # copies the heroes' formation: guarding shapes make her sturdy, attacking ones sharp
+			_mirror = "guard" if GUARD_BEHAVIOURS.has(_bid[0]) else "strike"
+		"dim_lantern":
+			if _dimmed_beh.is_empty() and _bid[0] != "none":
+				_dimmed_beh = {0: _beh[0], 1: _bid[0]}
+				_beh[0] = {"id": "dimmed", "name": "Dimmed", "text": "The Keeper has dimmed the lantern."}
+				_bid[0] = "dimmed"
+
+
+## Each 25% of integrity lost breaks a fragment; fragments 1-3 release a memory, the 4th frees the Shard.
+func _check_fragments(t: int) -> void:
+	var total := int(GameData.Memories.CRYSTAL["fragments"])
+	var lost := _crystal.max_hp - maxi(0, _crystal.hp)
+	@warning_ignore("integer_division")
+	var n := mini(total, lost * total / _crystal.max_hp)
+	while _frags < n:
+		_frags += 1
+		if _log:
+			_emit(t, {"type": "crystal_fragment", "index": _frags, "integrity": maxi(0, _crystal.hp),
+				"max_integrity": _crystal.max_hp})
+		if _frags >= total:
+			_shard_won = true
+		else:
+			_release_memory(t, "fragment")
+
+
+## A memory's behaviour happening right now, on the memory doing it (same truth rule as formation
+## cues). Emitted as formation_proc with source "memory:<id>".
+func _mem_cue(u: Unit, trigger: String, t: int, related: int, value: float) -> void:
+	if not _log or u.mem.is_empty():
+		return
+	var effect := String(u.mem["id"])
+	var key := "m%d|%s" % [u.uid, effect]
+	if _beh_last.has(key) and t - int(_beh_last[key]) < int(_c["behaviour_cue_interval_ms"]):
+		return
+	_beh_last[key] = t
+	_proc_at = t
+	_emit(t, {"type": "formation_proc", "side": u.side, "uid": u.uid, "source": "memory:" + u.mem_id,
+		"name": u.name, "stat": "", "effect": effect, "value": value, "sign": "buff", "trigger": trigger, "related": related})
+
+
+## A side has nothing left to fight: no unit standing and (for the Crystal side) no Crystal.
+func _side_down(side: int) -> bool:
+	return _alive[side] == 0 and (_crystal == null or _crystal.side != side)
 
 
 ## A fully charged unit is waiting for its (immediate) turn: sudden death waits for it.
@@ -395,14 +595,15 @@ static func _scope_applies(m: Dictionary, u: Unit, entry: Array) -> bool:
 
 
 func _unit_snapshot(u: Unit) -> Dictionary:
-	var cdef := GameData.get_class_def(u.class_id)
-	return {"uid": u.uid, "side": u.side, "name": u.name, "label": u.label, "class": u.class_id, "class_name": cdef["name"],
+	var cname := u.name if u.inert else String(GameData.get_class_def(u.class_id)["name"])
+	return {"uid": u.uid, "side": u.side, "name": u.name, "label": u.label, "class": u.class_id, "class_name": cname,
+		"span": u.span,
 		"base_class": u.base_class, "tier": u.tier, "level": u.level, "col": u.col, "row": u.row,
 		"hp": u.hp, "max_hp": u.max_hp, "atk": u.atk, "def": u.def, "mag": u.mag, "spd": u.spd,
 		"crit": snappedf(u.crit, 0.001), "charge": u.charge, "charge_max": _charge_max,
 		"gauge": snappedf(float(u.gauge) / float(_gauge_max), 0.001),
-		"basic": {"id": u.basic, "name": GameData.get_action(u.basic)["name"]},
-		"ability": {"id": u.ability, "name": GameData.get_action(u.ability)["name"]}}
+		"basic": {"id": u.basic, "name": String(GameData.get_action(u.basic).get("name", ""))},
+		"ability": {"id": u.ability, "name": String(GameData.get_action(u.ability).get("name", ""))}}
 
 
 # ---------------------------------------------------------------- timeline
@@ -411,7 +612,7 @@ func _advance(dt: int) -> void:
 	if dt <= 0:
 		return
 	for u in _units:
-		if u.alive:
+		if u.alive and not u.inert:
 			u.gauge += u.rate * dt
 
 
@@ -445,9 +646,14 @@ func _finish(winner: int, reason: String) -> Dictionary:
 		if u.alive:
 			survivors.append(u.uid)
 	if _log:
-		_emit(_now, {"type": "fight_end", "winner": winner, "reason": reason, "survivors": survivors})
+		var surv := survivors.duplicate()
+		if _crystal != null:
+			surv.erase(_crystal.uid)
+		_emit(_now, {"type": "fight_end", "winner": winner, "reason": reason, "survivors": surv, "fragments": _frags})
+	if _crystal != null:
+		survivors.erase(_crystal.uid)   # the Crystal never counts as standing
 	return {"winner": winner, "reason": reason, "duration": _sec(_now), "duration_ms": _now,
-		"sudden_death_ticks": _sd_ticks, "survivors": survivors, "seed": _seed,
+		"sudden_death_ticks": _sd_ticks, "survivors": survivors, "seed": _seed, "fragments": _frags,
 		"data_version": GameData.Tuning.DATA_VERSION, "events": _events}
 
 
@@ -477,11 +683,11 @@ func _sudden_death_tick() -> int:
 	# if this tick wipes both sides, both sides' numbers land together (the screen matches the result)
 	var survives := [false, false]
 	for u in _units:
-		if u.alive and u.hp > maxi(1, ceili(u.max_hp * pct)):
+		if u.alive and not u.inert and u.hp > maxi(1, ceili(u.max_hp * pct)):
 			survives[u.side] = true
 	var stagger := int(_c["sudden_death_side_stagger_ms"]) if (survives[0] or survives[1]) else 0
 	for u in _units:
-		if not u.alive:
+		if not u.alive or u.inert:   # the Fading erodes the fighters, not the Crystal
 			continue
 		var dmg := maxi(1, ceili(u.max_hp * pct))
 		var dealt := mini(dmg, u.hp)
@@ -495,6 +701,11 @@ func _sudden_death_tick() -> int:
 	_now += tick_ms
 	var a0 := _alive_count(0)
 	var a1 := _alive_count(1)
+	if _crystal != null:   # the Crystal fight only ends when the party falls (or the Shard breaks)
+		if a0 > 0:
+			_now += int(_c["action_gap_ms"])
+			return -2
+		return 1
 	if a0 > 0 and a1 > 0:
 		_now += int(_c["action_gap_ms"])
 		return -2
@@ -573,6 +784,12 @@ func _do_action(u: Unit) -> int:
 	for cue: Array in _after_start:
 		_beh_cue(cue[0], cue[1], _now, int(cue[2]), float(cue[3]), String(cue[4]))
 	_after_start = []
+	var mid := String(u.mem.get("id", ""))
+	if mid == "hasten_fading":
+		_sd_next = maxi(_now + 1, _sd_next - int(u.mem["ms"]))
+		_mem_cue(u, "turn", _now, -1, float(u.mem["ms"]) / 1000.0)
+	elif mid == "dim_lantern" and not _dimmed_beh.is_empty():
+		_mem_cue(u, "turn", _now, -1, 1.0)
 	# Shardpoint: the tip gains charge whenever an ally behind it acts
 	if _bid[u.side] == "shardpoint" and u.col == 1:
 		for tip: Unit in _sides[u.side]:
@@ -657,7 +874,7 @@ func _apply_effect(u: Unit, a: Dictionary, eff: Dictionary, primary: Unit, t: in
 				"charge":
 					if tgt.alive:
 						_gain_charge(tgt, int(eff["amount"]), "effect", t)
-		if _alive_count(1 - u.side) == 0:
+		if _side_down(1 - u.side) or _shard_won:
 			return
 
 
@@ -674,7 +891,7 @@ func _resolve(u: Unit, a: Dictionary, to: String, primary: Unit) -> Array[Unit]:
 		"primary_adjacent":
 			if primary != null:
 				for o: Unit in _sides[primary.side]:
-					if o.alive and o.col == primary.col and absi(o.row - primary.row) == 1:
+					if o.alive and o.col == primary.col and (o.row + o.span == primary.row or o.row == primary.row + primary.span):
 						out.append(o)
 		"primary_column_rest":
 			if primary != null:
@@ -722,7 +939,7 @@ func _resolve(u: Unit, a: Dictionary, to: String, primary: Unit) -> Array[Unit]:
 			out.append(u)
 		"all_allies":
 			for o: Unit in _sides[u.side]:
-				if o.alive:
+				if o.alive and not o.inert:
 					out.append(o)
 		"lowest_hp_ally":
 			var w := _lowest_ally(u)
@@ -801,7 +1018,7 @@ static func _nearest_in_col(foes: Array, col: int, row: int) -> Unit:
 	for o: Unit in foes:
 		if not o.alive or o.col != col:
 			continue
-		var d := absi(o.row - row)
+		var d := absi(o.row - row) if o.span == 1 else mini(absi(o.row - row), absi(o.row + o.span - 1 - row))
 		if d < best_d or (d == best_d and o.row < best.row):
 			best = o
 			best_d = d
@@ -812,7 +1029,7 @@ func _lowest_ally(u: Unit) -> Unit:
 	var best: Unit = null
 	var best_f := 2.0
 	for o: Unit in _sides[u.side]:
-		if not o.alive:
+		if not o.alive or o.inert:
 			continue
 		var f := float(o.hp) / float(o.max_hp)
 		if f < best_f:
@@ -834,6 +1051,15 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 				_guard_uses[dst.side] -= 1
 				guarded = dst
 				dst = g
+				break
+	var ferried: Unit = null
+	if dst.inert and not _cur_splash:
+		for f: Unit in _sides[dst.side]:
+			if f.alive and String(f.mem.get("id", "")) == "shield_crystal":
+				_ferry_count += 1
+				if _ferry_count % int(f.mem["every"]) == 0:
+					ferried = f
+					dst = f
 				break
 	var a := float(src.mag if magic else src.atk)
 	var d := float(dst.mag if magic else dst.def)
@@ -881,6 +1107,23 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 		beh_cues.append([src, "attack", dst.uid, float(beh_src["splash"]), "chorus_splash"])
 	if dst.dmg_taken != 1.0:
 		base *= dst.dmg_taken
+	# Crystal memories
+	var mem_cues: Array = []
+	if String(src.mem.get("id", "")) == "harvest" and _fallen_memories > 0:
+		var hm := 1.0 + float(src.mem["per_fallen"]) * _fallen_memories
+		base *= hm
+		mods.append({"id": "harvest", "mult": hm})
+		mem_cues.append([src, "attack", dst.uid, hm - 1.0])
+	if _mirror == "strike" and String(src.mem.get("id", "")) == "mirror":
+		base *= 1.0 + float(src.mem["amount"])
+		mods.append({"id": "mirror", "mult": 1.0 + float(src.mem["amount"])})
+		mem_cues.append([src, "attack", dst.uid, float(src.mem["amount"])])
+	if _mirror == "guard" and String(dst.mem.get("id", "")) == "mirror":
+		base *= 1.0 - float(dst.mem["amount"])
+		mods.append({"id": "mirror", "mult": 1.0 - float(dst.mem["amount"])})
+		mem_cues.append([dst, "defend", src.uid, float(dst.mem["amount"])])
+	if ferried != null:
+		mem_cues.append([ferried, "defend", _crystal.uid, 1.0])
 	if guarded != null:
 		beh_cues.append([dst, "defend", guarded.uid, 1.0, "guardian"])
 	if eff.has("bonus_below_hp"):
@@ -923,7 +1166,11 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 			shares.append([nxt, maxi(1, int(round(amount * float(beh_dst["share"])))), "share_the_blow", float(beh_dst["share"])])
 	for sh: Array in shares:
 		amount = maxi(1, amount - int(sh[1]))
-	var dealt := mini(amount, dst.hp)
+	var stand := false
+	if String(dst.mem.get("id", "")) == "last_stand" and not dst.stand_used and amount >= dst.hp:
+		stand = true   # Lumari knight: the first felling blow leaves her at 1 HP
+		dst.stand_used = true
+	var dealt := mini(amount, dst.hp - (1 if stand else 0))
 	dst.hp -= dealt
 	if _log:
 		_emit(t, {"type": "damage", "src": src.uid, "dst": dst.uid, "amount": amount,
@@ -948,11 +1195,32 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 			_proc(src, "mag_pct" if magic else "atk_pct", "attack", t)
 			_proc(dst, "mag_pct" if magic else "def_pct", "defend", t)
 			_proc(dst, "dmg_taken_pct", "defend", t)
-	if dst.hp <= 0:
+	for mc: Array in mem_cues:
+		_mem_cue(mc[0], mc[1], t, int(mc[2]), float(mc[3]))
+	if dst.inert:
+		_check_fragments(t)
+	elif dst.hp <= 0:
 		_ko(dst, src.uid, t)
+	elif stand:
+		_gain_charge(dst, _charge_max, "effect", t)
+		_mem_cue(dst, "defend", t, src.uid, 1.0)
 	elif dealt > 0:
 		var gain := int(round(float(dealt) * 100.0 / float(dst.max_hp) * dst.charge_on_hit * dst.charge_mult))
 		_gain_charge(dst, gain, "hit", t)
+	# The Draw: its basic attacks pull charge out of the most charged hero
+	if String(src.mem.get("id", "")) == "draw_memory" and not _cur_ability and src.alive:
+		var rich: Unit = null
+		for h: Unit in _sides[1 - src.side]:
+			if h.alive and not h.inert and h.charge > 0 and (rich == null or h.charge > rich.charge):
+				rich = h
+		if rich != null:
+			var amt := mini(int(src.mem["amount"]), rich.charge)
+			rich.charge -= amt
+			if _log:
+				_emit(t, {"type": "charge", "uid": rich.uid, "charge": rich.charge, "delta": -amt, "reason": "drain",
+					"ready": false, "queue": 0})
+			_gain_charge(src, amt, "effect", t)
+			_mem_cue(src, "attack", t, rich.uid, float(amt))
 	for sh: Array in shares:
 		_side_hit(src, sh[0], int(sh[1]), "magic" if magic else "physical", String(sh[2]), float(sh[3]), t, aid,
 			not magic and src.col == 1)
@@ -1036,6 +1304,8 @@ func _apply_draw(u: Unit, primary: Unit, melee: bool) -> Unit:
 			continue
 		if not melee and o.draw_effect != "taunt":
 			continue
+		if o.draw_effect == "taunt" and _bid[o.side] == "dimmed":
+			continue   # the Keeper has dimmed the lantern: the lit post's taunt goes dark
 		if o.draw == 2 or (o.col == primary.col and absi(o.row - u.row) <= absi(primary.row - u.row) + 1):
 			_drawn = [o, o.draw_effect]   # cued on o as it takes the hit
 			return o
@@ -1202,10 +1472,12 @@ func _apply_heal(src: Unit, dst: Unit, amt: int, t: int, aid: String) -> void:
 	dst.hp += healed
 	if _log:
 		_emit(t, {"type": "heal", "src": src.uid, "dst": dst.uid, "amount": healed, "hp": dst.hp, "action": aid})
+		if String(src.mem.get("id", "")) == "kindle" and dst != src:
+			_mem_cue(src, "heal", t, dst.uid, float(healed))
 
 
 func _gain_charge(u: Unit, amount: int, reason: String, t: int) -> void:
-	if amount <= 0 or u.charge >= _charge_max:
+	if amount <= 0 or u.charge >= _charge_max or u.inert:
 		return
 	var old := u.charge
 	var cap := _charge_max
@@ -1236,6 +1508,15 @@ func _ko(u: Unit, by: int, t: int) -> void:
 	u.gauge = 0
 	if _log:
 		_emit(t, {"type": "ko", "uid": u.uid, "by": by})
+	if u.mem_id != "":
+		_fallen_memories += 1
+		if String(u.mem.get("id", "")) == "dim_lantern" and not _dimmed_beh.is_empty():
+			_beh[1 - u.side] = _dimmed_beh[0]   # the lantern relights
+			_bid[1 - u.side] = _dimmed_beh[1]
+			_dimmed_beh = {}
+		if not _mem_pending.is_empty():
+			var nxt: Array = _mem_pending.pop_front()
+			_spawn_memory(String(nxt[0]), t, String(nxt[1]))
 	# Vault Door hold the door: the back unit in the fallen front unit's row steps into its slot
 	if u.col == 0 and _bid[u.side] == "hold_the_door":
 		for o: Unit in _sides[u.side]:

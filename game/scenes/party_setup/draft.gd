@@ -196,12 +196,9 @@ func _draw() -> void:
 			PartyDraw.text(self, r.position + Vector2(0, 5), str(k + 1), Pal.INK6, PartyDraw.BOLD, 11, false, 22, HORIZONTAL_ALIGNMENT_CENTER)
 	PartyDraw.text(self, Vector2(px - 80, 9), "Party %d/%d" % [picks.size(), need], Pal.INK9 if picks.size() < need else Pal.AMBER6,
 		PartyDraw.BOLD, 11, true, 78, HORIZONTAL_ALIGNMENT_RIGHT)
-	# hint bar
-	var bb := Rect2(8, 336, 540, 20)
-	draw_rect(bb.grow(-1), Pal.INK2)
-	PartyDraw.soft_outline(self, bb, Pal.INK5)
-	draw_rect(Rect2(bb.position.x + 2, bb.position.y + 1, bb.size.x - 4, 1), Pal.INK3)
-	# said once for the whole screen: what "Starts at" means
-	PartyDraw.text(self, Vector2(bb.position.x + 8, bb.position.y + 5), "Alignment:", Pal.AMBER6, PartyDraw.BOLD)
-	PartyDraw.text(self, Vector2(bb.position.x + 14 + PartyDraw.text_w("Alignment:", PartyDraw.BOLD), bb.position.y + 5),
-		"every class starts at a fixed place. Your choices shift it and set the advanced class.", Pal.INK9)
+	# what "Starts:" on the cards means, said once, as a labelled panel
+	var bb := Rect2(8, 334, 540, 22)
+	PartyDraw.panel(self, bb, 0, &"DimPanel")
+	var pw := PartyDraw.pill(self, Vector2(bb.position.x + 6, bb.position.y + 6), "ALIGNMENT", Pal.AMBER6, Pal.AMBER1, Pal.AMBER4)
+	PartyDraw.text(self, Vector2(bb.position.x + 12 + pw, bb.position.y + 6),
+		"Each class starts at a fixed place. Your choices shift it and set the advanced class.", Pal.INK9)

@@ -160,7 +160,7 @@ func _draw() -> void:
 	PartyDraw.text(self, Vector2(0, 168), pref, Pal.AMBER5 if pref == "front" else Pal.CRYSTAL4, PartyDraw.BOLD, 11, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
 	# fixed starting alignment, one line (explained once, in the bar below)
 	var a: Array = hero.get("alignment", [0, 0])
-	PartyDraw.text(self, Vector2(8, 181), "Starts:", Pal.INK7)
+	PartyDraw.text(self, Vector2(8, 181), "Starts:", Pal.INK9)
 	PartyDraw.text(self, Vector2(12 + PartyDraw.text_w("Starts:"), 181), _align_words(a), Pal.INK10, PartyDraw.BOLD)
 	# stats, labelled
 	var st := PartyModel.stats({"class": hero["class"], "level": 1, "items": {}})
@@ -183,13 +183,13 @@ func _draw() -> void:
 		if lit:
 			draw_rect(Rect2(4, y - 1, w - 8, 29), Pal.INK3)
 		var lab := "BASIC" if k == 0 else "ABILITY"
-		PartyDraw.text(self, Vector2(0, y + 3), lab, Pal.INK6, PartyDraw.SANS, 11, false, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
+		PartyDraw.text(self, Vector2(0, y + 3), lab, Pal.INK8, PartyDraw.SANS, 11, false, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
 		var nx := 8
 		if k == 1:
 			PartyDraw.tint_tex(self, ABILITY, Vector2(8, y + 5), cc)
 			nx = 18
 		BigText.draw(self, Vector2(nx, y), String(act.get("name", aid)), Pal.INK10 if not dimmed else Pal.INK7)
-		PartyDraw.text(self, Vector2(8, y + 16), action_short(aid), Pal.INK8 if not dimmed else Pal.INK6, PartyDraw.BOLD)
+		PartyDraw.text(self, Vector2(8, y + 16), action_short(aid), Pal.INK9 if not dimmed else Pal.INK7, PartyDraw.BOLD)
 	if dimmed:
 		var d := Pal.INK1
 		d.a = 0.45

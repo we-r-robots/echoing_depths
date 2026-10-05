@@ -7,7 +7,7 @@
 - **Every formation gives a stat bonus and a behaviour.** The behaviour must only make sense in that geometry. For example, no "protect the back row" when everyone stands in front.
 - **Every formation has a cost.** It's either a debuff or a weakness that follows from the shape.
 - **Every behaviour is visible.** When a behaviour fires, the battle shows it on the board (the rule in "Spec non-negotiables").
-- **Shapes must be edge-connected.** Units placed apart from each other form **Strays** (see below).
+- **Shapes must be edge-connected.** Heroes placed so that **no two stand side by side** form **Strays**, a real formation of its own (see below). A placement that is partly connected but is no shape (e.g. two side by side plus one apart) is **Unformed**: no bonus, no cost.
 - **Names loosely follow the lore:** the tide of the Fading, the lantern and its Keeper, the Lumari, and memory and echoes.
 
 ## Grid Reminder
@@ -42,15 +42,15 @@ Diagrams below show columns as `F B`, rows top to bottom. `■` is a hero, `·` 
 | **Shardpoint** (T) | Hearth | 1 front in the middle + 3 back | The tip gets crit +15% | *Shardpoint:* the tip gains charge whenever an ally behind it acts. | The tip draws every melee hit. |
 | **Echo Step** (S/Z) | Keystone or Hearth | 2 front + 2 back, offset | Spd +5% | *Echo step:* the offset spacing halves splash from area abilities. | Def −5%. |
 
-## Strays (Loose Ranks)
-Units placed apart from each other, like scattered memories. A real choice, not just a penalty.
+## Strays
+Heroes deliberately spread out so that no two stand side by side (edge-adjacent), like scattered memories. Strays is its own formation, available from the start.
 - **Bonus:** each unit gets Spd +5% and crit +5%; they hunt alone.
 - **Behaviour:** *Scattered:* no splash from area abilities spreads between Strays, since nobody stands next to anyone.
 - **Cost:** no shape behaviour ever fires.
 
 ## Training Grounds: Unlocking Formations
 Any shape can be formed from the first run, but a shape's bonus and behaviour only apply once it is **unlocked at the Training Grounds** in Lanternrest. This matches the original meta-progression spec ("adds formations").
-- **Locked shapes fight as Strays** (Strays' effect, no shape behaviour), so a locked shape is never worse than scattering.
+- **A locked shape falls back to its largest unlocked part:** if some heroes in it form a smaller unlocked shape (e.g. a locked Seawall containing an unlocked Tidebreak), the side fights as that smaller shape, and the screens state exactly which shape and bonus apply. If no unlocked part fits, it is **Unformed** (no bonus, no cost).
 - **Unlocked from the start:** the three dominoes and their direct tromino growth (Kindred, Vigil, Lamplight, Tidebreak, Choir), so early runs already have real choices.
 - **Unlocked with Shards:** the remaining trominoes and the tetrominoes, as a tree that follows how shapes grow (e.g. Tidebreak leads to Seawall and Keeper's Ring).
 - **Fairness:** per the meta principles (variety, not power), every shape has a cost, so unlocks widen options rather than add raw power. An Echo fights with the unlocks its player had when it was recorded.
@@ -66,7 +66,7 @@ Any shape can be formed from the first run, but a shape's bonus and behaviour on
 - Legendary uses a rising chance.
 - Names loosely follow the lore.
 - An opponent's formation is hidden until the fight starts (to revisit through playtesting).
-- Loose ranks are **Strays**, with their own effect.
+- Strays require heroes spread out (no two side by side) and are their own formation. Partly connected placements are Unformed (no bonus, no cost). A locked shape falls back to its largest unlocked smaller shape, else Unformed (user decision 2026-10-05).
 - The Training Grounds unlocks formation bonuses. Drills were dropped as too much to track.
 - The legend's-memory numbers stand as drafted for now (8%, +8% per node, 60% cap).
 - Strays' bonus doesn't scale.

@@ -8,6 +8,7 @@ const CombatSim = preload("res://core/combat_sim.gd")
 const PartyGen = preload("res://core/party_gen.gd")
 const Narrator = preload("res://core/narrator.gd")
 const Rng = preload("res://core/rng.gd")
+const GameData = preload("res://core/game_data.gd")
 
 const I := TYPE_INT
 const F := TYPE_FLOAT
@@ -32,27 +33,29 @@ const EVENTS := {
 	"damage": {"src": I, "dst": I, "amount": I, "kind": [S, ["physical", "magic", "sudden_death"]], "crit": B,
 		"mods": A, "primary": D, "hp": I, "action": S},
 	"heal": {"src": I, "dst": I, "amount": I, "hp": I, "action": S},
-	"charge": {"uid": I, "charge": I, "delta": I, "reason": [S, ["act", "hit", "effect", "spent"]], "ready": B, "queue": I},
+	"charge": {"uid": I, "charge": I, "delta": I, "reason": [S, ["act", "hit", "effect", "spent", "drain"]], "ready": B, "queue": I},
+	"spawn": {"side": [I, [1]], "uid": I, "slot": A, "unit": D, "memory": S, "chapter": I, "lore": S, "reason": [S, ["start", "fragment"]]},
+	"crystal_fragment": {"index": [I, [1, 2, 3, 4]], "integrity": I, "max_integrity": I},
 	"ko": {"uid": I, "by": I},
 	"sudden_death": {"tick": I, "hp_pct": F, "damage_mult": F, "heal_mult": F, "duration": F},
-	"fight_end": {"winner": [I, [-1, 0, 1]], "reason": [S, ["wipe", "fading", "timeout"]], "survivors": A},
+	"fight_end": {"winner": [I, [-1, 0, 1]], "reason": [S, ["wipe", "fading", "timeout", "shard"]], "survivors": A, "fragments": I},
 }
 const SIDE := {"side": I, "name": S, "formation": D, "compositions": A, "units": A}
 const FORMATION := {"id": S, "name": S, "shape": S, "shape_name": S, "locked": B, "buffs": A, "debuffs": A,
 	"behaviour": D, "cost": S}
 const MODIFIER := {"scope": [S, ["all", "front", "back", "class", "post", "tip", "keeper", "flanker", "gap", "middle"]], "stat": S, "value": F}
 const COMPOSITION := {"id": S, "name": S, "mods": A}
-const UNIT := {"uid": I, "side": I, "name": S, "label": S, "class": S, "class_name": S, "base_class": S,
-	"tier": [S, ["base", "advanced", "legendary", "monster"]], "level": I, "col": [I, [0, 1]], "row": [I, [0, 1, 2, 3]],
+const UNIT := {"uid": I, "side": I, "name": S, "label": S, "class": S, "class_name": S, "span": [I, [1, 2]], "base_class": S,
+	"tier": [S, ["base", "advanced", "legendary", "monster", "memory", "crystal"]], "level": I, "col": [I, [0, 1]], "row": [I, [0, 1, 2, 3]],
 	"hp": I, "max_hp": I, "atk": I, "def": I, "mag": I, "spd": I, "crit": F, "charge": I, "charge_max": I,
 	"gauge": F, "basic": D, "ability": D}
 const ACTION_REF := {"id": S, "name": S}
 const MOD_IDS := ["formation", "back_row_attacker", "back_row_target", "execute", "sudden_death", "brace",
-	"share_the_blow", "flank", "hearthguard", "echo_step", "chorus_splash"]
+	"share_the_blow", "flank", "hearthguard", "echo_step", "chorus_splash", "harvest", "mirror"]
 const MOD_FORMATION := {"id": S, "mult": F, "source": S, "name": S, "side": [I, [0, 1]]}
 const MOD_PLAIN := {"id": S, "mult": F}
 const PRIMARY_IDS := ["crit", "execute", "back_row_attacker", "back_row_target", "back_row_both", "formation", "sudden_death",
-	"brace", "share_the_blow", "flank", "hearthguard", "echo_step", "chorus_splash"]
+	"brace", "share_the_blow", "flank", "hearthguard", "echo_step", "chorus_splash", "harvest", "mirror"]
 
 var _bad := 0
 
@@ -136,6 +139,8 @@ func _check_event(ev: Dictionary, where: String) -> void:
 					_conform(p, MOD_FORMATION if p["id"] == "formation" else MOD_PLAIN, where + " primary")
 			if ev["crit"] and String(p.get("id", "")) != "crit":
 				_fail(where + ": a crit must be the primary annotation")
+		"spawn":
+			_conform(ev["unit"], UNIT, where + " spawn.unit")
 		"fight_end":
 			for s: Variant in ev["survivors"]:
 				if typeof(s) != I:
@@ -155,6 +160,10 @@ func test_every_event_matches_readme_schema() -> void:
 		if i % 5 == 0:
 			opts = {"tuning": {"damage_scale": 0.4}}   # forces sudden death
 		var r := CombatSim.simulate(i * 31 + 7, a, b, opts)
+		if i % 10 == 3:   # the Crystal of Remembrance
+			var seqs: Array = GameData.Memories.MEMORIES.keys()
+			r = CombatSim.simulate_crystal(i, a, {"memories": [seqs[i % seqs.size()], seqs[(i + 1) % seqs.size()],
+				seqs[(i + 2) % seqs.size()], seqs[(i + 3) % seqs.size()]]}, opts)
 		if int(r["sudden_death_ticks"]) > 0:
 			sd_fights += 1
 		for ev: Dictionary in r["events"]:

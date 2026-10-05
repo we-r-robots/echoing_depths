@@ -4,7 +4,9 @@ extends RefCounted
 ## Hover shows it on PC; tap toggles it and press-and-hold shows it on touch, so touch always
 ## reaches it. Tapping anywhere else closes it. One tooltip is open at a time.
 ##
-##   Tip.attach(control, "Def +10%", "Front heroes get Def +10%.", Pal.LIFE4[, prefer_below])
+##   Tip.attach(control, "Def +10%", "Front heroes get Def +10%.", Pal.LIFE4[, place])
+##     place: "auto" (above, else below), "below", "left" (beside, e.g. a side card's list so the
+##     list stays readable), "right"
 ##   Tip.detach(control)
 ##   Tip.show_for(control)   # open programmatically (demos, tutorials); Tip.close() closes
 ##   Tip.is_open_for(control)
@@ -16,8 +18,8 @@ const HOLD_TIME := 0.35
 static var _node: Node = null
 
 
-static func attach(c: Control, title: String, body: String, accent := Pal.CRYSTAL4, prefer_below := false) -> void:
-	c.set_meta("tip", {"title": title, "body": body, "accent": accent, "below": prefer_below})
+static func attach(c: Control, title: String, body: String, accent := Pal.CRYSTAL4, place := "auto") -> void:
+	c.set_meta("tip", {"title": title, "body": body, "accent": accent, "place": place})
 	if c.has_meta("tip_wired"):
 		return
 	c.set_meta("tip_wired", true)

@@ -1,14 +1,14 @@
 class_name BigText
 extends RefCounted
 ## The large reading face for the formation panel: Depths Serif 16, plus the "+" and "%"
-## glyphs the font lacks (drawn from assets/party_setup/serif_*.png in the same stroke weight),
+## glyphs the font lacks (drawn from ui/effect_icons/serif_*.png in the same stroke weight),
 ## so numbers like "+30%" read at a glance at 1x.
 
 const FONT := preload("res://assets/fonts/depths_serif.fnt")
 const SIZE := 16
 const GLYPHS := {
-	"+": [preload("res://assets/party_setup/serif_plus.png"), Vector2(0, 4), 7],
-	"%": [preload("res://assets/party_setup/serif_pct.png"), Vector2(0, 1), 9],
+	"+": [preload("res://ui/effect_icons/serif_plus.png"), Vector2(0, 4), 7],
+	"%": [preload("res://ui/effect_icons/serif_pct.png"), Vector2(0, 1), 9],
 }
 
 

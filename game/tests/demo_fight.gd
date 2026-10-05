@@ -1,6 +1,6 @@
 extends SceneTree
 ## Prints a human-readable log of one demo fight.
-## godot --path game --headless -s res://tests/demo_fight.gd [-- --seed=N --random --monsters=DEPTH]
+## godot --path game --headless -s res://tests/demo_fight.gd [-- --seed=N --random --monsters=DEPTH --crystal[=id,id,id,id]]
 
 const CombatSim = preload("res://core/combat_sim.gd")
 const PartyGen = preload("res://core/party_gen.gd")
@@ -23,6 +23,10 @@ func _init() -> void:
 	elif args.has("monsters"):
 		b = PartyGen.monster_group(Rng.new(seed_value), int(args["monsters"]))
 	var r := CombatSim.simulate(seed_value, a, b)
+	if args.has("crystal"):
+		var mems: Array = String(args["crystal"]).split(",") if String(args["crystal"]) != "true" else []
+		var copt := {} if mems.is_empty() else {"memories": mems}
+		r = CombatSim.simulate_crystal(seed_value, PartyGen.random_party(Rng.new(seed_value), {"advanced_chance": 0.6}), copt)
 	if r.has("error"):
 		printerr(r["error"])
 		quit(1)

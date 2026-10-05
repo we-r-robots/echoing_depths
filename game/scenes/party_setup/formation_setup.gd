@@ -239,25 +239,24 @@ static func demo_data() -> Dictionary:
 ## Timeline (seconds). Captures at 1/3/5/7/9/11 s: Kindred, Tidebreak (+ growth cells), dragging
 ## the 4th over the Keeper's Ring slot (live preview), Keeper's Ring, tap-placed into a locked
 ## Crescent, one hero dragged apart into Strays; then back into Keeper's Ring and Confirm.
+## Points are symbolic so they follow the grid as the bench opens and closes:
+## ["b"] the first bench slot, ["c", col, row] a hero's body in that slot, ["f", col, row] its floor.
 func demo_script() -> Array:
-	var e := func(_i: int) -> Vector2: return board._bench_rect(0).get_center()
-	var c := func(col: int, row: int) -> Vector2: return FormationBoard.feet_of([col, row]) - Vector2(0, 30)
-	var f := func(col: int, row: int) -> Vector2: return FormationBoard.feet_of([col, row])
 	return [
-		{"t": 0.15, "kind": "drag", "keys": [[0.0, e.call(1)], [0.55, c.call(0, 2)]]},
+		{"t": 0.15, "kind": "drag", "keys": [[0.0, ["b"]], [0.55, ["c", 0, 2]]]},
 		{"t": 1.5, "kind": "add", "hero": {"name": "Holt", "class": "fighter", "level": 2, "items": {}, "alignment": [0, 1]}},
-		{"t": 1.9, "kind": "drag", "keys": [[0.0, e.call(2)], [0.6, c.call(0, 0)]]},
+		{"t": 1.9, "kind": "drag", "keys": [[0.0, ["b"]], [0.6, ["c", 0, 0]]]},
 		{"t": 3.3, "kind": "add", "hero": {"name": "Ilse", "class": "healer", "level": 3, "items": {}, "alignment": [1, 1]}},
-		{"t": 3.7, "kind": "drag", "keys": [[0.0, e.call(3)], [0.55, c.call(1, 3)], [0.95, c.call(1, 3)], [1.3, c.call(1, 1)], [1.9, c.call(1, 1)]]},
+		{"t": 3.7, "kind": "drag", "keys": [[0.0, ["b"]], [0.55, ["c", 1, 3]], [0.95, ["c", 1, 3]], [1.3, ["c", 1, 1]], [1.9, ["c", 1, 1]]]},
 		{"t": 6.6, "kind": "tip", "chip": 2},
 		{"t": 7.3, "kind": "untip"},
-		{"t": 7.4, "kind": "tap", "at": c.call(1, 1)},
-		{"t": 8.2, "kind": "tap", "at": f.call(1, 0)},
-		{"t": 9.4, "kind": "drag", "keys": [[0.0, c.call(0, 2)], [0.7, c.call(1, 3)]]},
+		{"t": 7.4, "kind": "tap", "at": ["c", 1, 1]},
+		{"t": 8.2, "kind": "tap", "at": ["f", 1, 0]},
+		{"t": 9.4, "kind": "drag", "keys": [[0.0, ["c", 0, 2]], [0.7, ["c", 1, 3]]]},
 		{"t": 11.4, "kind": "details"},
 		{"t": 12.1, "kind": "details"},
-		{"t": 12.2, "kind": "drag", "keys": [[0.0, c.call(1, 3)], [0.6, c.call(0, 2)]]},
-		{"t": 13.4, "kind": "drag", "keys": [[0.0, c.call(1, 0)], [0.5, c.call(1, 1)]]},
+		{"t": 12.2, "kind": "drag", "keys": [[0.0, ["c", 1, 3]], [0.6, ["c", 0, 2]]]},
+		{"t": 13.4, "kind": "drag", "keys": [[0.0, ["c", 1, 0]], [0.5, ["c", 1, 1]]]},
 		{"t": 14.8, "kind": "confirm"},
 	]
 
@@ -267,7 +266,9 @@ func _run_demo(delta: float) -> void:
 		_act_t += delta
 		var a: Dictionary = _script[_act]
 		if a["kind"] == "drag":
-			var keys: Array = a["keys"]
+			var keys: Array = []
+			for k: Array in a["keys"]:
+				keys.append([k[0], _pt(k[1])])
 			var p := _key_at(keys, _act_t)
 			board.demo_pointer = p
 			if _act_t > 0.05:
@@ -280,7 +281,7 @@ func _run_demo(delta: float) -> void:
 				_act = -1
 		elif a["kind"] == "tap":
 			if _act_t >= 0.12:
-				board.pointer_up(a["at"])
+				board.pointer_up(_pt(a["at"]))
 				board.demo_hand = 1
 				_hand_hide_at = _t + 0.6
 				_act = -1
@@ -297,15 +298,15 @@ func _run_demo(delta: float) -> void:
 			"add":
 				board.add_hero(a["hero"])
 			"drag":
-				var p: Vector2 = a["keys"][0][1]
+				var p: Vector2 = _pt(a["keys"][0][1])
 				board.pointer_down(p)
 				board.demo_pointer = p
 				board.demo_hand = 1
 				_act = i
 				_act_t = 0.0
 			"tap":
-				board.pointer_down(a["at"])
-				board.demo_pointer = a["at"]
+				board.pointer_down(_pt(a["at"]))
+				board.demo_pointer = _pt(a["at"])
 				board.demo_hand = 2
 				_act = i
 				_act_t = 0.0
@@ -321,6 +322,15 @@ func _run_demo(delta: float) -> void:
 					_confirm.button_pressed = false
 					confirm())
 		break
+
+
+func _pt(spec: Array) -> Vector2:
+	match String(spec[0]):
+		"b":
+			return board._bench_rect(0).get_center()
+		"c":
+			return FormationBoard.feet_of([spec[1], spec[2]]) - Vector2(0, 30)
+	return FormationBoard.feet_of([spec[1], spec[2]])
 
 
 static func _key_at(keys: Array, t: float) -> Vector2:

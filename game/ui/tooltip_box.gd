@@ -72,10 +72,15 @@ func open(c: Control, pin: bool) -> void:
 	var a := c.get_global_rect()
 	var x := clampf(roundf(a.position.x + a.size.x / 2.0 - w / 2.0), 4, 636 - w)
 	var y := a.position.y - h - 4
-	if bool(d.get("below", false)) and a.end.y + 4 + h <= 356:
+	var place := String(d.get("place", "auto"))
+	if place == "below" and a.end.y + 4 + h <= 356:
 		y = a.end.y + 4
 	if y < 4:
 		y = a.end.y + 4
+	if place == "left" or place == "right":
+		y = clampf(roundf(a.position.y + a.size.y / 2.0 - h / 2.0), 4, 356 - h)
+		x = a.position.x - w - 6 if place == "left" else a.end.x + 6
+		x = clampf(x, 4, 636 - w)
 	_rect = Rect2(x, y, w, h)
 	_shown = true
 	queue_redraw()
@@ -120,6 +125,18 @@ func _draw() -> void:
 	draw_rect(r, Pal.INK1)
 	draw_rect(r.grow(-1), Pal.INK2)
 	draw_rect(Rect2(r.position.x + 1, r.position.y + 1, r.size.x - 2, 1), _accent)
+	# pointer nub toward the owner when placed beside it
+	if owner_control != null and is_instance_valid(owner_control):
+		var a := owner_control.get_global_rect()
+		var cy := clampf(roundf(a.get_center().y), r.position.y + 4, r.end.y - 5)
+		if a.position.x >= r.end.x:
+			draw_rect(Rect2(r.end.x, cy - 2, 1, 5), Pal.INK5)
+			draw_rect(Rect2(r.end.x + 1, cy - 1, 1, 3), Pal.INK5)
+			draw_rect(Rect2(r.end.x + 2, cy, 1, 1), Pal.INK5)
+		elif a.end.x <= r.position.x:
+			draw_rect(Rect2(r.position.x - 1, cy - 2, 1, 5), Pal.INK5)
+			draw_rect(Rect2(r.position.x - 2, cy - 1, 1, 3), Pal.INK5)
+			draw_rect(Rect2(r.position.x - 3, cy, 1, 1), Pal.INK5)
 	# soft frame
 	draw_rect(Rect2(r.position.x + 1, r.position.y, r.size.x - 2, 1), Pal.INK5)
 	draw_rect(Rect2(r.position.x + 1, r.end.y - 1, r.size.x - 2, 1), Pal.INK5)

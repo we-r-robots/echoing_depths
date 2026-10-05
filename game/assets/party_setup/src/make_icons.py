@@ -20,25 +20,6 @@ MASKS = {
 #####
 ..#..
 ..#..""",
-    # serif-matched glyphs the Depths Serif font lacks (2 px strokes, 10 px digit height)
-    'serif_plus': """
-..##..
-..##..
-######
-######
-..##..
-..##..""",
-    'serif_pct': """
-##....##
-##...##.
-....##..
-...##...
-...##...
-..##....
-..##....
-.##.....
-##...##.
-#....##.""",
 }
 
 KEY = {'o': 'ink1', 'w': 'ink10', 'l': 'ink9', 's': 'ink7', '.': None}

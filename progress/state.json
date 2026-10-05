@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 11:07",
+  "updated": "2026-10-05 11:13",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -175,7 +175,7 @@
       "name": "Hero draft and formation setup screens",
       "bar": "Super Auto Pets team screen + Sea of Stars menus",
       "wave": 2,
-      "status": "judging",
+      "status": "building",
       "rounds": [
         {
           "winner": "bar",
@@ -186,6 +186,11 @@
           "winner": "bar",
           "gap": "Lost all 4 blind pairs against clean Super Auto Pets and Sea of Stars frames: still three equal-weight text columns. Restructuring to one grid plus one shape card, with a slim portrait tray.",
           "image": "captures/party-formation/r6/f00420.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Won 1 of 4 blind pairs: the draft screen beat Super Auto Pets. The formation card still loses to Sea of Stars on polish: dead space, faint locked rows, a tooltip covering the next line, and ghost labels cluttering the board.",
+          "image": "captures/party-formation/r7/f00420.png"
         }
       ],
       "preview": "captures/party-formation/r7/f00420.png",
@@ -578,6 +583,14 @@
     {
       "t": "11:07",
       "msg": "Formation redesign PASSED (critic round 2): the third piece to beat its bar. Small follow-ups logged for after the Crystal build."
+    },
+    {
+      "t": "11:08",
+      "msg": "Setup screens round 3: the draft screen won its blind pair; the formation card still loses to Sea of Stars on polish. Round 4 underway."
+    },
+    {
+      "t": "11:13",
+      "msg": "User decision: Strays now means truly spread out (no two side by side) and is its own formation; partly connected = Unformed; a locked shape falls back to its largest unlocked smaller shape. Spec updated; core change queued after the Crystal."
     }
   ],
   "questions": [
