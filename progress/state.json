@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 11:23",
+  "updated": "2026-10-05 11:25",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -201,6 +201,11 @@
           "winner": "bar",
           "gap": "Won 2 of 4 blind pairs, both against Super Auto Pets; lost both Sea of Stars pairs. The Strays card has labels over 20 characters and contradicts itself, the locked fallback headlines the wrong shape, and the card's rhythm is too busy.",
           "image": "captures/party-formation/r9/f00540.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Won 2 of 4 blind pairs, including the first win over a Sea of Stars menu (the draft screen). The formation board still loses: sprites overlap their neighbours while 40% of the board is empty, and some text is too small for a phone.",
+          "image": "captures/party-formation/r10/f00540.png"
         }
       ],
       "preview": "captures/party-formation/r9/f00540.png",
@@ -629,6 +634,10 @@
     {
       "t": "11:23",
       "msg": "Session at 60% of the plan limit: running builders finish, no new builders this session, limited critics, wrap up cleanly by 85%."
+    },
+    {
+      "t": "11:25",
+      "msg": "Setup screens round 5: 2 of 4 blind wins, including the first win over a Sea of Stars menu (draft). Remaining fixes (crowded board, tiny text) queued for next session per the budget plan."
     }
   ],
   "questions": [

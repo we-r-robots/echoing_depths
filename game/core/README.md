@@ -61,7 +61,19 @@ A party is `{"name": String, "heroes": Array}`. An Echo dictionary (see below) i
 
 A party may also carry `"unlocked_formations": [shape id, ...]`: the Training Grounds shapes this
 side has unlocked. Missing = the default set (`Formations.DEFAULT_UNLOCKED`: Kindred, Vigil,
-Lamplight, Tidebreak, Choir). A shape that isn't unlocked fights as Strays.
+Lamplight, Tidebreak, Choir). Strays is always available.
+
+**Formation state** (`Formation.effective(party)`, shared with the setup UI):
+
+```
+static func effective(party: Dictionary) -> Dictionary
+# -> {"state": "active"|"strays"|"unformed"|"locked_fallback"|"locked_unformed",
+#     "shape": geometric shape (a SHAPES entry, STRAYS, or UNFORMED),
+#     "effective": what fights, "sub_cells": [[col,row], ...], "locked": bool}
+```
+Cells are read in slot order. A locked shape's fallback is the largest unlocked connected
+sub-shape among its heroes (ties: SHAPES data order, then the first such subset in slot order);
+its bonus, cost, roles and behaviour apply only to those heroes. Fewer than 2 units: `"none"`.
 
 **Validation** (`GameData.validate_party`, applied by `simulate()` and `Echo.from_*`):
 a side is a *monster side* if every unit is a monster class, otherwise a *player side*.
@@ -115,6 +127,15 @@ Options: `{"log": false}` skips building events (same outcome, faster);
 this section: exact field set, types and enumerated values. If the two ever disagree, that test fails.
 
 **Schema changelog** (for consumers):
+- *Latest: formation states (05-formations.md, user decision).* `Formation.effective(party)` returns
+  `{"state", "shape", "effective", "sub_cells", "locked"}` (contract below). **Strays** = no two
+  heroes edge-adjacent (always available); **Unformed** = partly joined, no shape (no bonus, cost or
+  behaviour; id `"unformed"`, "No formation"); a **locked** shape falls back to its largest unlocked
+  connected sub-shape among the placed heroes and fights as that shape on those heroes only, else
+  Unformed. The banner `formation` gains `state` and `sub_cells`. Draw/taunt use the single melee
+  definition (physical melee-targeted or dash; only the Lighthouse taunt also pulls single-target
+  ranged/magic); Keeper's Ring also guards against `to: "random_enemy"`; a Lighthouse taunt beats
+  Vigil covering fire.
 - *Latest: the Crystal of Remembrance (06-crystal-of-remembrance.md).* New entry point
   `CombatSim.simulate_crystal(seed, party, {"integrity", "memories"}, options)`. New events
   **`spawn`** and **`crystal_fragment`**; new end `reason` **`"shard"`**; `fight_end` (and the
@@ -132,7 +153,7 @@ this section: exact field set, types and enumerated values. If the two ever disa
 - *Formation redesign (05-formations.md).* Shapes are dominoes/trominoes/tetrominoes
   (Kindred, Vigil, Lamplight; Tidebreak, Choir, Keystone, Hearth; Seawall, Lumari Chorus, Vault Door,
   Crescent, Lighthouse, Keeper's Ring, Shardpoint, Echo Step) or Strays; the old 11 shapes and
-  Loose Ranks are gone. Parties may carry `unlocked_formations`; a locked shape fights as Strays.
+  Loose Ranks are gone. Parties may carry `unlocked_formations`; a locked shape fights as Strays (superseded: see formation states).
   `formation` (in `fight_start` sides and the banner event) gains `shape`, `shape_name`, `locked`,
   `behaviour` `{id, name, text}` and `cost` (text); `buffs` = the shape's bonus, `debuffs` = the
   cost's stat part (may be empty: some costs are a weakness of the geometry). `formation_proc`
@@ -206,7 +227,9 @@ are active, `units` = list of unit snapshots. `formation`:
 |---|---|---|
 | `id`, `name` | String | the shape that **fights** (`"strays"` / "Strays" if scattered or locked) |
 | `shape`, `shape_name` | String | the shape the player **arranged** (geometry) |
-| `locked` | bool | the arranged shape isn't unlocked, so it fights as Strays |
+| `state` | String | `active`, `strays`, `unformed`, `locked_fallback`, `locked_unformed` (`none` for the Crystal / a single unit) |
+| `sub_cells` | Array | `[col, row]` cells the fighting shape applies to: all cells when active, the sub-shape's cells when `locked_fallback`, `[]` otherwise |
+| `locked` | bool | the arranged shape isn't unlocked (it falls back, see `state`) |
 | `buffs` | Array | the bonus: modifiers `{scope, stat, value}` (scope `all`/`front`/`back` or a role: `post`, `tip`, `keeper`, `flanker`, `gap`, `middle`) |
 | `debuffs` | Array | the stat part of the cost (may be empty) |
 | `behaviour` | `{id, name, text}` | the shape's behaviour |
