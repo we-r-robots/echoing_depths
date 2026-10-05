@@ -317,7 +317,8 @@ func _draw_ability(y: int) -> void:
 	var tag := "replaced on advancing" if PartyModel.tier(hero) == "base" else "advanced ability"
 	PartyDraw.text(self, Vector2(28, y + 12), tag, Pal.INK6, PartyDraw.SANS, PartyDraw.SANS_SIZE, true, W - 16 - 20, HORIZONTAL_ALIGNMENT_RIGHT)
 	var desc := PartyModel.ability_desc(a)
-	var f := PartyDraw.SANS
-	var base := Vector2(28, y + 24 + f.get_ascent(11))
-	draw_multiline_string(f, base + Vector2(1, 1), desc, HORIZONTAL_ALIGNMENT_LEFT, W - 36, 11, 3, Pal.INK1)
-	draw_multiline_string(f, base, desc, HORIZONTAL_ALIGNMENT_LEFT, W - 36, 11, 3, Pal.INK8)
+	var lines := UIText.wrap_lines(desc, W - 36, UIText.SANS, UIText.BODY)
+	var ly := y + 24.0
+	for i in mini(3, lines.size()):
+		UIText.draw(self, Vector2(28, ly), lines[i], Pal.INK8, UIText.SANS, UIText.BODY)
+		ly += UIText.line_h(UIText.SANS, UIText.BODY)

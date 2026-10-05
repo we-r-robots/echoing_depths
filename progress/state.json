@@ -651,6 +651,10 @@
     {
       "t": "11:57",
       "msg": "Crystal battle presentation and round-9 fixes committed. Session wrapped up at ~80% of the plan; next steps in the resume notes."
+    },
+    {
+      "t": "17:30",
+      "msg": "hires-ui M1: world/UI render split, new pixel-styled TTF fonts, x-height floor enforced, full-res captures; hero_detail fixed; 132 tests green, smoke PASS"
     }
   ],
   "questions": [

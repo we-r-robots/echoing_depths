@@ -111,14 +111,21 @@ func select(i: int) -> void:
 	var h: Dictionary = party[index]
 	_card.set_hero(h)
 	var info := EncounterDB.class_info(PartyModel.base_class(h))
-	_align.codex = codex
-	_align.set_hero(h, load(info["portrait"]), Pal.c(info["color"]))
-	_align.grid.target_region = ""
-	_align.grid.reach_cells = []
-	_align.focus_region = ""
+	_align.set_hero(h, load(info["portrait"]), Pal.c(info["color"]), _region_names(h))
 	_message_override = ""
 	_message = _describe(h)
 	queue_redraw()
+
+
+## Region -> the class name shown on the grid ("???" while that class is not in the codex),
+## built the way the advancement card names corners.
+func _region_names(h: Dictionary) -> Dictionary:
+	var out := {}
+	var base := PartyModel.base_class(h)
+	for reg: String in PartyModel.REGION_ORDER:
+		var id := PartyModel.class_for_region(base, reg)
+		out[reg] = PartyModel.class_name_of(id) if id != "" and id in codex else "???"
+	return out
 
 
 func current() -> Dictionary:
@@ -137,10 +144,9 @@ func open_advancement() -> void:
 	tw.tween_method(func(v: float) -> void: _adv.position.x = roundf(v), -230.0, 8.0, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_card.visible = false
 	var target := PartyModel.region_of(PartyModel.effective(h))
-	_align.grid.target_region = target
+	_align.grid.focus_region = target
 	var reach := AdvanceCard.hold_reach(h)
-	_align.grid.reach_cells = [reach["cell"]] if not reach.is_empty() else []
-	_align.focus_region = String(reach.get("region", ""))
+	_align.grid.reach_cell = reach["cell"] if not reach.is_empty() else null
 	_message_override = "Advance sets the class from where %s stands now. Holding back keeps the path open." % h["name"]
 	queue_redraw()
 
@@ -148,9 +154,8 @@ func open_advancement() -> void:
 func _close_advancement(_animate := true) -> void:
 	_adv.visible = false
 	_card.visible = true
-	_align.grid.target_region = ""
-	_align.grid.reach_cells = []
-	_align.focus_region = ""
+	_align.grid.focus_region = ""
+	_align.grid.reach_cell = null
 
 
 func _on_advance() -> void:
@@ -163,11 +168,10 @@ func _on_advance() -> void:
 	party[index] = nh
 	if is_new:
 		codex.append(id)
-		_align.mark_new(id)
 		codex_recorded.emit(id)
 	_close_advancement()
 	select(index)
-	_align.mark_new(id if is_new else "")
+	_align.grid.new_regions = [PartyModel.region_of(PartyModel.effective(nh))] if is_new else []
 	var tw := create_tween()
 	tw.tween_method(func(v: float) -> void: _align.grid.reveal = v, 1.0, 0.0, 0.6)
 	_message_override = "%s advanced to %s.%s" % [nh["name"], PartyModel.class_name_of(id),
@@ -203,7 +207,6 @@ func _on_cell(p: Array) -> void:
 	var lean := PartyModel.lean_of(p)
 	_message_override = "%s: %s%s. %d step%s from the %s start." % [words, nm,
 		(" (%s)" % lean) if lean != "" and region != "N" else "", d, "" if d == 1 else "s", PartyModel.class_name_of(base)]
-	_align.focus_region = region
 	queue_redraw()
 
 

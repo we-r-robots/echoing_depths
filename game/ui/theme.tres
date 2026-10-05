@@ -1,8 +1,8 @@
 [gd_resource type="Theme" load_steps=35 format=3]
 
-[ext_resource type="FontFile" path="res://assets/fonts/depths_sans.fnt" id="1_depths_sans"]
-[ext_resource type="FontFile" path="res://assets/fonts/depths_sans_bold.fnt" id="2_depths_sans_bold"]
-[ext_resource type="FontFile" path="res://assets/fonts/depths_serif.fnt" id="3_depths_serif"]
+[ext_resource type="FontFile" path="res://assets/fonts/depths_sans.ttf" id="1_depths_sans"]
+[ext_resource type="FontFile" path="res://assets/fonts/depths_sans_bold.ttf" id="2_depths_sans_bold"]
+[ext_resource type="FontFile" path="res://assets/fonts/depths_serif.ttf" id="3_depths_serif"]
 [ext_resource type="Texture2D" path="res://ui/panel.png" id="4_panel"]
 [ext_resource type="Texture2D" path="res://ui/panel_dim.png" id="5_panel_dim"]
 [ext_resource type="Texture2D" path="res://ui/panel_rare.png" id="6_panel_rare"]
@@ -203,40 +203,53 @@ draw_center = true
 
 [resource]
 default_font = ExtResource("1_depths_sans")
-default_font_size = 11
+default_font_size = 10
+Sizes/font_sizes/label = 10
+Sizes/font_sizes/body = 10
+Sizes/font_sizes/title = 10
+Sizes/font_sizes/number = 15
+Sizes/font_sizes/heading = 15
+Sizes/font_sizes/display = 25
 Label/colors/font_color = Color(0.7490, 0.7608, 0.8627, 1.0)
-Label/colors/font_shadow_color = Color(0.0431, 0.0392, 0.0784, 1.0)
-Label/constants/shadow_offset_x = 1
-Label/constants/shadow_offset_y = 1
+Label/colors/font_shadow_color = Color(0.0431, 0.0392, 0.0784, 0.0)
+Label/constants/shadow_offset_x = 0
+Label/constants/shadow_offset_y = 0
 Label/constants/line_spacing = 0
-Label/font_sizes/font_size = 11
+Label/font_sizes/font_size = 10
 Label/fonts/font = ExtResource("1_depths_sans")
 TitleLabel/base_type = &"Label"
 TitleLabel/colors/font_color = Color(0.9843, 0.8235, 0.4784, 1.0)
-TitleLabel/colors/font_shadow_color = Color(0.0431, 0.0392, 0.0784, 1.0)
-TitleLabel/font_sizes/font_size = 16
+TitleLabel/font_sizes/font_size = 10
 TitleLabel/fonts/font = ExtResource("3_depths_serif")
+HeadingLabel/base_type = &"Label"
+HeadingLabel/colors/font_color = Color(0.9843, 0.8235, 0.4784, 1.0)
+HeadingLabel/font_sizes/font_size = 15
+HeadingLabel/fonts/font = ExtResource("3_depths_serif")
 HeaderLabel/base_type = &"Label"
 HeaderLabel/colors/font_color = Color(0.9255, 0.9333, 0.9686, 1.0)
-HeaderLabel/font_sizes/font_size = 11
+HeaderLabel/font_sizes/font_size = 10
 HeaderLabel/fonts/font = ExtResource("2_depths_sans_bold")
 TagLabel/base_type = &"Label"
 TagLabel/colors/font_color = Color(0.3098, 0.7686, 0.7882, 1.0)
-TagLabel/font_sizes/font_size = 11
+TagLabel/font_sizes/font_size = 10
 TagLabel/fonts/font = ExtResource("2_depths_sans_bold")
 MutedLabel/base_type = &"Label"
-MutedLabel/colors/font_color = Color(0.4314, 0.4392, 0.6392, 1.0)
+MutedLabel/colors/font_color = Color(0.5765, 0.5882, 0.7529, 1.0)
 GoldLabel/base_type = &"Label"
 GoldLabel/colors/font_color = Color(0.9843, 0.8235, 0.4784, 1.0)
-GoldLabel/font_sizes/font_size = 11
+GoldLabel/font_sizes/font_size = 10
 GoldLabel/fonts/font = ExtResource("2_depths_sans_bold")
+NumberLabel/base_type = &"Label"
+NumberLabel/colors/font_color = Color(0.9255, 0.9333, 0.9686, 1.0)
+NumberLabel/font_sizes/font_size = 15
+NumberLabel/fonts/font = ExtResource("2_depths_sans_bold")
 RichTextLabel/colors/default_color = Color(0.7490, 0.7608, 0.8627, 1.0)
-RichTextLabel/colors/font_shadow_color = Color(0.0431, 0.0392, 0.0784, 1.0)
-RichTextLabel/constants/shadow_offset_x = 1
-RichTextLabel/constants/shadow_offset_y = 1
-RichTextLabel/constants/line_separation = 1
-RichTextLabel/font_sizes/normal_font_size = 11
-RichTextLabel/font_sizes/bold_font_size = 11
+RichTextLabel/colors/font_shadow_color = Color(0.0431, 0.0392, 0.0784, 0.0)
+RichTextLabel/constants/shadow_offset_x = 0
+RichTextLabel/constants/shadow_offset_y = 0
+RichTextLabel/constants/line_separation = 0
+RichTextLabel/font_sizes/normal_font_size = 10
+RichTextLabel/font_sizes/bold_font_size = 10
 RichTextLabel/fonts/normal_font = ExtResource("1_depths_sans")
 RichTextLabel/fonts/bold_font = ExtResource("2_depths_sans_bold")
 RichTextLabel/styles/normal = SubResource("sb_16")
@@ -249,7 +262,7 @@ Button/colors/font_disabled_color = Color(0.4667, 0.4667, 0.4941, 1.0)
 Button/colors/font_outline_color = Color(0.0431, 0.0392, 0.0784, 1.0)
 Button/constants/outline_size = 0
 Button/constants/h_separation = 4
-Button/font_sizes/font_size = 11
+Button/font_sizes/font_size = 10
 Button/fonts/font = ExtResource("2_depths_sans_bold")
 Button/styles/normal = SubResource("sb_4")
 Button/styles/hover = SubResource("sb_5")

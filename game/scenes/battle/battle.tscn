@@ -14,52 +14,89 @@ shader_parameter/level = 0.0
 [node name="Battle" type="Node2D"]
 script = ExtResource("1")
 
-[node name="Stage" type="Node2D" parent="."]
+[node name="WorldLayer" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="World" type="SubViewportContainer" parent="WorldLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+stretch = true
+
+[node name="View" type="SubViewport" parent="WorldLayer/World"]
+disable_3d = true
+handle_input_locally = false
+snap_2d_transforms_to_pixel = true
+snap_2d_vertices_to_pixel = true
+canvas_item_default_texture_filter = 0
+size = Vector2i(640, 360)
+render_target_update_mode = 4
+
+[node name="Stage" type="Node2D" parent="WorldLayer/World/View"]
 z_index = -10
 script = ExtResource("2")
 
-[node name="Units" type="Node2D" parent="."]
+[node name="Units" type="Node2D" parent="WorldLayer/World/View"]
 y_sort_enabled = true
 
-[node name="Dim" type="ColorRect" parent="."]
+[node name="Dim" type="ColorRect" parent="WorldLayer/World/View"]
 visible = false
 z_index = 20
-offset_left = -40.0
+offset_left = -200.0
 offset_top = -40.0
-offset_right = 680.0
+offset_right = 840.0
 offset_bottom = 400.0
 mouse_filter = 2
 color = Color(0, 0, 0, 0)
 
-[node name="Plates" type="Node2D" parent="."]
+[node name="Plates" type="Node2D" parent="WorldLayer/World/View"]
 z_index = 40
 script = ExtResource("3")
 
-[node name="FX" type="Node2D" parent="."]
+[node name="FX" type="Node2D" parent="WorldLayer/World/View"]
 z_index = 50
 script = ExtResource("4")
 
-[node name="Camera" type="Camera2D" parent="."]
+[node name="Camera" type="Camera2D" parent="WorldLayer/World/View"]
 zoom = Vector2(2, 2)
 position = Vector2(320, 180)
 
-[node name="FadeLayer" type="CanvasLayer" parent="."]
+[node name="FadeLayer" type="CanvasLayer" parent="WorldLayer/World/View"]
 layer = -5
 
-[node name="Fade" type="ColorRect" parent="FadeLayer"]
+[node name="Fade" type="ColorRect" parent="WorldLayer/World/View/FadeLayer"]
 visible = false
 material = SubResource("fade_mat")
-offset_right = 640.0
-offset_bottom = 360.0
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
 
 [node name="HUD" type="CanvasLayer" parent="."]
 layer = 5
 
+[node name="Pops" type="Control" parent="HUD"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
 [node name="Hud" type="Control" parent="HUD"]
 layout_mode = 3
-anchors_preset = 0
-offset_right = 640.0
-offset_bottom = 360.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("5")

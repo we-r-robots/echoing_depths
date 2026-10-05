@@ -3,11 +3,11 @@ extends RefCounted
 ## Shared pixel drawing helpers for the party / hero detail screen.
 ## Every colour comes from Pal (master palette). All coordinates are whole pixels.
 
-const SANS := preload("res://assets/fonts/depths_sans.fnt")
-const BOLD := preload("res://assets/fonts/depths_sans_bold.fnt")
-const SERIF := preload("res://assets/fonts/depths_serif.fnt")
-const SANS_SIZE := 11
-const SERIF_SIZE := 16
+const SANS := UIText.SANS
+const BOLD := UIText.BOLD
+const SERIF := UIText.SERIF
+const SANS_SIZE := UIText.BODY
+const SERIF_SIZE := UIText.TITLE
 
 ## Icons used by path at draw time. Textures must be loaded before _draw (a texture first
 ## loaded inside _draw renders as a blank quad), so every icon looked up by path lives here.
@@ -58,14 +58,11 @@ const REGION_ACCENT := {
 
 static func text(ci: CanvasItem, pos: Vector2, s: String, color: Color, font: Font = SANS,
 		size := SANS_SIZE, shadow := true, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
-	var base := Vector2(pos.x, pos.y + font.get_ascent(size)).round()
-	if shadow:
-		ci.draw_string(font, base + Vector2(1, 1), s, align, width, size, Pal.INK1)
-	ci.draw_string(font, base, s, align, width, size, color)
+	UIText.draw(ci, pos, s, color, font, size, shadow, width, align)
 
 
 static func text_w(s: String, font: Font = SANS, size := SANS_SIZE) -> int:
-	return int(font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x)
+	return ceili(UIText.width(s, font, size))
 
 
 ## Small-caps style section header: muted caps, a rule running to `w`, a tiny diamond end.

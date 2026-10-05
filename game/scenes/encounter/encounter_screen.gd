@@ -183,9 +183,8 @@ func _layout() -> void:
 func _text_height(bb: String) -> int:
 	var plain := RegEx.create_from_string("\\[[^\\]]*\\]").sub(bb, "", true)
 	var font := get_theme_font("normal_font", "RichTextLabel")
-	var sz := font.get_multiline_string_size(plain, HORIZONTAL_ALIGNMENT_CENTER, COL_W - 12, 11)
-	var lines := int(round(sz.y / font.get_height(11)))
-	return lines * 12
+	var lines := UIText.wrap_lines(plain, COL_W - 12, font, UIText.BODY).size()
+	return ceili(lines * UIText.line_h(font, UIText.BODY))
 
 
 ## "Alignment: [solid] now  [ring] after", so the grid markers on every row read without a tutorial.
@@ -193,20 +192,20 @@ func _make_legend() -> Control:
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.custom_minimum_size = Vector2(118, 10)
-	var font: Font = load("res://assets/fonts/depths_sans_bold.fnt")
+	var font: Font = UIText.BOLD
 	c.draw.connect(func() -> void:
 		var x := 0.0
-		c.draw_string(font, Vector2(x, 8), "Grid:", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Pal.INK8)
-		x += font.get_string_size("Grid:", HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 5
+		UIText.draw_base(c, Vector2(x, 8), "Grid:", Pal.INK8, font, UIText.LABEL, false)
+		x += UIText.width("Grid:", font, UIText.LABEL) + 5
 		c.draw_rect(Rect2(x, 2, 5, 5), Pal.INK9)
 		x += 8
-		c.draw_string(font, Vector2(x, 8), "now", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Pal.INK10)
-		x += font.get_string_size("now", HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 6
+		UIText.draw_base(c, Vector2(x, 8), "now", Pal.INK10, font, UIText.LABEL, false)
+		x += UIText.width("now", font, UIText.LABEL) + 6
 		var r := Rect2(x, 1, 7, 7)
 		for e in [Rect2(r.position, Vector2(7, 1)), Rect2(r.position + Vector2(0, 6), Vector2(7, 1)), Rect2(r.position, Vector2(1, 7)), Rect2(r.position + Vector2(6, 0), Vector2(1, 7))]:
 			c.draw_rect(e, Pal.INK10)
 		x += 10
-		c.draw_string(font, Vector2(x, 8), "after this choice", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Pal.INK10))
+		UIText.draw_base(c, Vector2(x, 8), "after this choice", Pal.INK10, font, UIText.LABEL, false))
 	c.custom_minimum_size.x = 30 + 8 + 22 + 10 + 96
 	return c
 

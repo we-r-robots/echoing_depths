@@ -4,16 +4,17 @@ extends Node2D
 ## floor labels) and the formation glyph that links the occupied slots into the formation's shape.
 
 const Layout = preload("res://scenes/battle/battle_layout.gd")
-const BG = preload("res://assets/battle/bg_vault.png")
+const BG = preload("res://assets/battle/bg_vault_wide.png")   # bg_vault.png + 120 px wings each side
+const BG_WING := 120
 const FLAME = preload("res://assets/battle/flame.png")
 const GLOW = preload("res://assets/battle/glow.png")
 const BRAZIERS: Array[Vector2] = [Vector2(26, 168), Vector2(614, 168)]   # screen px (bg layer)
 const N_MOTES := 36
 const NB: Array[Vector2i] = [Vector2i(1, 0), Vector2i(0, 1)]
 
-var font_small: Font
 var bg: Sprite2D
 var bg_layer: CanvasLayer
+var bg_root: Node2D                 # the 640x360 frame of the painted chamber, centred in the view
 var slot_pulse := {}                # Vector3i(side, col, row) -> 0..1 formation-proc tint
 var _flames: Array[AnimatedSprite2D] = []
 var _glows: Array[Sprite2D] = []
@@ -38,16 +39,17 @@ var victory_light := 0.0
 
 
 func setup() -> void:
-	font_small = load("res://assets/fonts/depths_sans.fnt")
 	# the painted chamber is screen-space art at 1x; the field above it is world-space at 2x zoom
 	bg_layer = CanvasLayer.new()
 	bg_layer.layer = -10
 	add_child(bg_layer)
+	bg_root = Node2D.new()
+	bg_layer.add_child(bg_root)
 	bg = Sprite2D.new()
 	bg.texture = BG
 	bg.centered = false
-	bg.position = Vector2(-Layout.BG_MARGIN, -Layout.BG_MARGIN)
-	bg_layer.add_child(bg)
+	bg.position = Vector2(-Layout.BG_MARGIN - BG_WING, -Layout.BG_MARGIN)
+	bg_root.add_child(bg)
 	var frames := SpriteFrames.new()
 	frames.add_animation(&"burn")
 	frames.set_animation_speed(&"burn", 10.0)
@@ -64,7 +66,7 @@ func setup() -> void:
 		var m := CanvasItemMaterial.new()
 		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 		g.material = m
-		bg_layer.add_child(g)
+		bg_root.add_child(g)
 		_glows.append(g)
 		var f := AnimatedSprite2D.new()
 		f.sprite_frames = frames
@@ -72,7 +74,7 @@ func setup() -> void:
 		f.position = BRAZIERS[i] + Vector2(-8, -30)
 		f.play(&"burn")
 		f.frame = i * 3
-		bg_layer.add_child(f)
+		bg_root.add_child(f)
 		_flames.append(f)
 	_mx.resize(N_MOTES)
 	_my.resize(N_MOTES)
@@ -87,6 +89,12 @@ func setup() -> void:
 	_quad.resize(5)
 	_quad4.resize(4)
 	_quad_in.resize(5)
+
+
+## Centre the chamber's 640x360 frame in a view of `view_size` (wider on wide screens: the wings
+## show more wall and floor), shifted by the camera shake `shake`.
+func place_bg(view_size: Vector2, shake: Vector2) -> void:
+	bg_root.position = ((view_size - Vector2(640, 360)) / 2.0).round() + shake
 
 
 func tick(vdt: float) -> void:
@@ -149,17 +157,6 @@ func _draw() -> void:
 				if pulse > 0.05:
 					var pp := Layout.slot_pos(side, cell.x, cell.y)
 					_ellipse(pp, 15.0 + 6.0 * (1.0 - pulse), 4.0 + 2.0 * (1.0 - pulse), Color(Pal.INK10, pulse * 0.7))
-		# floor labels under the nearest row
-		if labels_alpha > 0.0 and false:
-			var lf := Layout.slot_pos(side, 0, 3) + Vector2(0, 12)
-			var lb := Layout.slot_pos(side, 1, 3) + Vector2(0, 12)
-			_floor_text("FRONT", lf, Color(Pal.INK8, labels_alpha))
-			_floor_text("BACK 1/2", lb, Color(Pal.INK8, labels_alpha))
-
-
-func _floor_text(t: String, p: Vector2, c: Color) -> void:
-	var w := font_small.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-	draw_string(font_small, Vector2(roundf(p.x - w * 0.5), p.y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, c)
 
 
 ## A slot tile on the floor: a trapezoid that follows the floor perspective.

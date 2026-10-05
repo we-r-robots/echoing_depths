@@ -1,20 +1,23 @@
 extends Node2D
 ## Pooled battle effects drawn in world space: sprite effects (sparks, bursts, slashes, heal glows),
-## particles, projectiles, floor rings, light pillars and damage/heal numbers.
+## particles, projectiles, floor rings and light pillars. Damage/heal numbers and their tags are
+## laid out in world space (so they stay pinned to their target) but drawn on the UI layer at native
+## resolution, through the battle's world -> UI transform.
 ## Everything is pre-allocated in setup(); the per-frame path only mutates pooled slots.
 
-const DIGITS = preload("res://assets/battle/digits.png")
 const BURST = preload("res://assets/battle/burst.png")
 const SLASH = preload("res://assets/battle/slash.png")
 const META_PATH := "res://assets/sprites/sprite_meta.json"
 
-const CHARS := "0123456789+-:x"
-const CW := 10
-const CH := 13
-const ADV := 8                       # glyph advance (outlines overlap by 2px)
 enum Row { PHYS, MAGIC, CRIT, HEAL, DEATH, MUTED }
-
-const OUTLINE: Array[Vector2] = [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1), Vector2(1, 1), Vector2(-1, 1)]
+## Number colours per row (fill), matching the old digit sheet.
+const ROW_COL := [Pal.INK10, Pal.VIOLET4, Pal.AMBER6, Pal.LIFE4, Pal.BLOOD4, Pal.FADE4]
+## UI sizes (UIText grid): the number, a head word (CRIT! / KO!), a tag or formation cue.
+const NUM_SIZE := 25
+const NUM_PUNCH := 30
+const HEAD_SIZE := UIText.NUMBER
+const TAG_SIZE := UIText.LABEL
+const ZOOM := 2.0                    # world -> UI design px (the battle camera's zoom)
 const MAX_SPR := 24
 const MAX_PART := 320
 const MAX_PROJ := 10
@@ -24,9 +27,6 @@ const MAX_POP := 40
 const MAX_LIGHT := 12
 const GLOW = preload("res://assets/battle/glow.png")
 const SHARD = preload("res://assets/battle/shard.png")
-
-var font_small: Font
-var font_bold: Font
 
 # sprite fx pool
 var _sprites: Array[AnimatedSprite2D] = []
@@ -90,11 +90,10 @@ var _pp_small: Array[bool] = []         # head drawn in the light font (formatio
 var _pp_head_col := PackedColorArray()
 var _pp_tag: Array[String] = []         # one annotation under the number
 var _pp_tag_col := PackedColorArray()
-var _digit_buf := PackedInt32Array()
 
 var sim_t := 0.0
-var _pop_node: Node2D
-var _ci: CanvasItem = self
+var _pop_node: Control              # UI-layer canvas the numbers draw on
+var _to_ui: Callable                # world point -> UI design px
 # sweeps (visual time): a bright blade line drawn from a to b, e.g. Cleave across a column
 var _sw_a := PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 var _sw_b := PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
@@ -125,9 +124,8 @@ var _lcol := PackedColorArray()
 var _light_next := 0
 
 
-func setup() -> void:
-	font_small = load("res://assets/fonts/depths_sans.fnt")
-	font_bold = load("res://assets/fonts/depths_sans_bold.fnt")
+func setup(pop_canvas: Control, to_ui: Callable) -> void:
+	_to_ui = to_ui
 	_build_frames()
 	for i in MAX_SPR:
 		var s := AnimatedSprite2D.new()
@@ -150,13 +148,10 @@ func setup() -> void:
 	_pp_y.resize(MAX_POP); _pp_t.resize(MAX_POP); _pp_scale.resize(MAX_POP); _pp_plus.resize(MAX_POP)
 	_pp_small.resize(MAX_POP)
 	_pp_head.resize(MAX_POP); _pp_head_col.resize(MAX_POP); _pp_tag.resize(MAX_POP); _pp_tag_col.resize(MAX_POP)
-	_digit_buf.resize(8)
 	_pp_link.resize(MAX_POP)
 	_pp_uid.resize(MAX_POP)
 	_shield_pts.resize(6)
-	_pop_node = Node2D.new()
-	_pop_node.z_index = 5
-	add_child(_pop_node)
+	_pop_node = pop_canvas
 	_pop_node.draw.connect(_draw_pop_layer)
 	var add := CanvasItemMaterial.new()
 	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
@@ -275,12 +270,22 @@ func pillar(x: float, y: float, w: float, dur: float, col: Color) -> void:
 
 ## A number popup. `delay` staggers popups that land together; `scale` is a whole number.
 ## Height above a popup's baseline (number + head word) and below it (tag line).
+## (World units: UI design px / ZOOM.)
+const NUM_H := 11.0 * NUM_SIZE / 15.0 / ZOOM + 1.5        # cap + outline
+const HEAD_H := 11.0 * HEAD_SIZE / 15.0 / ZOOM + 2.0
+const TAG_H := 11.0 * TAG_SIZE / 15.0 / ZOOM + 2.5
+
+
 func _pop_top(j: int) -> float:
-	return (13.0 if _pp_val[j] >= 0 else 0.0) + (10.0 if _pp_head[j] != "" else 0.0)
+	return (NUM_H if _pp_val[j] >= 0 else 0.0) + (_head_h(j) if _pp_head[j] != "" else 0.0)
+
+
+func _head_h(j: int) -> float:
+	return TAG_H if _pp_small[j] else HEAD_H
 
 
 func _pop_bot(tag: String) -> float:
-	return 10.0 if tag != "" else 0.0
+	return TAG_H if tag != "" else 0.0
 
 
 func _pop_hw_j(j: int) -> float:
@@ -288,9 +293,8 @@ func _pop_hw_j(j: int) -> float:
 
 
 func _pop_half_w(value: int, head: String) -> float:
-	var digits := 1 if value < 10 else (2 if value < 100 else 3)
-	var nw := (digits * ADV + 2) * 0.5 if value >= 0 else 0.0
-	var tw := font_bold.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x * 0.5 if head != "" else 0.0
+	var nw := (UIText.width(str(value), UIText.BOLD, NUM_SIZE) + 4.0) * 0.5 / ZOOM if value >= 0 else 0.0
+	var tw := (UIText.width(head, UIText.BOLD, HEAD_SIZE) + 3.0) * 0.5 / ZOOM if head != "" else 0.0
 	return maxf(nw, tw)
 
 
@@ -338,7 +342,7 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 	pos = Vector2(clampf(roundf(pos.x), 186.0, 454.0), maxf(roundf(pos.y), 146.0))
 	# Same target: stack vertically (newest above, 3 px gap). Different targets: push apart sideways.
 	var hw := maxf(_pop_half_w(value, head), _pop_half_w(-1, tag))
-	var my_top := (13.0 if value >= 0 else 0.0) + (10.0 if head != "" else 0.0)
+	var my_top := (NUM_H if value >= 0 else 0.0) + (HEAD_H if head != "" else 0.0)
 	for attempt in 8:
 		var hit := -1
 		for j in MAX_POP:
@@ -615,78 +619,50 @@ func _proj_pos(i: int, u: float) -> Vector2:
 	return p
 
 
-## Numbers, tags and their links draw on a top layer above every spark and sprite effect.
+## Numbers, tags and their links draw on the UI layer above the world (native resolution). Layout
+## is in world units (pinned to the target), converted per frame through the world -> UI transform.
 func _draw_pop_layer() -> void:
-	_ci = _pop_node
-	# popups (with links: a shared/halved number tied to the hit it came from)
+	if not _to_ui.is_valid():
+		return
+	var ci := _pop_node
+	# links: a shared/halved number tied to the hit it came from
 	for i in MAX_POP:
 		if _pp_on[i] and _pp_t[i] >= 0.0 and _pp_link[i] != Vector2.ZERO:
-			var a := Vector2(_pp_x[i], _pp_y[i] - 6.0)
-			var b := _pp_link[i]
-			var n := int(a.distance_to(b) / 4.0)
+			var a: Vector2 = _to_ui.call(Vector2(_pp_x[i], _pp_y[i] - 6.0))
+			var b: Vector2 = _to_ui.call(_pp_link[i])
+			var n := int(a.distance_to(b) / 6.0)
 			for k in n:
 				if k % 2 == 0:
-					_ci.draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), Pal.AMBER6, 2.0)
+					ci.draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), Pal.INK1, 3.0)
+					ci.draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), Pal.AMBER6, UIText.fpx(UIText.LABEL) * 2.0)
 	for i in MAX_POP:
 		if _pp_on[i] and _pp_t[i] >= 0.0:
-			_draw_popup(i)
-	_ci = self
+			_draw_popup(ci, i)
 
 
-func _draw_popup(i: int) -> void:
+func _draw_popup(ci: CanvasItem, i: int) -> void:
 	var t := _pp_t[i]
-	var sc := _pp_scale[i]
-	# punch: one size up for the first frames
-	if t < 0.06:
-		sc += 1
 	var rise := 1.0 - pow(1.0 - clampf(t / 0.28, 0.0, 1.0), 3.0)
 	var y := _pp_y[i] - 4.0 * rise - (0.0 if t < 0.8 else (t - 0.8) * 20.0)
 	var x := _pp_x[i]
 	var visible_blink := t < 0.95 or fmod(t, 0.08) < 0.05
 	if not visible_blink:
 		return
+	var p: Vector2 = _to_ui.call(Vector2(x, y))   # the number's baseline centre, in UI px
 	var val := _pp_val[i]
-	var row := _pp_row[i]
-	var top_y := y
+	var top := p.y
 	if val >= 0:
-		var n := 0
-		var v := val
-		while true:
-			_digit_buf[n] = v % 10
-			n += 1
-			v /= 10
-			if v == 0 or n >= 7:
-				break
-		var count := n + (1 if _pp_plus[i] else 0)
-		var w := (count * ADV + 2) * sc
-		var x0 := roundf(x - w * 0.5)
-		var y0 := roundf(y - CH * sc)
-		top_y = y0
-		var cx := x0
-		if _pp_plus[i]:
-			_glyph(10, row, cx, y0, sc)
-			cx += ADV * sc
-		for k in range(n - 1, -1, -1):
-			_glyph(_digit_buf[k], row, cx, y0, sc)
-			cx += ADV * sc
+		# punch: one size up for the first frames
+		var sz := NUM_PUNCH if t < 0.06 else NUM_SIZE
+		var s := ("+" if _pp_plus[i] else "") + str(val)
+		var ty := p.y - UIText.ascent(UIText.BOLD, sz)
+		UIText.outlined(ci, Vector2(p.x, ty), s, ROW_COL[_pp_row[i]], UIText.BOLD, sz, 1)
+		top = p.y - UIText.cap(UIText.BOLD, sz)
 		var tag := _pp_tag[i]
 		if tag != "":
-			_text_outlined(font_bold, tag, Vector2(x, y + 9), _pp_tag_col[i], true)
+			UIText.outlined(ci, Vector2(p.x, p.y + UIText.fpx(sz) * 2.0 + 1.0), tag, _pp_tag_col[i], UIText.BOLD, TAG_SIZE, 1)
 	var head := _pp_head[i]
 	if head != "":
-		var hy := top_y - 1.0 if val >= 0 else y
-		_text_outlined(font_bold, head, Vector2(x, hy), _pp_head_col[i], true)
-
-
-func _glyph(idx: int, row: int, x: float, y: float, sc: int) -> void:
-	_ci.draw_texture_rect_region(DIGITS, Rect2(x, y, CW * sc, CH * sc), Rect2(idx * CW, row * CH, CW, CH))
-
-
-## Draws text with a 1px ink outline. `center` centres horizontally on pos.x; pos.y is the baseline.
-func _text_outlined(f: Font, text: String, pos: Vector2, col: Color, center: bool) -> void:
-	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x if center else 0.0
-	var p := Vector2(roundf(pos.x - w * 0.5), roundf(pos.y))
-	var o := Pal.INK1
-	for d: Vector2 in OUTLINE:
-		_ci.draw_string(f, p + d, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, o)
-	_ci.draw_string(f, p, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)
+		var hs := TAG_SIZE if _pp_small[i] else HEAD_SIZE
+		var hy := (top - 3.0 if val >= 0 else p.y) - UIText.ascent(UIText.BOLD, hs)
+		UIText.outlined(ci, Vector2(p.x, hy), head, _pp_head_col[i], UIText.BOLD, hs, 1)

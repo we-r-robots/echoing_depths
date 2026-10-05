@@ -45,7 +45,7 @@ st = ImageStat.Stat(im)
 mean = sum(st.mean) / 3
 colours = len(im.getcolors(1 << 20) or [])
 print(f"{im.size[0]}x{im.size[1]} mean={mean:.1f} colours={colours}")
-ok = im.size == (640, 360) and mean > 15 and colours > 50
+ok = im.size == (1920, 1080) and mean > 15 and colours > 50
 sys.exit(0 if ok else 2)
 EOF
 )

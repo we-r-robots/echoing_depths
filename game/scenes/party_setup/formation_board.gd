@@ -493,7 +493,7 @@ func _draw_bench() -> void:
 		return
 	if dragging_to_bench or (_dragging >= 0 and placement[_dragging] is Array) or (held >= 0 and placement[held] is Array):
 		PartyDraw.soft_outline(self, br.grow(-2), Pal.AMBER5 if dragging_to_bench else Pal.AMBER3)
-	PartyDraw.text(self, Vector2(0, 6), "BENCH", Pal.INK9, PartyDraw.SANS, 11, false, BENCH_OPEN, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(0, 6), "BENCH", Pal.INK9, PartyDraw.SANS, UIText.BODY, false, BENCH_OPEN, HORIZONTAL_ALIGNMENT_CENTER)
 	var shown := 0
 	for i in heroes.size():
 		var k := _bench_index(i)
@@ -562,12 +562,12 @@ func _draw_field() -> void:
 	# column headings over the top row
 	var bx := feet_of([1, 0]).x - 50
 	var fx := feet_of([0, 0]).x - 50
-	PartyDraw.text(self, Vector2(bx, 5), "BACK", Pal.CRYSTAL4, PartyDraw.BOLD, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(bx, 16), "deals and takes", Pal.INK9, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(bx, 26), "half physical", Pal.INK9, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(fx, 5), "FRONT", Pal.AMBER5, PartyDraw.BOLD, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(fx, 16), "melee hits", Pal.INK9, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(fx, 26), "here first", Pal.INK9, PartyDraw.SANS, 11, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(bx, 5), "BACK", Pal.CRYSTAL4, PartyDraw.BOLD, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(bx, 16), "deals and takes", Pal.INK9, PartyDraw.SANS, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(bx, 26), "half physical", Pal.INK9, PartyDraw.SANS, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(fx, 5), "FRONT", Pal.AMBER5, PartyDraw.BOLD, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(fx, 16), "melee hits", Pal.INK9, PartyDraw.SANS, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(fx, 26), "here first", Pal.INK9, PartyDraw.SANS, UIText.BODY, true, 100, HORIZONTAL_ALIGNMENT_CENTER)
 	var ev := FormationWords.evaluate(placed_cells(), unlocked)
 	var shape: Dictionary = ev["shape"]
 	var sid := String(shape.get("id", ""))
@@ -628,7 +628,7 @@ func _draw_field() -> void:
 	# a short line for a moment after a change
 	if toast_t > 0.0 and toast != "" and hl < 0:
 		var col := Pal.AMBER6 if toast.ends_with("formed") else Pal.INK9
-		PartyDraw.text(self, Vector2(field.position.x, field.end.y - 18), toast, col, PartyDraw.BOLD, 11, true, field.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		PartyDraw.text(self, Vector2(field.position.x, field.end.y - 18), toast, col, PartyDraw.BOLD, UIText.BODY, true, field.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 
@@ -646,7 +646,7 @@ func _label_plate(c: Array, nm: String, color: Color, edge: Color, lock: bool, y
 	if lock:
 		draw_texture(LOCK, Vector2(tx, plate.position.y + 3), Pal.FADE3)
 		tx += 8
-	PartyDraw.text(self, Vector2(tx, plate.position.y + 1), nm, color, PartyDraw.BOLD, 11, false)
+	PartyDraw.text(self, Vector2(tx, plate.position.y + 1), nm, color, PartyDraw.BOLD, UIText.BODY, false)
 
 
 ## A free slot next to the shape: a quiet dashed outline and a "+" (its name is on the card).
@@ -729,7 +729,7 @@ func _draw_overlay() -> void:
 		var plate := Rect2(roundi(f.x - 8 - w / 2.0), f.y + 3, w, 12)
 		_overlay.draw_rect(plate, Pal.INK1)
 		_overlay.draw_rect(Rect2(plate.position.x, plate.end.y - 1, plate.size.x, 1), Pal.c(_infos[i]["color"]))
-		PartyDraw.text(_overlay, plate.position + Vector2(3, 0), nm, Pal.INK10 if i != held else Pal.AMBER6, PartyDraw.BOLD, 11, false)
+		PartyDraw.text(_overlay, plate.position + Vector2(3, 0), nm, Pal.INK10 if i != held else Pal.AMBER6, PartyDraw.BOLD, UIText.BODY, false)
 		if roles.is_empty():
 			continue
 		for k in cells.size():
@@ -770,7 +770,7 @@ func _draw_top() -> void:
 		if lock:
 			_top.draw_texture(LOCK, Vector2(tx, plate.position.y + 3), Pal.FADE4)
 			tx += 8
-		PartyDraw.text(_top, Vector2(tx, plate.position.y + 1), nm, Pal.CRYSTAL5 if good else Pal.FADE4, PartyDraw.BOLD, 11, false)
+		PartyDraw.text(_top, Vector2(tx, plate.position.y + 1), nm, Pal.CRYSTAL5 if good else Pal.FADE4, PartyDraw.BOLD, UIText.BODY, false)
 	if demo_hand > 0:
 		var tex := HAND_POINT if demo_hand == 1 else HAND_GRAB
 		_top.draw_texture(tex, (demo_pointer - Vector2(3, 0)).round())

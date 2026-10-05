@@ -158,7 +158,7 @@ func _draw() -> void:
 	PartyDraw.tint_tex(self, PartyDraw.icon(info["icon"]), Vector2(8, 170), cc)
 	PartyDraw.text(self, Vector2(18, 168), cls, cc, PartyDraw.BOLD)
 	var pref := "front" if int(cdef.get("preferred_col", 0)) == 0 else "back"
-	PartyDraw.text(self, Vector2(0, 168), pref, Pal.AMBER5 if pref == "front" else Pal.CRYSTAL4, PartyDraw.BOLD, 11, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
+	PartyDraw.text(self, Vector2(0, 168), pref, Pal.AMBER5 if pref == "front" else Pal.CRYSTAL4, PartyDraw.BOLD, UIText.BODY, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
 	# fixed starting alignment, one line (explained once, in the bar below)
 	var a: Array = hero.get("alignment", [0, 0])
 	# start marker (same ring as the alignment grid's start) + the position in words
@@ -173,8 +173,8 @@ func _draw() -> void:
 		var well := Rect2(sx, sy, cw - 2, 24)
 		PartyDraw.inset(self, well)
 		draw_rect(Rect2(well.position.x + 1, well.position.y, well.size.x - 2, 1), STAT_COLORS[s])
-		PartyDraw.text(self, Vector2(sx, sy + 1), PartyModel.STAT_LABELS[s], STAT_COLORS[s], PartyDraw.SANS, 11, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
-		PartyDraw.text(self, Vector2(sx, sy + 12), str(st[s]), Pal.INK10, PartyDraw.BOLD, 11, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
+		PartyDraw.text(self, Vector2(sx, sy + 1), PartyModel.STAT_LABELS[s], STAT_COLORS[s], PartyDraw.SANS, UIText.BODY, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
+		PartyDraw.text(self, Vector2(sx, sy + 12), str(st[s]), Pal.INK10, PartyDraw.BOLD, UIText.BODY, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
 		sx += cw
 	# one line each: basic, ability
 	for k in 2:
@@ -185,7 +185,7 @@ func _draw() -> void:
 		if lit:
 			draw_rect(Rect2(4, y - 1, w - 8, 29), Pal.INK3)
 		var lab := "BASIC" if k == 0 else "ABILITY"
-		PartyDraw.text(self, Vector2(0, y + 3), lab, Pal.INK8, PartyDraw.SANS, 11, false, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
+		PartyDraw.text(self, Vector2(0, y + 3), lab, Pal.INK8, PartyDraw.SANS, UIText.BODY, false, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
 		var nx := 8
 		if k == 1:
 			PartyDraw.tint_tex(self, ABILITY, Vector2(8, y + 5), cc)
@@ -213,7 +213,7 @@ func _draw_over() -> void:
 	var b := Rect2(_stage().end.x - 17, _stage().position.y + 3, 14, 14)
 	_over.draw_rect(b, Pal.AMBER2)
 	PartyDraw.soft_outline(_over, b, Pal.AMBER5)
-	PartyDraw.text(_over, b.position + Vector2(0, 1), str(pick), Pal.AMBER7, PartyDraw.BOLD, 11, false, 14, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(_over, b.position + Vector2(0, 1), str(pick), Pal.AMBER7, PartyDraw.BOLD, UIText.BODY, false, 14, HORIZONTAL_ALIGNMENT_CENTER)
 	var st := _stage()
 	var fr := Rect2(st.position.x + 1, st.end.y - 16, st.size.x - 2, 14)
 	_over.draw_rect(fr, Pal.AMBER1)

@@ -9,7 +9,6 @@ extends Control
 ##   chip.locked = true                          # grey outline + lock: the effect isn't active yet
 
 const LOCK := preload("res://ui/effect_icons/lock.png")
-const BOLD := preload("res://assets/fonts/depths_sans_bold.fnt")
 
 var effect: Dictionary = {}
 var label_w := 0
@@ -50,10 +49,9 @@ func _draw() -> void:
 		# one body size (bold), neutral text: colour lives in the icon and its arrow
 		var c := Pal.INK10 if not locked else Pal.FADE4
 		var t := String(effect.get("title", ""))
-		var base := Vector2(EffectIcons.CHIP + 6, 5 + BOLD.get_ascent(11)).round()
-		draw_string(BOLD, base + Vector2(1, 1), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Pal.INK1)
-		draw_string(BOLD, base, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, c)
+		var ty := UIText.centered_y(0, EffectIcons.CHIP, UIText.BOLD, UIText.LABEL)
+		UIText.draw(self, Vector2(EffectIcons.CHIP + 6, ty), t, c, UIText.BOLD, UIText.LABEL)
 		if locked and effect.get("icon") != LOCK:
-			var x := EffectIcons.CHIP + 10 + BOLD.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			var x := EffectIcons.CHIP + 10 + UIText.width(t, UIText.BOLD, UIText.LABEL)
 			draw_texture(LOCK, Vector2(x, 7) + Vector2(1, 1), Pal.INK1)
 			draw_texture(LOCK, Vector2(x, 7), Pal.FADE3)

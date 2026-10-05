@@ -3,6 +3,8 @@
 Run: python3 game/assets/battle/src/make_battle_art.py
 Writes into game/assets/battle/:
   bg_vault.png   672x392 Vault chamber (16 px shake margin on every side; screen (0,0) = (16,16))
+  bg_vault_wide.png 912x392 the same chamber with 120 px more wall and floor on each side, for wide
+                 (up to ~22:9) screens; its centre 672 px are bg_vault.png pixel for pixel
   digits.png     damage-number font, 6 colour rows x 14 glyphs "0123456789+-:x", cell 10x13
   burst.png      chromatic impact starburst, 6 frames of 64x64
   slash.png      melee slash crescent, 5 frames of 48x48
@@ -33,7 +35,11 @@ def P(*n):
 
 
 # ------------------------------------------------------------------------------------------ bg
-def background():
+def background(pad=0, name='bg_vault.png'):
+    """pad > 0 widens the canvas by `pad` px on each side (more wall and floor for wide screens)."""
+    W = 640 + 2 * M + 2 * pad
+    CX = 320 + M + pad
+    BRAZIERS = [(30 + M + pad, 262 + M), (610 + M + pad, 262 + M)]
     cv = Canvas(W, H, IDX['ink1'])
     X, Y = cv.x, cv.y
     rng = np.random.default_rng(3)
@@ -192,7 +198,7 @@ def background():
     tile_noise = (np.sin(ti * 12.9898 + tj * 78.233) * 43758.5453) % 1.0
     Yc = (tj + 0.5) * TH + Y0
     Xc = (ti + 0.5) * TW + CX + SLOPE * (Yc - Y0)
-    BRZ = [(26 + M, 168 + M), (614 + M, 168 + M)]
+    BRZ = [(26 + M + pad, 168 + M), (614 + M + pad, 168 + M)]
     arena = np.clip(1 - np.sqrt(((Xc - CX) / 300.0) ** 2 + ((Yc - (170 + M)) / 120.0) ** 2), 0, 1) ** 0.7
     warm_t = np.zeros_like(Xc)
     for bx, by in BRZ:
@@ -252,7 +258,12 @@ def background():
         cv.put(outer_edge(bowl | ellipse_mask(cv, bx, by - 2, 11, 2.5)), IDX['ink1'])
 
     cv.clean(passes=1)
-    cv.save(os.path.join(OUT, 'bg_vault.png'))
+    cv.save(os.path.join(OUT, name))
+    if pad > 0:
+        # the centre is the original chamber, pixel for pixel; only the wings are new
+        wide = Image.open(os.path.join(OUT, name)).convert('RGBA')
+        wide.paste(Image.open(os.path.join(OUT, 'bg_vault.png')).convert('RGBA'), (pad, 0))
+        wide.save(os.path.join(OUT, name))
 
 
 # ------------------------------------------------------------------------------------- digits
@@ -481,6 +492,7 @@ def crystal():
 if __name__ == '__main__':
     crystal()
     background()
+    background(120, 'bg_vault_wide.png')
     digits()
     burst()
     slash()

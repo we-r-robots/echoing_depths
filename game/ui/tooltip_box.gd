@@ -1,8 +1,7 @@
 extends Control
 ## The box behind Tip (ui/tooltip.gd). One instance lives in a CanvasLayer on the root.
 
-const BOLD := preload("res://assets/fonts/depths_sans_bold.fnt")
-const MAX_W := 196
+const MAX_W := 200
 const PAD := 6
 
 var owner_control: Control = null
@@ -66,25 +65,30 @@ func open(c: Control, pin: bool) -> void:
 	var place := String(d.get("place", "auto"))
 	var use_zone := place == "zone" and Tip.zone.size.x > 40
 	var max_w := MAX_W if not use_zone else int(Tip.zone.size.x) - 8
-	_lines = _wrap(String(d.get("body", "")), max_w - PAD * 2)
-	var w := BOLD.get_string_size(_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + PAD * 2
+	_lines = Array(UIText.wrap_lines(String(d.get("body", "")), max_w - PAD * 2, UIText.SANS, UIText.BODY)) if String(d.get("body", "")) != "" else []
+	var w := UIText.width(_title, UIText.BOLD, UIText.LABEL) + PAD * 2
 	for l: String in _lines:
-		w = maxf(w, BOLD.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + PAD * 2)
+		w = maxf(w, UIText.width(l, UIText.SANS, UIText.BODY) + PAD * 2)
 	w = ceilf(w)
-	var h := PAD + 11 + (3 + _lines.size() * 11 if not _lines.is_empty() else 0) + PAD - 1
+	var lh := UIText.line_h(UIText.SANS, UIText.BODY)
+	var h := ceilf(PAD + lh + (3 + _lines.size() * lh if not _lines.is_empty() else 0.0) + PAD - 2)
 	var a := c.get_global_rect()
-	var x := clampf(roundf(a.position.x + a.size.x / 2.0 - w / 2.0), 4, 636 - w)
+	var view := get_viewport_rect()
+	var x0 := view.position.x + 4
+	var x1 := view.end.x - 4
+	var y1 := view.end.y - 4
+	var x := clampf(roundf(a.position.x + a.size.x / 2.0 - w / 2.0), x0, x1 - w)
 	var y := a.position.y - h - 4
 	if place == "zone" and not use_zone:
 		place = "left"
-	if place == "below" and a.end.y + 4 + h <= 356:
+	if place == "below" and a.end.y + 4 + h <= y1:
 		y = a.end.y + 4
 	if y < 4:
 		y = a.end.y + 4
 	if place == "left" or place == "right":
-		y = clampf(roundf(a.position.y + a.size.y / 2.0 - h / 2.0), 4, 356 - h)
+		y = clampf(roundf(a.position.y + a.size.y / 2.0 - h / 2.0), 4, y1 - h)
 		x = a.position.x - w - 6 if place == "left" else a.end.x + 6
-		x = clampf(x, 4, 636 - w)
+		x = clampf(x, x0, x1 - w)
 	if use_zone:
 		x = roundf(Tip.zone.position.x + (Tip.zone.size.x - w) / 2.0)
 		y = Tip.zone.end.y - h
@@ -149,29 +153,10 @@ func _draw() -> void:
 	draw_rect(Rect2(r.position.x + 1, r.end.y - 1, r.size.x - 2, 1), Pal.INK5)
 	draw_rect(Rect2(r.position.x, r.position.y + 1, 1, r.size.y - 2), Pal.INK5)
 	draw_rect(Rect2(r.end.x - 1, r.position.y + 1, 1, r.size.y - 2), Pal.INK5)
-	var asc := BOLD.get_ascent(11)
-	var p := Vector2(r.position.x + PAD, r.position.y + PAD - 1 + asc).round()
-	draw_string(BOLD, p + Vector2(1, 1), _title, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Pal.INK1)
-	draw_string(BOLD, p, _title, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, _accent)
-	p.y += 14
+	var lh := UIText.line_h(UIText.SANS, UIText.BODY)
+	var p := Vector2(r.position.x + PAD, r.position.y + PAD - 2)
+	UIText.draw(self, p, _title, _accent, UIText.BOLD, UIText.LABEL)
+	p.y += lh + 3
 	for l: String in _lines:
-		draw_string(BOLD, p + Vector2(1, 1), l, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Pal.INK1)
-		draw_string(BOLD, p, l, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Pal.INK9)
-		p.y += 11
-
-
-static func _wrap(s: String, width: int) -> Array:
-	var out: Array = []
-	if s == "":
-		return out
-	var line := ""
-	for wd in s.split(" "):
-		var trial := wd if line == "" else line + " " + wd
-		if BOLD.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x > width and line != "":
-			out.append(line)
-			line = wd
-		else:
-			line = trial
-	if line != "":
-		out.append(line)
-	return out
+		UIText.draw(self, p, l, Pal.INK10, UIText.SANS, UIText.BODY)
+		p.y += lh

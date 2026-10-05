@@ -1,17 +1,16 @@
 extends Control
 const GameData = preload("res://core/game_data.gd")
-## Screen-space battle HUD (Sea of Stars style): party panels with portraits, HP and charge,
-## formation badges with their buff and debuff, the fight timer with the sudden-death fuse,
-## an action caption bar, the formation intro cards, the ability cut-in, the sudden-death
-## banner, the victory/defeat finish, plus touch buttons for speed and skip.
+## Screen-space battle HUD (Sea of Stars style) on the UI layer, at native resolution: party panels
+## with portraits, HP and charge, formation banners with their effect chips, the fight timer with
+## the Fading fuse, an action caption bar, the formation intro cards, the ability cut-in, the Fading
+## line, the victory/defeat finish, plus touch buttons for speed and skip.
+## Layout is in UI design px (640x360 frame); on wide screens the side panels and banners anchor to
+## the safe area's edges and the centre pieces stay on the view's centre line.
 
 signal speed_pressed
 signal skip_pressed
 
-const DIGITS = preload("res://assets/battle/digits.png")
 const ICON_ABILITY = preload("res://assets/party/ability.png")
-const CHARS := "0123456789+-:x"
-const OUTLINE: Array[Vector2] = [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1), Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]
 const STAT_NAMES := {"hp_pct": "HP", "atk_pct": "ATK", "def_pct": "DEF", "mag_pct": "MAG", "spd_pct": "SPD",
 	"crit_add": "CRIT", "charge_pct": "CHARGE", "heal_pct": "HEAL", "dmg_taken_pct": "DMG TAKEN"}
 const PANEL_W := 182
@@ -21,13 +20,15 @@ const COST_SHORT := {"kindred": "Back unguarded", "vigil": "No front line", "lam
 	"seawall": "Spd -3%, no back row", "lumari_chorus": "No front line", "vault_door": "No standout",
 	"crescent": "Open end draws melee", "lighthouse": "Post falls fast", "keepers_ring": "Front +5% dmg taken",
 	"shardpoint": "Tip draws melee", "echo_step": "Def -5%", "strays": "No shape behaviour"}
-const PANEL_Y := 284
-const ROW_H := 14
+const ROW_H := 16
+const BANNER_H := 26
+const CHIP_GAP := 3
+
+const SANS := UIText.SANS
+const BOLD := UIText.BOLD
+const SERIF := UIText.SERIF
 
 var b: Node                    # battle controller
-var font: Font
-var font_bold: Font
-var font_serif: Font
 var speed_btn: Button
 var skip_btn: Button
 
@@ -63,43 +64,59 @@ var lore_text := ""
 var frag_t := 9.0
 var frag_n := 0
 var lantern_dim := -1     # uid of the Keeper while he dims the heroes' behaviours
-var _dig := PackedInt32Array()
 var _tri := PackedVector2Array()
+# layout of the current frame (design px): view width, safe left / right edges, centre line
+var _vw := 640.0
+var _l := 0.0
+var _r := 640.0
+var _c := 320.0
+var _cap_w := 264.0       # caption / cut-in width: the room between the party panels
 
 
 func setup(controller: Node) -> void:
 	b = controller
-	font = load("res://assets/fonts/depths_sans.fnt")
-	font_bold = load("res://assets/fonts/depths_sans_bold.fnt")
-	font_serif = load("res://assets/fonts/depths_serif.fnt")
-	size = Vector2(640, 360)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_dig.resize(8)
 	_tri.resize(3)
 	row_flash.resize(16)
-	speed_btn = _button("x1", Vector2(278, 336), speed_pressed)
-	skip_btn = _button("SKIP", Vector2(324, 336), skip_pressed)
+	speed_btn = _button("x1", speed_pressed)
+	skip_btn = _button("SKIP", skip_pressed)
+	_layout()
 
 
-func _button(text: String, pos: Vector2, sig: Signal) -> Button:
+func _button(text: String, sig: Signal) -> Button:
 	var bt := Button.new()
 	bt.text = text
-	bt.position = pos
 	bt.custom_minimum_size = Vector2(42, 20)
 	bt.size = Vector2(42, 20)
 	bt.focus_mode = Control.FOCUS_NONE
-	bt.add_theme_font_size_override("font_size", 11)
 	bt.pressed.connect(func() -> void: sig.emit())
 	add_child(bt)
 	return bt
 
 
+## Edges and centre of the view (wide screens: panels to the safe edges, centre pieces centred).
+func _layout() -> void:
+	var vr := get_viewport_rect()
+	var sr := UIText.safe_rect(self)
+	_vw = vr.size.x
+	_l = sr.position.x
+	_r = sr.end.x
+	_c = roundf(vr.size.x / 2.0)
+	_cap_w = clampf((_r - _l) - 2.0 * (PANEL_W + 10.0), 260.0, 330.0)
+	if speed_btn != null:
+		speed_btn.position = Vector2(_c - 42, 336)
+		skip_btn.position = Vector2(_c + 4, 336)
+
+
 func tick(vdt: float) -> void:
 	t += vdt
+	_layout()
 	var show_chips: bool = (intro_t < 0.0 or intro_t > intro_len - 0.35) and end_t < 0.0
 	for side in 2:
 		for c: Array in _chips[side]:
 			(c[0] as Control).visible = show_chips
+	if not _chips[0].is_empty() or not _chips[1].is_empty():
+		_place_chips()
 	if _pulse_layer != null:
 		_pulse_layer.queue_redraw()
 	flash_a = maxf(0.0, flash_a - vdt * 5.0)
@@ -179,16 +196,15 @@ func _draw() -> void:
 	_draw_cutin()
 	_draw_lore()
 	_draw_fragment()
-	_draw_sd_banner()
 	_draw_end()
 	if flash_a > 0.0:
-		draw_rect(Rect2(0, 0, 640, 360), Color(flash_color, flash_a))
+		draw_rect(Rect2(0, 0, _vw, 360), Color(flash_color, flash_a))
 	_draw_fade()
 
 
 func _draw_fade() -> void:
 	if fade_in > 0.0:
-		draw_rect(Rect2(0, 0, 640, 360), Color(Pal.INK1, minf(1.0, fade_in)))
+		draw_rect(Rect2(0, 0, maxf(_vw, 640.0), 360), Color(Pal.INK1, minf(1.0, fade_in)))
 
 
 func _draw_vignette() -> void:
@@ -199,10 +215,10 @@ func _draw_vignette() -> void:
 	for k in 4:
 		var w := 6.0 + k * 6.0
 		var ca := Color(c, a * (0.55 - k * 0.12))
-		draw_rect(Rect2(0, 0, 640, w), ca)
-		draw_rect(Rect2(0, 360 - w, 640, w), ca)
+		draw_rect(Rect2(0, 0, _vw, w), ca)
+		draw_rect(Rect2(0, 360 - w, _vw, w), ca)
 		draw_rect(Rect2(0, 0, w, 360), ca)
-		draw_rect(Rect2(640 - w, 0, w, 360), ca)
+		draw_rect(Rect2(_vw - w, 0, w, 360), ca)
 
 
 # --- formation badges -------------------------------------------------------------------------
@@ -248,7 +264,7 @@ func _mod_text(m: Dictionary) -> String:
 
 func badge_rect(side: int) -> Rect2:
 	var w := badge_width(side)
-	return Rect2(3 if side == 0 else 640 - 3 - w, 2, w, 26)
+	return Rect2(_l + 3 if side == 0 else _r - 3 - w, 2, w, BANNER_H)
 
 
 ## [title, bonus, behaviour, cost] for the banner. A locked shape fights as Strays.
@@ -263,9 +279,9 @@ func _badge_parts(side: int) -> Array:
 	var cost := String(COST_SHORT.get(String(form.get("shape", form.get("id", ""))), ""))
 	if cost == "":
 		cost = _stat_short(dl[0]) if not dl.is_empty() else String(form.get("cost", ""))
-	var title := String(form.get("name", "")).to_upper()
+	var title := String(form.get("name", ""))
 	if bool(form.get("locked", false)):
-		title = String(form.get("shape_name", title)).to_upper()
+		title = String(form.get("shape_name", title))
 		beh = "locked: fights as Strays"
 		cost = ""
 	return [title, up, beh, cost.trim_suffix(".")]
@@ -276,19 +292,11 @@ func _stat_short(m: Dictionary) -> String:
 	return "%s%+d" % [STAT_NAMES.get(stat, stat.to_upper()), roundi(float(m.get("value", 0.0)) * 100.0)] + "%"
 
 
-func _w2(t: String) -> float:
-	return font_bold.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x * 2.0
+## Banner title width (the formation name in the serif).
+func _wt(s: String) -> float:
+	return UIText.width(s, SERIF, UIText.TITLE)
 
 
-func _w1(t: String) -> float:
-	return font_bold.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-
-
-## Two-line banner: NAME + bonus (2x), then behaviour and cost (1x bold). Max half the screen.
-## One 2x line: NAME, then a field that rotates every 3 s between the bonus (green ▲), the
-## behaviour (side colour ◆) and the cost (red ▼). A pulse shows the field that just fired.
-## Line 1 (2x): NAME and its bonus (green ▲). Line 2 (2x): rotates every 3 s between the
-## behaviour (side colour ◆) and the cost (red ▼); a pulse shows the one that just fired.
 ## Banner (BUILD.md: effects are icons): the shape name, then a row of shared effect chips
 ## (EffectChip: hover / tap / press-and-hold opens the full sentence in the shared Tip).
 ## When a behaviour or effect fires, its chip pulses.
@@ -303,14 +311,16 @@ func open_tip_demo(k: int) -> void:
 
 
 func build_banner() -> void:
+	_layout()
 	for side in 2:
 		for c: Array in _chips[side]:
 			(c[0] as Control).queue_free()
 		_chips[side] = []
 	for side in 2:
 		var effs := _banner_effects(side)
-		var room := 314.0 - 6.0 - _w2(_badge_parts(side)[0]) - 8.0 - 4.0
-		var fit := int(room / (EffectIcons.CHIP + 2))
+		# each banner keeps to its half of the 16:9 frame, clear of the centre line
+		var room := minf(_c - _l, 320.0) - 3.0 - 8.0 - _wt(_badge_parts(side)[0]) - 10.0 - 6.0
+		var fit := int((room + CHIP_GAP) / (EffectIcons.CHIP + CHIP_GAP))
 		var shown := effs.size() if effs.size() <= fit else maxi(0, fit - 1)
 		for k in shown:
 			var chip := EffectChip.new()
@@ -329,7 +339,7 @@ func build_banner() -> void:
 	if _pulse_layer == null:
 		_pulse_layer = Control.new()
 		_pulse_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_pulse_layer.size = Vector2(640, 360)
+		_pulse_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 		_pulse_layer.draw.connect(_draw_chip_pulses)
 		add_child(_pulse_layer)
 	move_child(_pulse_layer, -1)
@@ -366,17 +376,18 @@ func _banner_effects(side: int) -> Array:
 
 func badge_width(side: int) -> float:
 	var p := _badge_parts(side)
-	var n: int = maxi(1, (_chips[side] as Array).size())
-	return 6.0 + _w2(p[0]) + 8.0 + n * (EffectIcons.CHIP + 2) + 4.0
+	var n: int = (_chips[side] as Array).size()
+	var chips := n * (EffectIcons.CHIP + CHIP_GAP) - CHIP_GAP if n > 0 else 0
+	return ceilf(8.0 + _wt(p[0]) + (10.0 + chips if n > 0 else 0.0) + 6.0)
 
 
 func _place_chips() -> void:
 	for side in 2:
 		var r := badge_rect(side)
-		var x := r.position.x + 6.0 + _w2(_badge_parts(side)[0]) + 8.0
+		var x := r.position.x + 8.0 + _wt(_badge_parts(side)[0]) + 10.0
 		for c: Array in _chips[side]:
-			(c[0] as Control).position = Vector2(x, r.position.y + 3)
-			x += EffectIcons.CHIP + 2
+			(c[0] as Control).position = Vector2(roundf(x), r.position.y + 3)
+			x += EffectIcons.CHIP + CHIP_GAP
 
 
 ## Which chips a banner pulse refers to (line 0 bonus, 1 cost, 9 behaviour, other = class bond).
@@ -411,7 +422,7 @@ func _draw_chip_pulses() -> void:
 			if not ch.visible:
 				continue
 			var col := EffectIcons.color_of(_chips[side][k][1])
-			var g := roundf((1.0 - pulse) * 6.0)
+			var g := roundf((1.0 - pulse) * 4.0)
 			var rr := Rect2(ch.position, Vector2(EffectIcons.CHIP, EffectIcons.CHIP)).grow(1.0 + g)
 			_pulse_layer.draw_rect(rr, Color(col, pulse), false, 1.0)
 			_pulse_layer.draw_rect(Rect2(ch.position, Vector2(EffectIcons.CHIP, EffectIcons.CHIP)).grow(-1), Color(col, 0.45 * pulse))
@@ -423,83 +434,8 @@ func _draw_badge(side: int, alpha: float) -> void:
 	var pulse: float = badge_pulse[side]
 	_panel_bg(r, sc, alpha, pulse)
 	var p := _badge_parts(side)
-	_text_scaled_left(font_bold, p[0], Vector2(r.position.x + 6.0, r.position.y + 3.0), Color(sc.lerp(Pal.INK10, pulse * 0.7), alpha), 2)
-
-
-func _fit1(t: String, w: float) -> String:
-	if _w1(t) <= w:
-		return t
-	while t.length() > 1 and _w1(t + "...") > w:
-		t = t.substr(0, t.length() - 1)
-	return t.strip_edges() + "..."
-
-
-func _fit2(t: String, w: float) -> String:
-	if _w2(t) <= w:
-		return t
-	while t.length() > 1 and _w2(t + "...") > w:
-		t = t.substr(0, t.length() - 1)
-	return t.strip_edges() + "..."
-
-
-func _triangle2(p: Vector2, up: bool, c: Color) -> void:
-	if up:
-		_tri[0] = p + Vector2(0, 8); _tri[1] = p + Vector2(10, 8); _tri[2] = p + Vector2(5, 0)
-	else:
-		_tri[0] = p; _tri[1] = p + Vector2(10, 0); _tri[2] = p + Vector2(5, 8)
-	draw_colored_polygon(_tri, c)
-
-
-func _text_scaled_left(f: Font, s: String, top_left: Vector2, c: Color, sc: int) -> void:
-	var fs := 16 if f == font_serif else 11
-	draw_set_transform(top_left + Vector2(0, 8 * sc), 0.0, Vector2(sc, sc))
-	var oc := Color(Pal.INK1, c.a)
-	for d: Vector2 in OUTLINE:
-		draw_string(f, d * (1.0 / sc), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, oc)
-	draw_string(f, Vector2.ZERO, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, c)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-
-func _draw_badge_at(side: int, r: Rect2, alpha: float) -> void:
-	var sc: Color = b.side_colors[side]
-	var pulse: float = badge_pulse[side]
-	var sd: Dictionary = b.sides[side]
-	var form: Dictionary = sd.get("formation", {})
-	_panel_bg(r, sc, alpha, pulse)
-	var left := side == 0
-	var x_in := r.position.x + 6.0
-	var x_right := r.end.x - 6.0
-	# side name
-	var nm := String(sd.get("name", "")).to_upper()
-	_text(font, nm, Vector2(x_in if left else x_right, r.position.y + 10), Color(Pal.INK8, alpha), 0 if left else 2)
-	# mini grid
-	var gx := x_in if left else x_right - 9.0
-	var gy := r.position.y + 14.0
-	_mini_grid(side, Vector2(gx, gy), 4, 3, alpha, sc)
-	# formation name
-	var fname := String(form.get("name", "Loose Ranks"))
-	var fx := gx + 13.0 if left else gx - 4.0
-	var name_col := sc.lerp(Pal.INK10, pulse * 0.8)
-	_text(font_serif, fname, Vector2(fx, r.position.y + 26), Color(name_col, alpha), 0 if left else 2)
-	# buff / debuff lines
-	var lines: Array = b.form_lines[side]
-	for i in lines.size():
-		var ln: Array = lines[i]
-		var y := r.position.y + 37.0 + i * 9.0
-		var good: bool = ln[0]
-		var c := Pal.LIFE4 if good else Pal.BLOOD4
-		if ln.size() > 2:
-			c = Pal.CRYSTAL4
-		var hl: bool = badge_line[side] == i and pulse > 0.0
-		if hl:
-			draw_rect(Rect2(r.position.x + 2, y - 7, r.size.x - 4, 9), Color(c, 0.25 * pulse * alpha))
-		var tx := x_in + 8.0 if left else x_right - 8.0
-		var ix := x_in + 2.0 if left else x_right - 3.0
-		if ln.size() > 2:
-			_text(font, "+", Vector2(ix - 2.0, y), Color(c, alpha), 0)
-		else:
-			_triangle(Vector2(ix, y - 3), good, Color(c, alpha))
-		_text(font, ln[1], Vector2(tx, y), Color(c.lerp(Pal.INK10, 0.6 * pulse if hl else 0.0), alpha), 0 if left else 2)
+	UIText.draw(self, Vector2(r.position.x + 8.0, UIText.centered_y(r.position.y, r.size.y, SERIF, UIText.TITLE)),
+		p[0], Color(sc.lerp(Pal.INK10, 0.15 + pulse * 0.6), alpha), SERIF, UIText.TITLE)
 
 
 func _panel_bg(r: Rect2, sc: Color, alpha: float, pulse := 0.0) -> void:
@@ -510,104 +446,63 @@ func _panel_bg(r: Rect2, sc: Color, alpha: float, pulse := 0.0) -> void:
 	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1), Color(sc, alpha * (0.7 + 0.3 * pulse)))
 
 
-func _triangle(p: Vector2, up: bool, c: Color) -> void:
-	if up:
-		_tri[0] = p + Vector2(0, 4)
-		_tri[1] = p + Vector2(5, 4)
-		_tri[2] = p + Vector2(2.5, 0)
-	else:
-		_tri[0] = p
-		_tri[1] = p + Vector2(5, 0)
-		_tri[2] = p + Vector2(2.5, 4)
-	draw_colored_polygon(_tri, c)
-
-
-func _mini_grid(side: int, p: Vector2, cw: int, ch: int, alpha: float, sc: Color) -> void:
-	var occ: Dictionary = b.stage.occupied[side]
-	for col in 2:
-		for row in 4:
-			# left side: back column on the left; right side: back column on the right
-			var vx := (1 - col) if side == 0 else col
-			var rr := Rect2(p.x + vx * (cw + 1), p.y + row * (ch + 1), cw, ch)
-			if occ.has(Vector2i(col, row)):
-				var alive: bool = b.stage.alive_cells[side].has(Vector2i(col, row))
-				draw_rect(rr, Color(sc if alive else Pal.FADE2, alpha))
-			else:
-				draw_rect(rr, Color(Pal.INK4, alpha))
-
-
 # --- timer ------------------------------------------------------------------------------------
 func _draw_timer() -> void:
 	var st: float = b.sim_t
 	var secs := int(st)
-	var r := Rect2(222, 334, 52, 24)
+	var r := Rect2(_c - 98, 334, 52, 24)
 	var sd: bool = st >= b.sd_at and b.sd_at > 0.0
 	_panel_bg(r, Pal.BLOOD3 if sd else Pal.INK7, 1.0, 0.0)
 	@warning_ignore("integer_division")
-	var mins := secs / 60
-	var s2 := secs % 60
-	var row := 4 if sd else 5
-	var x := 233.0
-	_glyph(mins % 10, row, x, 336)
-	_glyph(12, row, x + 7, 336)
-	@warning_ignore("integer_division")
-	_glyph(s2 / 10, row, x + 14, 336)
-	_glyph(s2 % 10, row, x + 22, 336)
-	# sudden-death fuse
-	var fx := 225.0
-	var fw := 46.0
+	var txt := "%d:%02d" % [secs / 60, secs % 60]
+	UIText.outlined(self, Vector2(r.get_center().x, UIText.centered_y(r.position.y, 20, BOLD, UIText.NUMBER)), txt,
+		Pal.BLOOD4 if sd else Pal.INK10, BOLD, UIText.NUMBER, 1, Pal.INK1, false)
+	# the Fading fuse
+	var fx := r.position.x + 3.0
+	var fw := r.size.x - 6.0
 	var frac := clampf(st / maxf(1.0, b.sd_at), 0.0, 1.0)
 	draw_rect(Rect2(fx, 352, fw, 2), Pal.INK4)
 	draw_rect(Rect2(fx, 352, roundf(fw * frac), 2), Pal.BLOOD3 if frac > 0.75 else Pal.AMBER5)
-	if false:
-		var on := fmod(t, 0.5) < 0.32
-		var lbl := "SUDDEN DEATH  DMG x%.2f" % b.sd_mult
-		_text_scaled(font_bold, lbl, Vector2(320, 32), Pal.BLOOD4 if on else Pal.BLOOD3, 2)
-	elif frac > 0.0:
-		pass
 
 
 # --- caption bar ------------------------------------------------------------------------------
 func _draw_caption() -> void:
 	if caption_uid < 0 or end_t >= 0.0 or cutin_t < cutin_hold or frag_t < 1.6:
 		return
-	var a := 1.0
 	var u = b.units[caption_uid]
 	var sc: Color = b.side_colors[u.side]
-	var r := Rect2(188, 292, 264, 28)
-	_panel_bg(r, sc, a)
-	var tgt := ""
-	if caption_target >= 0:
-		tgt = b.units[caption_target].label
+	var r := Rect2(_c - _cap_w / 2.0, 292, _cap_w, 28)
+	_panel_bg(r, sc, 1.0)
+	var sz := UIText.NUMBER
 	var who: String = u.label
-	var line: String = who + "  " + caption_text
-	if _w2(line) + (_w2(tgt) + 22.0 if tgt != "" else 0.0) > 248.0:
-		tgt = ""   # too long: keep the full actor name and action, drop the target
-	var k := 1.0
-	var w := _w2(line) + (_w2(tgt) + 22.0 if tgt != "" else 0.0)
-	if w > 256.0:
+	var what := caption_text
+	var tgt := ""
+	if caption_target >= 0 and caption_target != caption_uid:
+		tgt = b.units[caption_target].label
+	var gap := UIText.width(" ", BOLD, sz)
+	var arrow_w := 14.0
+	var room := r.size.x - 16.0
+	var w_who := UIText.width(who, BOLD, sz)
+	var w_what := UIText.width(what, BOLD, sz)
+	var w_tgt := UIText.width(tgt, BOLD, sz) if tgt != "" else 0.0
+	var total := w_who + gap * 2.0 + w_what + (arrow_w + w_tgt if tgt != "" else 0.0)
+	if total > room and tgt != "":
 		tgt = ""   # one caption size always: drop the target name rather than shrink
-		w = _w2(line)
-	if w > 252.0:
-		line = _fit2(line, 252.0)
-		w = _w2(line)
-	var ts := 2 if k == 1.0 else 1
-	var ty := 296.0 if ts == 2 else 303.0
-	var x := roundf(320.0 - w * 0.5)
-	_text_scaled_left(font_bold, line, Vector2(x, ty), Color(sc.lerp(Pal.INK10, 0.4), a), ts)
+		total = w_who + gap * 2.0 + w_what
+	if total > room:
+		what = UIText.fit(what, room - w_who - gap * 2.0, BOLD, sz)
+		w_what = UIText.width(what, BOLD, sz)
+		total = w_who + gap * 2.0 + w_what
+	var y := UIText.centered_y(r.position.y, r.size.y, BOLD, sz)
+	var x := roundf(_c - total / 2.0)
+	x = UIText.outlined(self, Vector2(x, y), who, sc.lerp(Pal.INK10, 0.35), BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
+	x = UIText.outlined(self, Vector2(x, y), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
 	if tgt != "":
-		x += _w2(line) * k + 5.0
-		_tri[0] = Vector2(x, 302); _tri[1] = Vector2(x + 6, 306); _tri[2] = Vector2(x, 310)
-		draw_colored_polygon(_tri, Color(Pal.INK8, a))
+		var cy := r.get_center().y
+		_tri[0] = Vector2(x + 4, cy - 4); _tri[1] = Vector2(x + 10, cy); _tri[2] = Vector2(x + 4, cy + 4)
+		draw_colored_polygon(_tri, Pal.INK8)
 		var tc: Color = b.side_colors[b.units[caption_target].side]
-		_text_scaled_left(font_bold, tgt, Vector2(x + 10, ty), Color(tc.lerp(Pal.INK10, 0.4), a), ts)
-
-
-func _chevron(p: Vector2, c: Color) -> void:
-	_tri[0] = p
-	_tri[1] = p + Vector2(4, 2.5)
-	_tri[2] = p + Vector2(0, 5)
-	draw_colored_polygon(_tri, c)
+		UIText.outlined(self, Vector2(x + arrow_w, y), tgt, tc.lerp(Pal.INK10, 0.35), BOLD, sz, 0, Pal.INK1, false)
 
 
 # --- party panels -----------------------------------------------------------------------------
@@ -617,7 +512,7 @@ func _draw_panel(side: int) -> void:
 	if n == 0:
 		return
 	var h := 6.0 + n * ROW_H
-	var x0 := 4.0 if side == 0 else 640.0 - 4.0 - PANEL_W
+	var x0 := _l + 4.0 if side == 0 else _r - 4.0 - PANEL_W
 	var y0 := 358.0 - h
 	var r := Rect2(x0, y0, PANEL_W, h)
 	_panel_bg(r, b.side_colors[side], 0.95)
@@ -637,32 +532,40 @@ func _draw_row(side: int, u, p: Vector2) -> void:
 		draw_rect(Rect2(p.x + 2, p.y, PANEL_W - 4, ROW_H - 1), Color(Pal.BLOOD3, rf * 0.35))
 	var px := p.x + 4.0 if left else p.x + PANEL_W - 4.0 - 17.0
 	var tex: Texture2D = b.portraits.get(u.uid)
-	draw_rect(Rect2(px - 1, p.y, 18, 15), Pal.INK1)
-	draw_rect(Rect2(px, p.y + 1, 16, 13), Pal.INK3)
+	draw_rect(Rect2(px - 1, p.y + 1, 18, 15), Pal.INK1)
+	draw_rect(Rect2(px, p.y + 2, 16, 13), Pal.INK3)
 	if tex != null:
 		var m := Color(1, 1, 1, 1) if u.alive else Color(0.45, 0.45, 0.55, 1)
-		draw_texture_rect(tex, Rect2(px, p.y + 1, 16, 13), false, m)
-	draw_rect(Rect2(px - 1, p.y, 18, 15), (sc if acting else Pal.INK5), false, 1.0)
+		draw_texture_rect(tex, Rect2(px, p.y + 2, 16, 13), false, m)
+	draw_rect(Rect2(px - 1, p.y + 1, 18, 15), (sc if acting else Pal.INK5), false, 1.0)
 	var tx := px + 21.0 if left else px - 4.0
-	var bar_x := tx if left else tx - 112.0
+	var bw := 112.0
+	var bar_x := tx if left else tx - bw
 	var name_col := Pal.INK10 if u.alive else Pal.FADE2
-	_text(font_bold, _fit1(u.label, 100.0), Vector2(tx, p.y + 7), name_col if not acting else sc.lerp(Pal.INK10, 0.5), 0 if left else 2)
+	var ny := p.y + 0.0
+	var nm := UIText.fit(u.label, 100.0, BOLD, UIText.LABEL)
+	UIText.draw(self, Vector2(tx if left else tx - UIText.width(nm, BOLD, UIText.LABEL), ny), nm,
+		name_col if not acting else sc.lerp(Pal.INK10, 0.5), BOLD, UIText.LABEL)
 	# HP number on the far side of the name
 	var num_x := p.x + PANEL_W - 6.0 if left else p.x + 6.0
+	var hs := ""
+	var hc := Pal.INK10
 	if u.alive:
 		var hpv := roundi(u.hp_shown)
-		var hc := Pal.INK10 if hpv * 4 > u.max_hp else Pal.BLOOD4
-		_text(font_bold, str(hpv), Vector2(num_x, p.y + 7), hc, 2 if left else 0)
+		hs = str(hpv)
+		hc = Pal.INK10 if hpv * 4 > u.max_hp else Pal.BLOOD4
 	else:
-		_text(font_bold, "KO", Vector2(num_x, p.y + 7), Pal.BLOOD3, 2 if left else 0)
-	var bw := 112.0
+		hs = "KO"
+		hc = Pal.BLOOD3
+	var hw := UIText.width(hs, BOLD, UIText.LABEL)
+	UIText.draw(self, Vector2(num_x - hw if left else num_x, ny), hs, hc, BOLD, UIText.LABEL)
 	if not u.alive:
-		draw_rect(Rect2(bar_x, p.y + 11.0, bw, 1), Pal.INK4)
+		draw_rect(Rect2(bar_x, p.y + 12.0, bw, 1), Pal.INK4)
 		return
 	# HP bar
 	var frac: float = clampf(u.hp_shown / float(u.max_hp), 0.0, 1.0)
 	var chip: float = clampf(u.hp_chip / float(u.max_hp), 0.0, 1.0)
-	var by := p.y + 9.0
+	var by := p.y + 11.0
 	draw_rect(Rect2(bar_x - 1, by - 1, bw + 2, 5), Pal.INK1)
 	draw_rect(Rect2(bar_x, by, bw, 3), Pal.INK3)
 	var hcol := Pal.LIFE4 if frac > 0.5 else (Pal.AMBER5 if frac > 0.25 else Pal.BLOOD3)
@@ -697,36 +600,29 @@ func _draw_intro() -> void:
 		var sc: Color = b.side_colors[side]
 		var form: Dictionary = b.sides[side].get("formation", {})
 		var beh: Dictionary = form.get("behaviour", {})
-		var r := Rect2(6 if side == 0 else 334, 6, 300, 108)
+		var cw := 300.0
+		var r := Rect2(_l + 6.0 if side == 0 else _r - 6.0 - cw, 6, cw, 108)
 		_panel_bg(r, sc, a, 0.5)
 		var cx := r.get_center().x
 		var p := _badge_parts(side)
-		_text_scaled(font_serif, p[0], Vector2(cx, 30), Color(sc.lerp(Pal.INK10, 0.35), a), 2)
-		var l1: String = ("+ " + p[1]) if p[1] != "" else ""
-		_text(font_bold, l1, Vector2(cx, 74), Color(Pal.LIFE4, a), 1, true)
+		var y := r.position.y + 8.0
+		UIText.outlined(self, Vector2(cx, y), p[0], Color(sc.lerp(Pal.INK10, 0.35), a), SERIF, UIText.HEADING, 1, Pal.INK1, false)
+		y += UIText.ascent(SERIF, UIText.HEADING) + 7.0
+		if p[1] != "":
+			UIText.outlined(self, Vector2(cx, y), "▲ " + p[1], Color(Pal.LIFE4, a), BOLD, UIText.LABEL, 1, Pal.INK1, false)
+			y += UIText.line_h(BOLD, UIText.LABEL) + 2.0
 		var bt := String(beh.get("name", "")) + ": " + String(beh.get("text", ""))
 		if bool(form.get("locked", false)):
 			bt = "Locked: fights as Strays (no shape behaviour)"
-		var lines := _wrap(bt, 286.0)
+		var lines := UIText.wrap_lines(bt, cw - 20.0, SANS, UIText.BODY)
 		for i in lines.size():
-			_text(font_bold, lines[i], Vector2(cx, 87 + i * 10), Color(sc.lerp(Pal.INK10, 0.5), a), 1, true)
-		if not bool(form.get("locked", false)):
-			_text(font_bold, "Cost: " + String(form.get("cost", "")), Vector2(cx, 87 + lines.size() * 10 + 2), Color(Pal.BLOOD4, a), 1, true)
-
-
-func _wrap(t: String, w: float) -> PackedStringArray:
-	var out := PackedStringArray()
-	var cur := ""
-	for word in t.split(" "):
-		var nxt := word if cur == "" else cur + " " + word
-		if _w1(nxt) > w and cur != "":
-			out.append(cur)
-			cur = word
-		else:
-			cur = nxt
-	if cur != "":
-		out.append(cur)
-	return out
+			UIText.outlined(self, Vector2(cx, y), lines[i], Color(Pal.INK10, a), SANS, UIText.BODY, 1, Pal.INK1, false)
+			y += UIText.line_h(SANS, UIText.BODY)
+		if not bool(form.get("locked", false)) and String(form.get("cost", "")) != "":
+			y += 2.0
+			for l in UIText.wrap_lines("▼ Cost: " + String(form.get("cost", "")), cw - 20.0, BOLD, UIText.LABEL):
+				UIText.outlined(self, Vector2(cx, y), l, Color(Pal.BLOOD4, a), BOLD, UIText.LABEL, 1, Pal.INK1, false)
+				y += UIText.line_h(BOLD, UIText.LABEL)
 
 
 # --- Crystal: memory lore caption and fragment banner -----------------------------------------------
@@ -734,26 +630,31 @@ func _draw_lore() -> void:
 	if lore_t > 3.6 or lore_name == "":
 		return
 	var a := clampf(lore_t / 0.25, 0.0, 1.0) * (1.0 - clampf((lore_t - 3.2) / 0.4, 0.0, 1.0))
-	var lines := _wrap(lore_text, 400.0)
-	var h := 30.0 + lines.size() * 11.0
-	var r := Rect2(110, 46, 420, h)
+	var lines := UIText.wrap_lines(lore_text, 380.0, SANS, UIText.BODY)
+	var lh := UIText.line_h(SANS, UIText.BODY)
+	var h := ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + lines.size() * lh + 6.0)
+	var r := Rect2(_c - 210, 40, 420, h)
 	draw_rect(r, Color(Pal.INK1, 0.85 * a))
 	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1), Color(Pal.VIOLET3, a))
 	draw_rect(Rect2(r.position.x, r.end.y - 1, r.size.x, 1), Color(Pal.VIOLET3, a))
-	_text_scaled(font_serif, lore_name, Vector2(320, 48), Color(Pal.VIOLET4, a), 1)
+	var y := r.position.y + 6.0
+	UIText.outlined(self, Vector2(_c, y), lore_name, Color(Pal.VIOLET4, a), SERIF, UIText.TITLE, 1, Pal.INK1, false)
+	y += UIText.ascent(SERIF, UIText.TITLE) + 6.0
 	for i in lines.size():
-		_text(font_bold, lines[i], Vector2(320, 74 + i * 11), Color(Pal.INK9, a), 1, true)
+		UIText.outlined(self, Vector2(_c, y), lines[i], Color(Pal.INK9, a), SANS, UIText.BODY, 1, Pal.INK1, false)
+		y += lh
 
 
 func _draw_fragment() -> void:
 	if frag_t > 1.6 or frag_n <= 0:
 		return
 	var a := 1.0 - clampf((frag_t - 1.2) / 0.4, 0.0, 1.0)
-	var s := 3 if frag_t < 0.08 else 2
-	var r := Rect2(188, 292, 264, 28)
+	var sz := UIText.DISPLAY if frag_t < 0.08 else UIText.HEADING
+	var r := Rect2(_c - _cap_w / 2.0, 292, _cap_w, 28)
 	draw_rect(r, Color(Pal.INK1, 0.95 * a))
 	draw_rect(r, Color(Pal.CRYSTAL5, a), false, 1.0)
-	_text_scaled(font_bold, "FRAGMENT %d OF 4" % frag_n, Vector2(320, 294), Color(Pal.CRYSTAL5, a), s)
+	UIText.outlined(self, Vector2(_c, UIText.centered_y(r.position.y, r.size.y, BOLD, sz)), "FRAGMENT %d OF 4" % frag_n,
+		Color(Pal.CRYSTAL5, a), BOLD, sz, 1, Pal.INK1, false)
 
 
 # --- ability cut-in -------------------------------------------------------------------------------
@@ -773,36 +674,33 @@ func _draw_cutin() -> void:
 	if band_h < 1.0:
 		return
 	var cy := 309.0
-	var band := Rect2(194, cy - band_h * 0.5, 252, band_h)
+	var bw := _cap_w
+	var bx := _c - bw / 2.0
+	var band := Rect2(bx, cy - band_h * 0.5, bw, band_h)
 	draw_rect(band, Color(Pal.INK1, 0.92))
-	draw_rect(Rect2(194, band.position.y, 252, 1), sc)
-	draw_rect(Rect2(194, band.end.y - 1, 252, 1), sc)
+	draw_rect(Rect2(bx, band.position.y, bw, 1), sc)
+	draw_rect(Rect2(bx, band.end.y - 1, bw, 1), sc)
 	# speed lines
 	for k in 9:
 		var ly := band.position.y + 4.0 + fmod(k * 7.0, maxf(1.0, band_h - 8.0))
-		var lx := 194.0 + fmod(t * 500.0 * -dir + k * 67.0, 212.0)
+		var lx := bx + fmod(t * 500.0 * -dir + k * 67.0, bw - 40.0)
 		draw_rect(Rect2(roundf(lx), roundf(ly), 20 + (k % 3) * 8, 1), Color(sc, 0.35))
 	if band_h < 30.0:
 		return
-	var tx := roundf(320.0 + dir * (1.0 - minf(1.0, cutin_t / 0.16)) * 60.0)
-	_text(font_bold, u.label.to_upper() + "  -  ABILITY!", Vector2(tx, cy - 11), Pal.VIOLET4, 1, true)
-	_text_scaled(font_serif, cutin_name, Vector2(tx, cy + 17), sc.lerp(Pal.INK10, 0.35), 2)
-
-
-# --- sudden death ---------------------------------------------------------------------------------
-func _draw_sd_banner() -> void:
-	pass
+	var tx := roundf(_c + dir * (1.0 - minf(1.0, cutin_t / 0.16)) * 60.0)
+	UIText.outlined(self, Vector2(tx, cy - 18.0), u.label.to_upper() + "  ·  ABILITY", Pal.VIOLET4, BOLD, UIText.LABEL, 1, Pal.INK1, false)
+	UIText.outlined(self, Vector2(tx, cy - 7.0), cutin_name, sc.lerp(Pal.INK10, 0.35), SERIF, UIText.HEADING, 1, Pal.INK1, false)
 
 
 ## The Fading (sudden death): one line in the game's voice, then a small rising readout.
 func _draw_fading() -> void:
+	var y := 40.0
 	if sd_banner_t < 3.2:
 		var a := clampf(sd_banner_t / 0.3, 0.0, 1.0) * (1.0 - clampf((sd_banner_t - 2.8) / 0.4, 0.0, 1.0))
-		_text_scaled(font_serif, "The memory of this battle is fading...", Vector2(320, 58), Color(Pal.INK10, a), 2)
-	# readout: a fading-eye glyph and the multiplier, under the badges once the line has gone
-	if sd_banner_t < 3.2:
+		UIText.outlined(self, Vector2(_c, y), "The memory of this battle is fading…", Color(Pal.INK10, a), SERIF, UIText.HEADING, 1)
 		return
-	_text_scaled(font_serif, "Fading  x%.2f" % b.sd_mult, Vector2(320, 58), Pal.INK10, 2)
+	# readout under the banners once the line has gone
+	UIText.outlined(self, Vector2(_c, y), "Fading  ×%.2f" % b.sd_mult, Pal.FADE4, BOLD, UIText.NUMBER, 1)
 
 
 # --- finish -----------------------------------------------------------------------------------------
@@ -812,71 +710,31 @@ func _draw_end() -> void:
 	var a := clampf(end_t / 0.3, 0.0, 1.0)
 	var win: bool = winner == b.player_side
 	var col := Pal.AMBER6 if win else (Pal.FADE3 if winner == -1 else Pal.BLOOD4)
-	var h := 64.0 * a
+	var h := 72.0 * a
 	var cy := 150.0
-	draw_rect(Rect2(0, cy - h * 0.5, 640, h), Color(Pal.INK1, 0.85))
-	draw_rect(Rect2(0, cy - h * 0.5, 640, 1), Color(col, a))
-	draw_rect(Rect2(0, cy + h * 0.5 - 1, 640, 1), Color(col, a))
-	if h < 60.0:
+	draw_rect(Rect2(0, cy - h * 0.5, _vw, h), Color(Pal.INK1, 0.85))
+	draw_rect(Rect2(0, cy - h * 0.5, _vw, 1), Color(col, a))
+	draw_rect(Rect2(0, cy + h * 0.5 - 1, _vw, 1), Color(col, a))
+	if h < 68.0:
 		return
 	# letters drop in one by one
 	var word := winner_text
-	var sc := 3
-	var total_w := font_serif.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x * sc
-	var x := roundf(320.0 - total_w * 0.5)
+	var sz := UIText.DISPLAY
+	var total_w := UIText.width(word, SERIF, sz)
+	var x := roundf(_c - total_w * 0.5)
+	var top := cy - 25.0
 	for i in word.length():
 		var ch := word.substr(i, 1)
+		var cw := UIText.width(ch, SERIF, sz)
 		var lt := clampf((end_t - 0.15 - i * 0.06) / 0.18, 0.0, 1.0)
-		if lt <= 0.0:
-			x += font_serif.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x * sc
-			continue
-		var dy := roundf((1.0 - (1.0 - pow(1.0 - lt, 2.0))) * -30.0)
-		var bounce := roundf(sin(clampf((end_t - 0.33 - i * 0.06) / 0.2, 0.0, 1.0) * PI) * -3.0)
-		draw_set_transform(Vector2(x, cy + 8 + dy + bounce), 0.0, Vector2(sc, sc))
-		for d: Vector2 in OUTLINE:
-			draw_string(font_serif, d * 0.34, ch, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Pal.INK1)
-		draw_string(font_serif, Vector2.ZERO, ch, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, col)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-		x += font_serif.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x * sc
+		if lt > 0.0:
+			var dy := roundf((1.0 - (1.0 - pow(1.0 - lt, 2.0))) * -30.0)
+			var bounce := roundf(sin(clampf((end_t - 0.33 - i * 0.06) / 0.2, 0.0, 1.0) * PI) * -3.0)
+			UIText.outlined(self, Vector2(x, top + dy + bounce), ch, col, SERIF, sz, 0)
+		x += cw
 	if end_t > 0.8:
 		var sub_a := clampf((end_t - 0.8) / 0.3, 0.0, 1.0)
-		_text(font_bold, b.end_subtitle, Vector2(320, cy + 26), Color(Pal.INK10, sub_a), 1, true)
-
-
-# --- text helpers -------------------------------------------------------------------------------------
-## Draws text with an ink outline. align: 0 left, 1 centre, 2 right (pos.x is that edge). Returns end x.
-func _text(f: Font, s: String, pos: Vector2, c: Color, align: int, outline := false) -> float:
-	var fs := 16 if f == font_serif else 11
-	var w := f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	var x := pos.x
-	if align == 1:
-		x -= w * 0.5
-	elif align == 2:
-		x -= w
-	var p := Vector2(roundf(x), roundf(pos.y))
-	if outline:
-		var oc := Color(Pal.INK1, c.a)
-		for d: Vector2 in OUTLINE:
-			draw_string(f, p + d, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, oc)
-	draw_string(f, p, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, c)
-	return p.x + w
-
-
-func _text_scaled(f: Font, s: String, center: Vector2, c: Color, sc: int) -> void:
-	var fs := 16 if f == font_serif else 11
-	var w := f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	var p := Vector2(roundf(center.x - w * sc * 0.5), roundf(center.y))
-	draw_set_transform(p, 0.0, Vector2(sc, sc))
-	var oc := Color(Pal.INK1, c.a)
-	for d: Vector2 in OUTLINE:
-		draw_string(f, d * (1.0 / sc) * 1.0, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, oc)
-	draw_string(f, Vector2(0, 1.0 / sc) * 2.0, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(Pal.INK1, c.a))
-	draw_string(f, Vector2.ZERO, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, c)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-
-func _glyph(idx: int, row: int, x: float, y: float) -> void:
-	draw_texture_rect_region(DIGITS, Rect2(x, y, 10, 13), Rect2(idx * 10, row * 13, 10, 13))
+		UIText.outlined(self, Vector2(_c, cy + 14.0), b.end_subtitle, Color(Pal.INK10, sub_a), BOLD, UIText.LABEL, 1, Pal.INK1, false)
 
 
 ## "+N" chip for banner effects beyond the room (opens the rest in the shared tooltip).
@@ -891,7 +749,5 @@ class MoreChip extends Control:
 		draw_rect(r, Pal.INK1)
 		draw_rect(r.grow(-1), Pal.INK3)
 		draw_rect(r, Pal.INK6, false, 1.0)
-		var f: Font = load("res://assets/fonts/depths_sans_bold.fnt")
-		var t := "+%d" % n
-		var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-		draw_string(f, Vector2(roundf((size.x - w) * 0.5), 13), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Pal.INK10)
+		UIText.outlined(self, Vector2(size.x / 2.0, UIText.centered_y(0, size.y, UIText.BOLD, UIText.LABEL)), "+%d" % n,
+			Pal.INK10, UIText.BOLD, UIText.LABEL, 1, Pal.INK1, false)

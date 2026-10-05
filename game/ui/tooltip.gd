@@ -13,7 +13,8 @@ extends RefCounted
 ##   Tip.show_for(control)   # open programmatically (demos, tutorials); Tip.close() closes
 ##   Tip.is_open_for(control)
 ## The control must receive mouse input (mouse_filter STOP or PASS). Text uses the shared bold
-## font; the box keeps inside the 640x360 view, above the control when there is room, else below.
+## font; the box keeps inside the visible view (wider than 640 on wide screens), above the control when
+## there is room, else below.
 
 const HOLD_TIME := 0.35
 

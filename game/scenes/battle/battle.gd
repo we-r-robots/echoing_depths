@@ -137,12 +137,17 @@ var _perf_buf := PackedInt32Array()
 var _perf_n := 0
 var _perf_proc := PackedInt32Array()
 
-@onready var cam: Camera2D = $Camera
-@onready var units_root: Node2D = $Units
-@onready var fx: Node2D = $FX
-@onready var plates: Node2D = $Plates
-@onready var dim: ColorRect = $Dim
-@onready var fade_rect: ColorRect = $FadeLayer/Fade
+## The world (stage, units, effects) renders into a pixel-exact SubViewport at the 640x360 design
+## resolution (wider on wide screens), shown x3 with nearest filtering. The HUD and the numbers
+## draw on the UI layer at native resolution; world points map there through world_to_ui().
+@onready var world: SubViewportContainer = $WorldLayer/World
+@onready var view: SubViewport = $WorldLayer/World/View
+@onready var cam: Camera2D = $WorldLayer/World/View/Camera
+@onready var units_root: Node2D = $WorldLayer/World/View/Units
+@onready var fx: Node2D = $WorldLayer/World/View/FX
+@onready var plates: Node2D = $WorldLayer/World/View/Plates
+@onready var dim: ColorRect = $WorldLayer/World/View/Dim
+@onready var fade_rect: ColorRect = $WorldLayer/World/View/FadeLayer/Fade
 var fade_level := 0.0
 var _fade_target := 0.0
 
@@ -150,9 +155,9 @@ var _fade_target := 0.0
 func _ready() -> void:
 	_rng.seed = 1234
 	_meta = JSON.parse_string(FileAccess.get_file_as_string(META_PATH))
-	stage = $Stage
+	stage = $WorldLayer/World/View/Stage
 	stage.setup()
-	fx.setup()
+	fx.setup($HUD/Pops, world_to_ui)
 	hud = $HUD/Hud
 	hud.setup(self)
 	hud.speed_pressed.connect(_cycle_speed)
@@ -164,6 +169,11 @@ func _ready() -> void:
 	if autoplay_demo:
 		_start_demo.call_deferred()
 
+
+
+## World point (battle field coordinates) -> UI design px, through the world view's camera.
+func world_to_ui(p: Vector2) -> Vector2:
+	return world.get_global_transform() * (view.get_canvas_transform() * p)
 
 
 func _start_demo() -> void:
@@ -418,14 +428,15 @@ func _update_camera(delta: float) -> void:
 		_shake = maxf(0.0, _shake - delta * 14.0)
 		sh = Vector2(roundf(sin(_shake_t * 71.0) * _shake), roundf(cos(_shake_t * 53.0) * _shake * 0.6))
 	cam.offset = Vector2(roundf(_cam_off.x), roundf(_cam_off.y)) + sh
-	stage.bg_layer.offset = -cam.offset * Layout.ZOOM
+	stage.place_bg(Vector2(view.size), -cam.offset * Layout.ZOOM)
 
 
 var _edge_hits := 0
 var _edge_min := 999.0
 ## Screen-space distance of every unit's opaque sprite pixels (alive or KO) and its HP plate from the edges.
 func _edge_probe() -> void:
-	var xf := get_viewport().get_canvas_transform()
+	var xf := view.get_canvas_transform()
+	var vw := float(view.size.x)
 	for u in units:
 		var tex: Texture2D = u.spr.sprite_frames.get_frame_texture(u.spr.animation, u.spr.frame)
 		if tex == null:
@@ -441,7 +452,7 @@ func _edge_probe() -> void:
 		x1 = maxf(x1, u.position.x + 14.0)
 		var s0 := (xf * Vector2(x0, 0)).x
 		var s1 := (xf * Vector2(x1, 0)).x
-		var m := minf(s0, 640.0 - s1)
+		var m := minf(s0 - (vw - 640.0) / 2.0, (vw + 640.0) / 2.0 - s1)   # inside the 16:9 safe area
 		_edge_min = minf(_edge_min, m)
 		if m < 8.0:
 			_edge_hits += 1
@@ -1355,7 +1366,7 @@ func _num_pos(T, uid: int) -> Vector2:
 	# measured in SCREEN pixels through the live canvas transform (camera zoom + offset):
 	# centre of the drawn number vs the target's on-screen head top
 	var drawn := Vector2(clampf(p.x, 186.0, 454.0), maxf(p.y, 140.0)) + Vector2(0, -8.0)
-	var xf := get_viewport().get_canvas_transform()
+	var xf := view.get_canvas_transform()
 	_num_max_dist = maxf(_num_max_dist, (xf * drawn).distance_to(xf * T.head()))
 	return p
 

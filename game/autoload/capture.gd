@@ -1,5 +1,6 @@
 extends Node
-## Unattended capture harness used by tools/capture.sh and critic agents.
+## Unattended capture harness used by tools/capture.sh and critic agents. Saves the full window at
+## the capture resolution (UI at native resolution, world at 640x360 x3).
 ## Args after `--`:
 ##   --scene=res://path.tscn   scene to load instead of main
 ##   --shots=out_dir           directory to write PNG screenshots

@@ -302,7 +302,7 @@ func _draw_plaques() -> void:
 
 func _brackets(r: Rect2, c: Color) -> void:
 	var L := 6
-	for corner in [r.position, Vector2(r.end.x - 1, r.position.y), Vector2(r.position.x, r.end.y - 1), r.end - Vector2(1, 1)]:
+	for corner: Vector2 in [r.position, Vector2(r.end.x - 1, r.position.y), Vector2(r.position.x, r.end.y - 1), r.end - Vector2(1, 1)]:
 		var sx := 1 if corner.x == r.position.x else -1
 		var sy := 1 if corner.y == r.position.y else -1
 		var hx := corner.x if sx == 1 else corner.x - L + 1

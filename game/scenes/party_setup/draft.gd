@@ -193,9 +193,9 @@ func _draw() -> void:
 			PartyDraw.soft_outline(self, r, Pal.AMBER5)
 		else:
 			PartyDraw.dashed_outline(self, r, Pal.INK5)
-			PartyDraw.text(self, r.position + Vector2(0, 5), str(k + 1), Pal.INK6, PartyDraw.BOLD, 11, false, 22, HORIZONTAL_ALIGNMENT_CENTER)
+			PartyDraw.text(self, r.position + Vector2(0, 5), str(k + 1), Pal.INK6, PartyDraw.BOLD, UIText.BODY, false, 22, HORIZONTAL_ALIGNMENT_CENTER)
 	PartyDraw.text(self, Vector2(px - 80, 9), "Party %d/%d" % [picks.size(), need], Pal.INK9 if picks.size() < need else Pal.AMBER6,
-		PartyDraw.BOLD, 11, true, 78, HORIZONTAL_ALIGNMENT_RIGHT)
+		PartyDraw.BOLD, UIText.BODY, true, 78, HORIZONTAL_ALIGNMENT_RIGHT)
 	# what "Starts:" on the cards means, said once, as a labelled panel
 	var bb := Rect2(8, 334, 540, 22)
 	PartyDraw.panel(self, bb, 0, &"DimPanel")
