@@ -57,6 +57,11 @@ class Unit:
 	var src_name := {}
 	# per stat: every formation/composition contribution [source, name, value] (for formation_proc)
 	var contribs := {}
+	var roles: Array = []      # "front"/"back" + shape roles (post, tip, keeper, flanker, gap, middle)
+	var draw := 0              # 1 = draws nearby melee (gap), 2 = taunts all melee (Lighthouse post)
+	var dmg_taken := 1.0       # Keeper's Ring cost
+	var cover_target := -1     # Vigil covering fire: uid this unit's next basic action targets
+	var draw_effect := ""      # cue effect when this unit draws an attack ("draws_melee" / "taunt")
 
 
 var _rng: Rng
@@ -79,6 +84,20 @@ var _k_var := 0.0
 var _k_fm_thr := 0.1
 var _k_jump := true
 var _alive := [0, 0]
+# formations (05-formations.md): effective shape and behaviour per side
+var _shape: Array = [{}, {}]
+var _beh: Array = [{}, {}]
+var _guard_uses := [0, 0]
+var _cur_melee := false        # the resolving action is a melee attack
+var _cur_actor: Unit = null
+var _cur_splash := false       # the resolving action also hits several units (no Brace/Share then)
+var _after_start: Array = []   # behaviour cues/charges that belong right after action_start
+var _drawn: Array = []         # [unit, effect]: this action's target was drawn / taunted onto it
+var _ring_skip := -1           # Keeper's Ring kept this action off the keeper (uid)
+var _beh_last := {}            # "side|effect" -> last behaviour cue time (ms)
+const SPLASH := ["primary_adjacent", "other_enemies", "primary_column_rest"]
+static var _act_info := {}      # action id -> [is_melee, hits several units], computed once
+var _bid: Array[String] = ["", ""]   # behaviour id per side (cached from _beh)
 var _cur_ability := false      # an ability is resolving (cascade cap)
 var _proc_last := {}           # "side|source|stat" -> last formation_proc time (ms)
 var _proc_at := -1             # time (ms) of the last formation_proc: at most one per instant
@@ -132,6 +151,12 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 	for u in _units:
 		u.gauge = int(_gauge_max * _rng.float_range(gmin, gmax))
 		u.charge = clampi(u.charge + _rng.int_range(-spread, spread), 0, _charge_max - 1)
+	var volley: Array = []
+	for u in _units:   # Choir / Lumari Chorus: the back row starts with fuller gauges
+		var b: Dictionary = _beh[u.side]
+		if String(b["id"]) == "opening_volley" and u.col == 1:
+			u.gauge = mini(int(_gauge_max * 0.95), u.gauge + int(_gauge_max * float(b["gauge"])))
+			volley.append(u)
 
 	if _log:
 		var sides_ev: Array = []
@@ -152,6 +177,8 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 		for u in _units:
 			for _c_entry in u.contribs.get("hp_pct", []):
 				_proc(u, "hp_pct", "start", 0)   # one cue per side/source (rate-limited)
+		for u: Unit in volley:
+			_beh_cue(u, "start", 0, -1, float(_beh[u.side]["gauge"]))
 
 	_now = int(_c["intro_ms"])
 	var sd_next := int(_c["sudden_death_start_ms"])
@@ -248,13 +275,23 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 		var cdef := GameData.get_class_def(String(h["class"]))
 		if String(cdef["tier"]) != "monster":
 			bases.append(String(cdef["base"]))
-	var shape := Formation.detect(cells)
+	var fx := Formation.effective({"heroes": heroes, "unlocked_formations": Formation.unlocked_of(party)})
+	var shape: Dictionary = fx["effective"]
+	var geo: Dictionary = fx["shape"]
+	var roles := Formation.roles(String(shape["id"]), cells)
+	_shape[side] = shape
+	_beh[side] = shape["behaviour"]
+	_bid[side] = String(shape["behaviour"]["id"])
+	_guard_uses[side] = int((shape["behaviour"] as Dictionary).get("uses", 0))
 	var comps := Formation.compositions(bases)
+	var hi := 0
 
 	for h: Dictionary in heroes:
 		var cid := String(h["class"])
 		var cdef := GameData.get_class_def(cid)
 		var u := Unit.new()
+		u.roles = roles[hi]
+		hi += 1
 		u.uid = _units.size()
 		u.side = side
 		u.class_id = cid
@@ -273,11 +310,11 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 		var st := HeroStats.compute(h)
 		# collect multiplicative modifiers
 		var pct := {"hp_pct": 0.0, "atk_pct": 0.0, "def_pct": 0.0, "mag_pct": 0.0, "spd_pct": 0.0,
-			"crit_add": 0.0, "charge_pct": 0.0, "heal_pct": 0.0}
+			"crit_add": 0.0, "charge_pct": 0.0, "heal_pct": 0.0, "dmg_taken_pct": 0.0}
 		var mods: Array = []
-		for m: Dictionary in shape["buffs"]:
+		for m: Dictionary in shape["bonus"]:
 			mods.append([m, "formation:" + String(shape["id"]), "", String(shape["name"])])
-		for m: Dictionary in shape["debuffs"]:
+		for m: Dictionary in shape["cost"]["mods"]:
 			mods.append([m, "formation:" + String(shape["id"]), "", String(shape["name"])])
 		for comp: Dictionary in comps:
 			for m: Dictionary in comp["mods"]:
@@ -311,6 +348,16 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 		u.crit = clampf(u.crit + float(pct["crit_add"]), 0.0, 1.0)
 		u.charge_mult = maxf(0.0, 1.0 + float(pct["charge_pct"]))
 		u.heal_mult = maxf(0.0, 1.0 + float(pct["heal_pct"]))
+		u.dmg_taken = maxf(0.0, 1.0 + float(pct["dmg_taken_pct"]))
+		if String(shape["cost"].get("draw", "")) == "gap" and u.roles.has("gap"):
+			u.draw = 1
+			u.draw_effect = "draws_melee"
+		if bool(shape["behaviour"].get("taunt", false)) and u.roles.has("post"):
+			u.draw = 2
+			u.draw_effect = "taunt"
+		if u.roles.has("tip"):   # Shardpoint cost: the tip draws every melee hit
+			u.draw = 2
+			u.draw_effect = "draws_melee"
 		u.rate = maxi(1, u.spd * int(_c["fill_per_spd_per_ms"]))
 		_units.append(u)
 		_sides[side].append(u)
@@ -325,8 +372,12 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 	var comp_ev: Array = []
 	for comp: Dictionary in comps:
 		comp_ev.append({"id": comp["id"], "name": comp["name"], "mods": comp["mods"]})
+	var beh: Dictionary = shape["behaviour"]
 	return {"side": side, "name": String(party.get("name", "Side %d" % side)),
-		"formation": {"id": shape["id"], "name": shape["name"], "buffs": shape["buffs"], "debuffs": shape["debuffs"]},
+		"formation": {"id": shape["id"], "name": shape["name"], "shape": geo["id"], "shape_name": geo["name"],
+			"locked": bool(fx["locked"]), "buffs": shape["bonus"], "debuffs": shape["cost"]["mods"],
+			"behaviour": {"id": beh["id"], "name": beh["name"], "text": beh["text"]},
+			"cost": String(shape["cost"]["text"])},
 		"compositions": comp_ev}
 
 
@@ -340,7 +391,7 @@ static func _scope_applies(m: Dictionary, u: Unit, entry: Array) -> bool:
 			return u.col == 1
 		"class":
 			return String(entry[2]) == u.base_class
-	return false
+	return u.roles.has(String(m["scope"]))   # shape roles: post, tip, keeper, flanker, gap, middle
 
 
 func _unit_snapshot(u: Unit) -> Dictionary:
@@ -478,7 +529,33 @@ func _do_action(u: Unit) -> int:
 	var skip_heal := use_ability and _heal_ability(a) and (not _any_wounded(u.side) or _sd_heal_mult() <= 0.0)
 	if skip_heal:
 		sel = "melee"   # nobody hurt: the smite rider is the whole action
+	_cur_actor = u
+	if not _act_info.has(aid):
+		var multi := false
+		for eff: Dictionary in a["effects"]:
+			var to := String(eff.get("to", "primary"))
+			if SPLASH.has(to) or to == "all_enemies" or to == "front_enemies" or int(eff.get("hits", 1)) > 1:
+				multi = true
+		_act_info[aid] = [_is_melee(a), multi]
+	var info: Array = _act_info[aid]
+	_cur_melee = info[0]
+	_after_start = []
+	_drawn = []
+	_ring_skip = -1
 	var primary := _select(u, sel)
+	if primary != null and primary.side != u.side:
+		var single_target := String(a.get("area", _area_of(sel))) == "single"
+		if sel == "melee" or _cur_melee or single_target:
+			primary = _apply_draw(u, primary, sel == "melee" or _cur_melee)
+	_cur_splash = info[1]
+	if not use_ability and u.cover_target >= 0:
+		var ct := _units[u.cover_target]
+		if ct.alive and ct.side != u.side and _target_side(u, sel) != u.side and _area_of(sel) == "single" \
+				and not _ring_protected(ct):
+			if ct != primary:
+				primary = ct
+				_after_start.append([u, "turn", ct.uid, 1.0, "covering_fire"])
+		u.cover_target = -1
 	var dur := int(round(float(a["duration"]) * 1000.0))
 	var imp := int(round(float(a["impact"]) * 1000.0))
 	var t_imp := _now + imp
@@ -493,6 +570,15 @@ func _do_action(u: Unit) -> int:
 			"target_side": _target_side(u, sel), "area": "single" if skip_heal else String(a.get("area", _area_of(sel))),
 			"duration": _sec(dur), "impact": _sec(t_imp), "gauges": gauges})
 	_proc(u, "spd_pct", "turn", _now)
+	for cue: Array in _after_start:
+		_beh_cue(cue[0], cue[1], _now, int(cue[2]), float(cue[3]), String(cue[4]))
+	_after_start = []
+	# Shardpoint: the tip gains charge whenever an ally behind it acts
+	if _bid[u.side] == "shardpoint" and u.col == 1:
+		for tip: Unit in _sides[u.side]:
+			if tip.alive and tip.roles.has("tip") and tip.col == 0 and tip.charge < _charge_max:
+				_gain_charge(tip, int(_beh[u.side]["charge"]), "effect", _now)
+				_beh_cue(tip, "charge", _now, u.uid, float(_beh[u.side]["charge"]))
 	_cur_ability = use_ability
 	if use_ability:
 		var old := u.charge
@@ -507,6 +593,7 @@ func _do_action(u: Unit) -> int:
 		_apply_effect(u, a, eff, primary if not skip_heal else null, t_imp, aid)
 
 	_cur_ability = false
+	_cur_melee = false
 	if not use_ability and u.alive:
 		_gain_charge(u, int(round(u.charge_on_act * u.charge_mult)), "act", t_imp)
 	_flush_procs()
@@ -547,6 +634,18 @@ func _apply_effect(u: Unit, a: Dictionary, eff: Dictionary, primary: Unit, t: in
 		if not u.alive and op != "charge":
 			return
 		var targets := _resolve(u, a, to, primary)
+		if op == "damage" and SPLASH.has(to) and not targets.is_empty() and primary != null \
+				and _bid[targets[0].side] == "scattered":
+			# Strays: splash only spreads between units standing next to each other (the struck
+			# unit's edge-connected group); scattered units are spared. Cued on the struck primary.
+			var group := _connected_group(primary)
+			var kept: Array[Unit] = []
+			for tg in targets:
+				if group.has(tg.uid):
+					kept.append(tg)
+			if kept.size() < targets.size() and primary.alive:
+				_beh_cue(primary, "defend", t, u.uid, 1.0)
+			targets = kept
 		for tgt in targets:
 			match op:
 				"damage":
@@ -641,17 +740,35 @@ func _select(u: Unit, sel: String) -> Unit:
 			return _nearest_in_col(foes, _melee_col(foes), u.row)
 		"back_first":
 			var col := 1 if _col_alive(foes, 1) else 0
-			return _nearest_in_col(foes, col, u.row)
+			var pick := _nearest_in_col(foes, col, u.row)
+			if pick != null and _ring_protected(pick):
+				# Keeper's Ring: the keeper can't be targeted; next nearest back unit, else the front
+				var others: Array = []
+				for o: Unit in foes:
+					if o != pick:
+						others.append(o)
+				var alt := _nearest_in_col(others, 1, u.row)
+				if alt == null:
+					alt = _nearest_in_col(others, 0, u.row)
+				if _cur_actor == u:
+					_ring_skip = pick.uid
+				return alt
+			return pick
 		"lowest_hp_enemy":
 			var best: Unit = null
+			var any: Unit = null
 			for o: Unit in foes:
-				if o.alive and (best == null or o.hp < best.hp):
+				if o.alive and (any == null or o.hp < any.hp):
+					any = o
+				if o.alive and not _ring_protected(o) and (best == null or o.hp < best.hp):
 					best = o
+			if best != any and any != null and _cur_actor == u:
+				_ring_skip = any.uid   # cued on the unit hit instead, as it takes the blow
 			return best
 		"random_enemy":
 			var pool: Array[Unit] = []
 			for o: Unit in foes:
-				if o.alive:
+				if o.alive and not _ring_protected(o):
 					pool.append(o)
 			if pool.is_empty():
 				return null
@@ -708,6 +825,16 @@ func _lowest_ally(u: Unit) -> Unit:
 
 func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void:
 	var magic := String(eff["kind"]) == "magic"
+	var splash := SPLASH.has(String(eff.get("to", "primary")))
+	var guarded: Unit = null
+	# Lamplight guardian: the front unit intercepts the first ranged/magic hit on its back partner
+	if _guard_uses[dst.side] > 0 and dst.col == 1 and not _cur_splash and (magic or not _cur_melee):
+		for g: Unit in _sides[dst.side]:
+			if g.alive and g.col == 0 and g.row == dst.row:
+				_guard_uses[dst.side] -= 1
+				guarded = dst
+				dst = g
+				break
 	var a := float(src.mag if magic else src.atk)
 	var d := float(dst.mag if magic else dst.def)
 	var k_scale := float(eff["power"]) * _k_scale
@@ -725,13 +852,47 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 		if dst.col == 1:
 			base *= brm
 			mods.append({"id": "back_row_target", "mult": brm})
+	var beh_src: Dictionary = _beh[src.side]
+	var beh_dst: Dictionary = _beh[dst.side]
+	var bs := _bid[src.side]
+	var bd := _bid[dst.side]
+	var beh_cues: Array = []
+	if bs == "flank" and src.roles.has("flanker") and src.col == 1 and dst.row == src.row:
+		base *= 1.0 + float(beh_src["dmg"])
+		mods.append({"id": "flank", "mult": 1.0 + float(beh_src["dmg"])})
+		beh_cues.append([src, "attack", dst.uid, float(beh_src["dmg"]), "flank"])
+	if bd == "hearthguard" and dst.roles.has("post") and dst.col == 0:
+		var allies := 0
+		for o: Unit in _sides[dst.side]:
+			if o.alive and o.col == 1:
+				allies += 1
+		if allies > 0:
+			var hg := maxf(0.0, 1.0 - float(beh_dst["per_ally"]) * allies)
+			base *= hg
+			mods.append({"id": "hearthguard", "mult": snappedf(hg, 0.01)})
+			beh_cues.append([dst, "defend", src.uid, snappedf(1.0 - hg, 0.01), "hearthguard"])
+	if splash and bd == "echo_step":
+		base *= float(beh_dst["splash"])
+		mods.append({"id": "echo_step", "mult": float(beh_dst["splash"])})
+		beh_cues.append([dst, "defend", src.uid, float(beh_dst["splash"]), "echo_step"])
+	if splash and magic and bs == "opening_volley" and beh_src.has("splash"):
+		base *= 1.0 + float(beh_src["splash"])
+		mods.append({"id": "chorus_splash", "mult": 1.0 + float(beh_src["splash"])})
+		beh_cues.append([src, "attack", dst.uid, float(beh_src["splash"]), "chorus_splash"])
+	if dst.dmg_taken != 1.0:
+		base *= dst.dmg_taken
+	if guarded != null:
+		beh_cues.append([dst, "defend", guarded.uid, 1.0, "guardian"])
 	if eff.has("bonus_below_hp"):
 		var b: Array = eff["bonus_below_hp"]
 		if float(dst.hp) < float(b[0]) * float(dst.max_hp):
 			base *= float(b[1])
 			mods.append({"id": "execute", "mult": float(b[1])})
 	var crit_roll := _rng.next_float()   # always drawn, so disabling crits keeps the RNG stream aligned
-	var crit := _k_crit_on and crit_roll < src.crit
+	var crit_chance := src.crit
+	if bs == "flank" and src.roles.has("flanker") and src.col == 1 and dst.row == src.row:
+		crit_chance += float(beh_src["crit"])
+	var crit := _k_crit_on and crit_roll < crit_chance
 	if crit:
 		base *= _k_crit
 	var v := _k_var
@@ -740,12 +901,44 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 		base *= _sd_damage_mult()
 		mods.append({"id": "sudden_death", "mult": _sd_damage_mult()})
 	var amount := maxi(1, int(round(base)))
+	# Tidebreak brace / Seawall share the blow: part of the hit passes to front neighbours
+	var shares: Array = []
+	var single := not _cur_splash
+	if not single:
+		pass   # shares only pass on single-target hits (keeps an area attack to one number per unit)
+	elif dst.col == 0 and bd == "brace" and dst.roles.has("middle"):
+		for o: Unit in _sides[dst.side]:
+			if o.alive and o.col == 0 and absi(o.row - dst.row) == 1:
+				shares.append([o, maxi(1, int(round(amount * float(beh_dst["share"])))), "brace", float(beh_dst["share"])])
+	elif dst.col == 0 and bd == "share_the_blow":
+		var nxt: Unit = null
+		for o: Unit in _sides[dst.side]:
+			if o.alive and o.col == 0 and o.row == dst.row + 1:
+				nxt = o
+		if nxt == null:
+			for o: Unit in _sides[dst.side]:
+				if o.alive and o.col == 0 and o.row == dst.row - 1:
+					nxt = o
+		if nxt != null:
+			shares.append([nxt, maxi(1, int(round(amount * float(beh_dst["share"])))), "share_the_blow", float(beh_dst["share"])])
+	for sh: Array in shares:
+		amount = maxi(1, amount - int(sh[1]))
 	var dealt := mini(amount, dst.hp)
 	dst.hp -= dealt
 	if _log:
 		_emit(t, {"type": "damage", "src": src.uid, "dst": dst.uid, "amount": amount,
 			"kind": "magic" if magic else "physical", "crit": crit, "mods": mods,
 			"primary": _primary_mod(crit, mods), "hp": dst.hp, "action": aid})
+		for bc: Array in beh_cues:
+			_beh_cue(bc[0], bc[1], t, int(bc[2]), float(bc[3]), String(bc[4]))
+		if not _drawn.is_empty() and _drawn[0] == dst and src == _cur_actor:
+			_beh_cue(dst, "defend", t, src.uid, 1.0, String(_drawn[1]))
+			_drawn = []
+		if _ring_skip >= 0 and src == _cur_actor and dst.side == _units[_ring_skip].side:
+			_beh_cue(dst, "defend", t, _ring_skip, 1.0, "keepers_ring")
+			_ring_skip = -1
+		if not shares.is_empty():
+			_beh_cue(dst, "defend", t, src.uid, float((shares[0] as Array)[3]), String((shares[0] as Array)[2]))
 		if not mods.is_empty() and String((mods[0] as Dictionary)["id"]) == "formation":
 			_pend_at(t)
 			_pend_blocked = true   # no cue at an instant whose hit already shows a formation tag
@@ -754,14 +947,114 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 				_proc(src, "crit_add", "crit", t)
 			_proc(src, "mag_pct" if magic else "atk_pct", "attack", t)
 			_proc(dst, "mag_pct" if magic else "def_pct", "defend", t)
+			_proc(dst, "dmg_taken_pct", "defend", t)
 	if dst.hp <= 0:
 		_ko(dst, src.uid, t)
 	elif dealt > 0:
 		var gain := int(round(float(dealt) * 100.0 / float(dst.max_hp) * dst.charge_on_hit * dst.charge_mult))
 		_gain_charge(dst, gain, "hit", t)
+	for sh: Array in shares:
+		_side_hit(src, sh[0], int(sh[1]), "magic" if magic else "physical", String(sh[2]), float(sh[3]), t, aid)
+	# Kindred shoulder to shoulder / Vigil covering fire react to melee hits
+	if _cur_melee and src.side != dst.side:
+		var bid := bd
+		if bid == "shoulder_to_shoulder" or bid == "covering_fire":
+			for o: Unit in _sides[dst.side]:
+				if o != dst and o.alive:
+					if bid == "shoulder_to_shoulder" and o.charge < _charge_max:
+						_gain_charge(o, int(beh_dst["charge"]), "effect", t)
+						_beh_cue(o, "charge", t, dst.uid, float(beh_dst["charge"]))
+					elif bid == "covering_fire":
+						o.cover_target = src.uid
 	if eff.has("drain") and src.alive and dealt > 0:
 		var amt := int(round(float(dealt) * float(eff["drain"]) * _sd_heal_mult()))
 		_apply_heal(src, src, amt, t, aid)
+
+
+## Damage passed on by Brace / Share the blow: a plain number on the neighbour, tagged with its cause.
+func _side_hit(src: Unit, dst: Unit, amount: int, kind: String, id: String, share: float, t: int, aid: String) -> void:
+	if not dst.alive:
+		return
+	var dealt := mini(amount, dst.hp)
+	dst.hp -= dealt
+	if _log:
+		var m := {"id": id, "mult": share}
+		_emit(t, {"type": "damage", "src": src.uid, "dst": dst.uid, "amount": amount, "kind": kind, "crit": false,
+			"mods": [m], "primary": m.duplicate(), "hp": dst.hp, "action": aid})
+	if dst.hp <= 0:
+		_ko(dst, src.uid, t)
+	elif dealt > 0:
+		_gain_charge(dst, int(round(float(dealt) * 100.0 / float(dst.max_hp) * dst.charge_on_hit * dst.charge_mult)), "hit", t)
+
+
+## uids of the living units edge-connected (through living units) to `start` on its side.
+func _connected_group(start: Unit) -> Dictionary:
+	var seen := {start.uid: true}
+	var stack: Array = [start]
+	while not stack.is_empty():
+		var c: Unit = stack.pop_back()
+		for o: Unit in _sides[c.side]:
+			if o.alive and not seen.has(o.uid) and absi(o.col - c.col) + absi(o.row - c.row) == 1:
+				seen[o.uid] = true
+				stack.append(o)
+	return seen
+
+
+## Melee = a physical attack aimed by melee targeting, or a dash (Backstab / Execute).
+static func _is_melee(a: Dictionary) -> bool:
+	if String(a.get("anim", "")) == "dash":
+		return true
+	if String(a["target"]) != "melee":
+		return false
+	for eff: Dictionary in a["effects"]:
+		if String(eff["op"]) == "damage":
+			return String(eff["kind"]) == "physical"
+	return false
+
+
+## Keeper's Ring: the keeper can't be targeted by melee while all three front units stand.
+func _ring_protected(o: Unit) -> bool:
+	if not o.roles.has("keeper") or _bid[o.side] != "keepers_ring":
+		return false   # (single-target selection only: area splash still reaches the keeper)
+	var front := 0
+	for f: Unit in _sides[o.side]:
+		if f.alive and f.col == 0:
+			front += 1
+	return front >= 3
+
+
+## Keystone / Crescent gap units draw nearby melee; the Shardpoint tip draws all melee; the
+## Lighthouse post taunts all melee and also single-target ranged and magic attacks.
+func _apply_draw(u: Unit, primary: Unit, melee: bool) -> Unit:
+	for o: Unit in _sides[primary.side]:
+		if o == primary or not o.alive or o.draw == 0:
+			continue
+		if not melee and o.draw_effect != "taunt":
+			continue
+		if o.draw == 2 or (o.col == primary.col and absi(o.row - u.row) <= absi(primary.row - u.row) + 1):
+			_drawn = [o, o.draw_effect]   # cued on o as it takes the hit
+			return o
+	return primary
+
+
+## A formation behaviour happening right now, on the unit doing it (truthful; rate-limited per
+## side/effect so a repeating behaviour doesn't flood the screen). Suppresses stat cues at t.
+func _beh_cue(u: Unit, trigger: String, t: int, related: int, value: float, effect: String = "") -> void:
+	if not _log:
+		return
+	var b: Dictionary = _beh[u.side]
+	if effect == "":
+		effect = String(b["id"])
+	var key := "%d|%s" % [u.side, effect]
+	if _beh_last.has(key) and t - int(_beh_last[key]) < int(_c["behaviour_cue_interval_ms"]):
+		return
+	_beh_last[key] = t
+	_proc_at = t
+	var shape: Dictionary = _shape[u.side]
+	_emit(t, {"type": "formation_proc", "side": u.side, "uid": u.uid, "source": "formation:" + String(shape["id"]),
+		"name": String(shape["name"]), "stat": "", "effect": effect, "value": value,
+		"sign": "debuff" if effect == "draws_melee" else "buff",
+		"trigger": trigger, "related": related})
 
 
 ## The combined formation/composition effect on a hit, as one signed, sized modifier
@@ -892,7 +1185,9 @@ func _proc_best(cands: Array, t: int) -> void:
 	_proc_at = t
 	var val := float(bc[2])
 	_emit(t, {"type": "formation_proc", "side": bu.side, "uid": bu.uid, "source": bc[0], "name": bc[1],
-		"stat": best[1], "value": val, "sign": "buff" if val > 0.0 else "debuff", "trigger": best[2]})
+		"stat": best[1], "effect": best[1], "value": val,
+		"sign": ("debuff" if val > 0.0 else "buff") if best[1] == "dmg_taken_pct" else ("buff" if val > 0.0 else "debuff"),
+		"trigger": best[2], "related": -1})
 
 
 func _apply_heal(src: Unit, dst: Unit, amt: int, t: int, aid: String) -> void:
@@ -936,3 +1231,12 @@ func _ko(u: Unit, by: int, t: int) -> void:
 	u.gauge = 0
 	if _log:
 		_emit(t, {"type": "ko", "uid": u.uid, "by": by})
+	# Vault Door hold the door: the back unit in the fallen front unit's row steps into its slot
+	if u.col == 0 and _bid[u.side] == "hold_the_door":
+		for o: Unit in _sides[u.side]:
+			if o.alive and o.col == 1 and o.row == u.row:
+				o.col = 0
+				if _log:
+					_emit(t, {"type": "formation_move", "side": o.side, "uid": o.uid, "from": [1, o.row], "to": [0, o.row],
+						"source": "formation:" + String(_shape[o.side]["id"]), "effect": "hold_the_door", "replaces": u.uid})
+				break

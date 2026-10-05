@@ -13,6 +13,7 @@ const MAX_PARTY_HEROES := 4      # player parties / Echoes
 const MIN_PARTY_HEROES := 2      # parties start with two heroes (spec)
 const MAX_SIDE_UNITS := 8        # monster sides may fill every slot
 const MAX_HERO_NAME := 24
+static var _shape_ids := {}
 const COLS := 2
 const ROWS := 4
 
@@ -156,6 +157,18 @@ static func validate_party(party: Variant, kind: String = "auto") -> Array[Strin
 				errs.append("hero %d has unknown item '%s'" % [i, iv])
 			elif String(it["slot"]) != String(slot_name):
 				errs.append("hero %d item '%s' is not a %s" % [i, iv, slot_name])
+	if pd.has("unlocked_formations"):
+		var uf: Variant = pd["unlocked_formations"]
+		if _shape_ids.is_empty():
+			for sh: Dictionary in Formations.SHAPES:
+				_shape_ids[sh["id"]] = true
+		var known := _shape_ids
+		if not (uf is Array) or (uf as Array).size() > known.size():
+			errs.append("unlocked_formations must be an Array of shape ids")
+		else:
+			for f: Variant in uf:
+				if not (f is String) or not known.has(String(f)):
+					errs.append("unknown formation in unlocked_formations: %s" % var_to_str(f))
 	if kind == "player" and legendaries > int(Tuning.MAX_LEGENDARY_PER_PARTY):
 		errs.append("party has %d Legendary heroes (max %d)" % [legendaries, Tuning.MAX_LEGENDARY_PER_PARTY])
 	return errs

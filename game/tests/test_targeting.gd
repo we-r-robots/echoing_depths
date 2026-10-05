@@ -95,7 +95,8 @@ func test_backstab_lowest_hp() -> void:
 
 func test_cleave_hits_adjacent_rows() -> void:
 	var r := CombatSim.simulate(14, duo(hero("fighter", 0, 1, 4)),
-		party([hero("stone_sentinel", 0, 0, 5), hero("stone_sentinel", 0, 1, 5), hero("stone_sentinel", 0, 2, 5), hero("stone_sentinel", 0, 3, 5)]),
+		{"heroes": [hero("stone_sentinel", 0, 0, 5), hero("stone_sentinel", 0, 1, 5), hero("stone_sentinel", 0, 2, 5),
+			hero("stone_sentinel", 1, 1, 5)], "unlocked_formations": ["keepers_ring"]},   # no splash-altering behaviour
 		{"tuning": {"start_charge_bonus": 100}})
 	var hit := {}
 	for d: Dictionary in of_type(r, "damage"):
@@ -104,4 +105,4 @@ func test_cleave_hits_adjacent_rows() -> void:
 		elif not hit.is_empty():
 			break
 	eq(hit.keys().size(), 3, "cleave hits primary + 2 adjacent")
-	check(hit.has(2) and hit.has(3) and hit.has(4) and not hit.has(5), "rows 0-2 hit, row 3 untouched")
+	check(hit.has(2) and hit.has(3) and hit.has(4) and not hit.has(5), "front rows 0-2 hit, the back unit untouched")

@@ -58,6 +58,10 @@ A party is `{"name": String, "heroes": Array}`. An Echo dictionary (see below) i
 }
 ```
 
+A party may also carry `"unlocked_formations": [shape id, ...]`: the Training Grounds shapes this
+side has unlocked. Missing = the default set (`Formations.DEFAULT_UNLOCKED`: Kindred, Vigil,
+Lamplight, Tidebreak, Choir). A shape that isn't unlocked fights as Strays.
+
 **Validation** (`GameData.validate_party`, applied by `simulate()` and `Echo.from_*`):
 a side is a *monster side* if every unit is a monster class, otherwise a *player side*.
 Player sides/Echoes: 2–4 heroes (parties start with two), no monster classes, at most 1 Legendary (`Tuning.MAX_LEGENDARY_PER_PARTY`,
@@ -65,7 +69,8 @@ placeholder for the spec's Legendary gate). Monster sides: 1–8 monsters, no he
 String `class` that exists, a whole-number `level` in range (JSON whole floats like `2.0` are accepted,
 `2.7` is rejected, never truncated), a whole-number on-grid unique `slot`, `alignment` in −2..2, an
 `items` Dictionary with known slot keys holding String ids of items of that slot, and a String `name`
-of at most 24 characters if present. Any bad input returns `{"error": [String...], "winner": -1, "events": []}`; it never
+of at most 24 characters if present; `unlocked_formations`, if present, must be an Array of known
+shape ids. Any bad input returns `{"error": [String...], "winner": -1, "events": []}`; it never
 raises a script error.
 
 ## Output: result dictionary
@@ -89,6 +94,21 @@ Options: `{"log": false}` skips building events (same outcome, faster);
 this section: exact field set, types and enumerated values. If the two ever disagree, that test fails.
 
 **Schema changelog** (for consumers):
+- *Latest:* Keeper's Ring keeper can't be single-targeted at all while the ring stands (any
+  selector; splash still hits); the Lighthouse post also draws single-target ranged/magic attacks.
+  `game/core/run/run.gd` now passes `unlocked_formations` (run option) and the monument records
+  the shape that actually fought.
+- *Formation redesign (05-formations.md).* Shapes are dominoes/trominoes/tetrominoes
+  (Kindred, Vigil, Lamplight; Tidebreak, Choir, Keystone, Hearth; Seawall, Lumari Chorus, Vault Door,
+  Crescent, Lighthouse, Keeper's Ring, Shardpoint, Echo Step) or Strays; the old 11 shapes and
+  Loose Ranks are gone. Parties may carry `unlocked_formations`; a locked shape fights as Strays.
+  `formation` (in `fight_start` sides and the banner event) gains `shape`, `shape_name`, `locked`,
+  `behaviour` `{id, name, text}` and `cost` (text); `buffs` = the shape's bonus, `debuffs` = the
+  cost's stat part (may be empty: some costs are a weakness of the geometry). `formation_proc`
+  gains `effect` and `related`; behaviour cues have `stat: ""`. New event **`formation_move`**
+  (Hold the door). New damage mod/primary ids: `brace`, `share_the_blow`, `flank`, `hearthguard`,
+  `echo_step`, `chorus_splash`. New stat `dmg_taken_pct`. Echo **v2** stores `unlocked_formations`.
+  The composition "Choir" (2+ Healers) is renamed `choir_of_healers` (the shape owns "Choir").
 - *Latest (after critic round 5):* `damage.primary` id `back_row` is replaced by
   `back_row_attacker` (0.5), `back_row_target` (0.5) or `back_row_both` (0.25), so the annotation
   says whose back row. Formation cues are now **strictly truthful** (the cue backlog is removed; see
@@ -148,9 +168,20 @@ Gauges fill only between actions, so a scene can play the log in real time
 | `gauge_fill_per_spd` | float | gauge fraction gained per simulated second per point of Spd while the timeline runs (gauge fill rate of a unit = `spd * gauge_fill_per_spd`) |
 | `sides` | Array[2] | one entry per side, below |
 
-Side entry: `side` (0/1), `name`, `formation` = `{id, name, buffs, debuffs}` (each a list of
-modifiers `{scope, stat, value}`, see `data/formations.gd`), `compositions` = list of
-`{id, name, mods}` that are active, `units` = list of unit snapshots:
+Side entry: `side` (0/1), `name`, `formation`, `compositions` = list of `{id, name, mods}` that
+are active, `units` = list of unit snapshots. `formation`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id`, `name` | String | the shape that **fights** (`"strays"` / "Strays" if scattered or locked) |
+| `shape`, `shape_name` | String | the shape the player **arranged** (geometry) |
+| `locked` | bool | the arranged shape isn't unlocked, so it fights as Strays |
+| `buffs` | Array | the bonus: modifiers `{scope, stat, value}` (scope `all`/`front`/`back` or a role: `post`, `tip`, `keeper`, `flanker`, `gap`, `middle`) |
+| `debuffs` | Array | the stat part of the cost (may be empty) |
+| `behaviour` | `{id, name, text}` | the shape's behaviour |
+| `cost` | String | the cost, in words |
+
+Unit snapshots:
 
 | Unit field | Type | Meaning |
 |---|---|---|
@@ -169,8 +200,9 @@ modifiers `{scope, stat, value}`, see `data/formations.gd`), `compositions` = li
 
 ### `formation` (t = 0, one per side, right after `fight_start`)
 
-A banner cue: "Side A forms Shield". Fields: `side`, `formation` (`{id, name, buffs, debuffs}`),
-`compositions` (active composition buffs). Same data as in `fight_start`, as its own timeline event.
+A banner cue: "Side A forms Tidebreak: bonus | behaviour | cost" (or "Strays", noting a locked
+shape). Fields: `side`, `formation` (as above), `compositions` (active composition buffs). Same data
+as in `fight_start`, as its own timeline event; it lists every bonus, behaviour and cost.
 
 ### `formation_proc`
 
@@ -188,11 +220,30 @@ instant (attacking, being hit, taking its turn, critting, gaining charge, healin
 that loses its instant is not cued later; it stays surfaced by the fight-start `formation` banner
 (every buff and debuff, always) and, for always-on HP effects, the t = 0 start cue.
 
-About 5 cues per PvP fight, 4.4 vs monsters (max 12). In-fight cue coverage varies by effect
-(measured over 1000 PvP fights, share of sides with that formation that got a cue): Spd, charge
-and HP effects 100 %; Vanguard crit 90 %; Wall Mag 82 %; Shield front Def 80 %; Wall/Staggered Def
-~75 %; Anvil Def, Loose Ranks Def, Watchtower Def/Mag ~67–70 %; Anvil Atk 26 % and Shield Atk 5 %
-(these mostly show as the sized `formation` tag on the hit itself, which blocks a cue at that instant).
+**Behaviour cues** (`stat: ""`, `effect` = behaviour id) fire only when the behaviour actually
+happens, on the unit doing it, with the same truth rule; a repeating behaviour cues at most every
+6 s per side (`behaviour_cue_interval_ms`); a behaviour cue takes the instant (no stat cue then).
+
+| `effect` | Shape | Cue on / trigger | `related` |
+|---|---|---|---|
+| `shoulder_to_shoulder` | Kindred | partner as it gains charge / `charge` | unit that was hit |
+| `covering_fire` | Vigil | partner whose basic action is retargeted / `turn` | the attacker it now targets |
+| `guardian` | Lamplight | front unit as it takes the intercepted hit / `defend` | the back partner it covered |
+| `brace` | Tidebreak | middle unit as it is hit / `defend` | attacker |
+| `opening_volley` | Choir, Lumari Chorus | back units' head start / `start` | −1 |
+| `flank` | Keystone, Crescent | back unit as it hits the enemy in its row / `attack` | target |
+| `draws_melee` | Keystone/Crescent gap, Shardpoint tip | unit as it takes the drawn hit / `defend` | attacker |
+| `hearthguard` | Hearth, Lighthouse | lone front unit as it is hit / `defend` | attacker |
+| `taunt` | Lighthouse | the post as it takes a drawn hit (melee, dash, or single-target ranged/magic; not area) / `defend` | attacker |
+| `share_the_blow` | Seawall | unit as it is hit / `defend` | attacker |
+| `chorus_splash` | Lumari Chorus | attacker as its magic splash lands / `attack` | target |
+| `keepers_ring` | Keeper's Ring | the unit hit instead of the keeper (while all three front units stand the keeper can't be single-targeted at all; area splash still reaches it) / `defend` | the keeper |
+| `shardpoint` | Shardpoint | the tip as it gains charge / `charge` | the ally that acted |
+| `echo_step` | Echo Step | unit as halved splash lands / `defend` | attacker |
+| `scattered` | Strays | the struck primary target (splash didn't spread) / `defend` | attacker |
+
+About 8 cues per PvP fight, 7 vs monsters (stat + behaviour cues). In-fight coverage of stat
+cues varies by effect; every bonus, behaviour and cost is always in the banner.
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -200,12 +251,23 @@ and HP effects 100 %; Vanguard crit 90 %; Wall Mag 82 %; Shield front Def 80 %; 
 | `uid` | int | the unit it applied to |
 | `source` | String | `"formation:<id>"` or `"comp:<id>"` |
 | `name` | String | display name ("Shield", "Well Rounded") |
-| `stat` | String | `hp_pct`, `atk_pct`, `def_pct`, `mag_pct`, `spd_pct`, `crit_add`, `charge_pct`, `heal_pct` |
-| `value` | float | signed size from data (`0.3` = +30 %, `-0.1` = −10 %; `crit_add` is added crit chance) |
+| `stat` | String | `hp_pct`, `atk_pct`, `def_pct`, `mag_pct`, `spd_pct`, `crit_add`, `charge_pct`, `heal_pct`, `dmg_taken_pct`; `""` for a behaviour cue |
+| `effect` | String | the stat id for a stat cue, or the behaviour id (table above) |
+| `value` | float | signed size from data (`0.3` = +30 %, `-0.1` = −10 %; `crit_add` is added crit chance); for behaviours its size (e.g. `0.2` share, `15` charge) |
+| `related` | int | the other unit involved (table above), or −1 |
 | `sign` | String | `"buff"` or `"debuff"` |
 | `trigger` | String | when it first applied: `start` (t = 0, max HP), `turn` (Spd, at the unit's `action_start`), `attack` (Atk/Mag as it deals damage), `defend` (Def/Mag as it takes damage), `crit` (crit bonus on a crit), `charge` (charge bonus as it gains charge), `heal` (healing bonus) |
 
 Emitted at the same `t` as its cause, right after the causing event.
+
+### `formation_move`
+
+Vault Door's *Hold the door*: when a front unit falls, the back unit in its row steps forward into
+its slot (emitted right after that `ko`). Animate the move; from then on the unit is in the front
+column (melee targets it, back-row halving no longer applies to it). Fields: `side`, `uid`,
+`from` `[1, row]`, `to` `[0, row]`, `source` (`"formation:vault_door"`), `effect`
+(`"hold_the_door"`), `replaces` (uid of the fallen unit). The side's formation stays the one
+detected at fight start.
 
 ### `action_start`
 
@@ -252,6 +314,11 @@ hit, `1.25` makes it 25 % bigger.
 | `back_row_target` | | physical hit into a back-column target, `mult` 0.5 |
 | `execute` | | the action's low-HP bonus applied, `mult` 1.5 |
 | `sudden_death` | | sudden-death damage multiplier (`mult` 1.25, 1.5, ...); on tick damage `mult` is 1.0 |
+| `flank` | | Keystone / Crescent back unit hitting the enemy in its own row (`mult` 1.2 / 1.3) |
+| `hearthguard` | | Hearth / Lighthouse lone front unit: less damage per living back ally (`mult` < 1) |
+| `echo_step` | | Echo Step: splash halved (`mult` 0.5) |
+| `chorus_splash` | | Lumari Chorus magic splash (`mult` 1.1) |
+| `brace` / `share_the_blow` | | on the **passed-on** number a neighbour takes (`mult` = the share, 0.2 / 0.3); the struck unit's own number is reduced by the shares. Only single-target actions pass shares (an area or multi-hit action keeps one number per unit) |
 
 `crit` is reported separately as a bool (`× crit_mult` 1.5); when true, `primary` is `crit`.
 
@@ -351,13 +418,20 @@ the side with the higher HP fraction before the tick wins (exact tie = draw; `re
 that winner then has no `survivors`. Hard cap 120 s
 (winner by HP fraction) exists only as a safety net.
 
-**Formations:** the occupied cells are matched (up to vertical translation, optional vertical
-mirror) against `data/formations.gd` shapes: Wall, Rearguard, Square, Shield (T, 3 back), Anvil
-(T, 3 front), Vanguard (L, 3 front), Watchtower (L, 3 back), Staggered (S/Z), plus 2–3 hero
-shapes (Shadowing, Twin Blades, Spear Line); anything else is Loose Ranks. Each has ≥1 buff and
-≥1 debuff. Composition buffs (by base class; advanced classes count as their base; monsters never):
-Well Rounded (4 different), Shield Brothers (2+ Fighters), Night Pack (2+ Rogues), Choir (2+ Healers),
-Arcane Circle (2+ Mages).
+**Formations (05-formations.md):** the occupied cells are matched at any height, with top/bottom
+mirrored variants counting as the same shape and front/back orientation mattering, against
+`data/formations.gd`: dominoes Kindred, Vigil, Lamplight; trominoes Tidebreak, Choir, Keystone,
+Hearth; tetrominoes Seawall, Lumari Chorus, Vault Door, Crescent, Lighthouse, Keeper's Ring,
+Shardpoint, Echo Step. Anything not edge-connected (or 5+ monsters) is **Strays** (Spd +5 %, crit
++5 %, splash never spreads to them). Each shape has a bonus, a behaviour (implemented in
+`combat_sim.gd`, cued as above) and a cost. A shape fights only if it is in the side's
+`unlocked_formations` (else Strays). "Melee" for behaviours = a physical attack aimed by melee
+targeting, or a dash (Backstab / Execute). Draw/taunt pull melee (including dashes) onto the gap
+unit / post / tip, and the Lighthouse post also draws single-target ranged and magic attacks.
+Numbers are placeholders; several were tuned from the doc to keep every shape at
+41–58 % against the field (see `data/formations.gd`).
+Composition buffs are kept (they don't conflict): Well Rounded (4 different), Shield Brothers (2+
+Fighters), Night Pack (2+ Rogues), Choir of Healers (2+ Healers), Arcane Circle (2+ Mages).
 
 **Alignment:** positions `[good_evil, lawful_chaotic]` in −2..+2. `apply_shift` keeps the underlying
 position on the grid; `effective = clamp(underlying + relic offset)`. Only relics carry offsets.
@@ -369,8 +443,10 @@ level `3 + (depth − 1) / 3`: shallow groups are a real fight for a mid-run par
 
 ## Echo snapshots
 
-`Echo.make(party, meta)` → `{"format": "echoing_depths.echo", "version": 1, "data_version", "name",
-"meta", "heroes": [normalised heroes]}`. `Echo.to_json` writes sorted-key JSON; `Echo.from_json` /
+`Echo.make(party, meta)` → `{"format": "echoing_depths.echo", "version": 2, "data_version", "name",
+"meta", "heroes": [normalised heroes], "unlocked_formations": [...]}` (the Training Grounds unlocks
+the player had when it was recorded; an Echo fights with exactly those). v1 Echoes still load and
+get the default unlocked set. `Echo.to_json` writes sorted-key JSON; `Echo.from_json` /
 `from_dict` validate (rules above, on the raw input before anything is normalised), migrate older
 versions (`_migrate` hook), reject newer or non-whole versions, and convert
 JSON floats back to ints, so JSON → Echo → JSON is byte-identical and replays match the live fight.

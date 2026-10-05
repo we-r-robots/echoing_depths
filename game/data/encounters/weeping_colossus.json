@@ -28,7 +28,7 @@
       "class": "mage",
       "label": "Answer: \"A memory.\"",
       "shift": { "good": 0, "law": 1},
-      "outcome": "\"A memory,\" Vesper says. The colossus closes its eyes, and its light pours into her instead. For a breath she remembers a city of glass she has never seen.",
+      "outcome": "\"A memory,\" your mage answers. The colossus closes its eyes, and its light pours into them instead. For a breath they remember a city of glass they have never seen.",
       "art": { "hide": ["tears"] }
     },
     {
@@ -36,7 +36,7 @@
       "class": "healer",
       "label": "Catch its tears",
       "shift": { "good": 1, "law": 0},
-      "outcome": "Ilse cups the falling [crystal]light[/crystal] and hums until the weeping slows. The stone sighs. Something grateful settles behind her eyes, and stays.",
+      "outcome": "Your healer cups the falling [crystal]light[/crystal] and hums until the weeping slows. The stone sighs. Something grateful settles behind their eyes, and stays.",
       "art": { "hide": ["tears"] }
     },
     {
@@ -44,7 +44,7 @@
       "class": "fighter",
       "label": "Pry out the crystal",
       "shift": { "good": -1, "law": -1},
-      "outcome": "Brannoc climbs the cheek and wrenches the crystal loose. The colossus does not scream. That is worse.\n\nWhat it held floods into him, [crystal]cold[/crystal] and enormous.",
+      "outcome": "Your fighter climbs the cheek and wrenches the crystal loose. The colossus does not scream. That is worse.\n\nWhat it held floods into them, [crystal]cold[/crystal] and enormous.",
       "art": { "hide": ["crown", "glow", "shine"] }
     },
     {

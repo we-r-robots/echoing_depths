@@ -12,7 +12,7 @@ const ICON_ABILITY = preload("res://assets/party/ability.png")
 const CHARS := "0123456789+-:x"
 const OUTLINE: Array[Vector2] = [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1), Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]
 const STAT_NAMES := {"hp_pct": "HP", "atk_pct": "ATK", "def_pct": "DEF", "mag_pct": "MAG", "spd_pct": "SPD",
-	"crit_add": "CRIT", "charge_pct": "CHARGE", "heal_pct": "HEAL"}
+	"crit_add": "CRIT", "charge_pct": "CHARGE", "heal_pct": "HEAL", "dmg_taken_pct": "DMG TAKEN"}
 const PANEL_W := 182
 const PANEL_Y := 284
 const ROW_H := 14
@@ -217,17 +217,22 @@ func badge_rect(side: int) -> Rect2:
 	return Rect2(3 if side == 0 else 640 - 3 - w, 2, w, 26)
 
 
+## [title, bonus, behaviour, cost] for the banner. A locked shape fights as Strays.
 func _badge_parts(side: int) -> Array:
 	var form: Dictionary = b.sides[side].get("formation", {})
-	var up := ""
-	var dn := ""
 	var bl: Array = form.get("buffs", [])
 	var dl: Array = form.get("debuffs", [])
-	if not bl.is_empty():
-		up = _stat_short(bl[0])
-	if not dl.is_empty():
-		dn = _stat_short(dl[0])
-	return [String(form.get("name", "")).to_upper(), up, dn]
+	var up := _stat_short(bl[0]) if not bl.is_empty() else ""
+	if bl.size() > 1:
+		up += " " + _stat_short(bl[1])
+	var beh := String((form.get("behaviour", {}) as Dictionary).get("name", ""))
+	var cost := _stat_short(dl[0]) if not dl.is_empty() else String(form.get("cost", ""))
+	var title := String(form.get("name", "")).to_upper()
+	if bool(form.get("locked", false)):
+		title = String(form.get("shape_name", title)).to_upper()
+		beh = "locked: fights as Strays"
+		cost = ""
+	return [title, up, beh, cost.trim_suffix(".")]
 
 
 func _stat_short(m: Dictionary) -> String:
@@ -239,17 +244,35 @@ func _w2(t: String) -> float:
 	return font_bold.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x * 2.0
 
 
-## Formation badge at 2x: the shape, its name, one buff (green ▲) and one debuff (red ▼).
+func _w1(t: String) -> float:
+	return font_bold.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+
+
+## Two-line banner: NAME + bonus (2x), then behaviour and cost (1x bold). Max half the screen.
+## One 2x line: NAME, then a field that rotates every 3 s between the bonus (green ▲), the
+## behaviour (side colour ◆) and the cost (red ▼). A pulse shows the field that just fired.
 func badge_width(side: int) -> float:
 	var p := _badge_parts(side)
-	var k := _stat_scale(side) * 0.5
-	return 6.0 + _w2(p[0]) + 8.0 + 13.0 + _w2(p[1]) * k + 6.0 + 13.0 + _w2(p[2]) * k + 6.0
+	var widest := 0.0
+	for k in [1, 2, 3]:
+		widest = maxf(widest, _w2(p[k]))
+	return minf(314.0, 6.0 + _w2(p[0]) + 8.0 + 13.0 + widest + 6.0)
 
 
-## Stats draw at 2x when the badge fits in half the screen, else at 1x.
-func _stat_scale(side: int) -> float:
+func _badge_field(side: int) -> int:
+	var pulse: float = badge_pulse[side]
+	if pulse > 0.0:
+		match badge_line[side]:
+			0: return 1
+			1: return 3
+			9: return 2
 	var p := _badge_parts(side)
-	return 2.0 if 52.0 + _w2(p[0]) + _w2(p[1]) + _w2(p[2]) <= 314.0 else 1.0
+	var k := 1 + int(t / 3.0) % 3
+	for i in 3:
+		if p[k] != "":
+			return k
+		k = 1 + k % 3
+	return 1
 
 
 func _draw_badge(side: int, alpha: float) -> void:
@@ -262,19 +285,30 @@ func _draw_badge(side: int, alpha: float) -> void:
 	var y := r.position.y + 3.0
 	_text_scaled_left(font_bold, p[0], Vector2(x, y), Color(sc.lerp(Pal.INK10, pulse * 0.7), alpha), 2)
 	x += _w2(p[0]) + 8.0
-	var hl_up: bool = pulse > 0.0 and badge_line[side] == 0
-	var hl_dn: bool = pulse > 0.0 and badge_line[side] == 1
-	if hl_up:
-		draw_rect(Rect2(x - 3, r.position.y + 2, _w2(p[1]) + 18, r.size.y - 4), Color(Pal.LIFE4, 0.35 * pulse))
-	var ss := int(_stat_scale(side))
-	var sy := y if ss == 2 else y + 7.0
-	_triangle2(Vector2(x, y + 7), true, Color(Pal.LIFE4, alpha))
-	_text_scaled_left(font_bold, p[1], Vector2(x + 13, sy), Color(Pal.LIFE4, alpha), ss)
-	x += 13.0 + _w2(p[1]) * ss * 0.5 + 6.0
-	if hl_dn:
-		draw_rect(Rect2(x - 3, r.position.y + 2, _w2(p[2]) + 18, r.size.y - 4), Color(Pal.BLOOD4, 0.35 * pulse))
-	_triangle2(Vector2(x, y + 7), false, Color(Pal.BLOOD4, alpha))
-	_text_scaled_left(font_bold, p[2], Vector2(x + 13, sy), Color(Pal.BLOOD4, alpha), ss)
+	var f := _badge_field(side)
+	var col: Color = [Pal.LIFE4, Pal.LIFE4, sc.lerp(Pal.INK10, 0.45), Pal.BLOOD4][f]
+	var room := r.end.x - x - 19.0
+	var txt := _fit2(p[f], room)
+	if pulse > 0.0:
+		draw_rect(Rect2(x - 3, r.position.y + 2, _w2(txt) + 18, 22), Color(col, 0.3 * pulse))
+	if f == 1:
+		_triangle2(Vector2(x, y + 7), true, Color(col, alpha))
+	elif f == 3:
+		_triangle2(Vector2(x, y + 7), false, Color(col, alpha))
+	else:
+		_tri[0] = Vector2(x + 5, y + 2); _tri[1] = Vector2(x + 10, y + 8); _tri[2] = Vector2(x + 5, y + 14)
+		draw_colored_polygon(_tri, Color(col, alpha))
+		_tri[1] = Vector2(x, y + 8)
+		draw_colored_polygon(_tri, Color(col, alpha))
+	_text_scaled_left(font_bold, txt, Vector2(x + 13, y), Color(col, alpha), 2)
+
+
+func _fit2(t: String, w: float) -> String:
+	if _w2(t) <= w:
+		return t
+	while t.length() > 1 and _w2(t + "...") > w:
+		t = t.substr(0, t.length() - 1)
+	return t.strip_edges() + "..."
 
 
 func _triangle2(p: Vector2, up: bool, c: Color) -> void:
@@ -417,9 +451,7 @@ func _draw_caption() -> void:
 	var who: String = u.label
 	var line: String = who + "  " + caption_text
 	if _w2(line) + (_w2(tgt) + 22.0 if tgt != "" else 0.0) > 248.0:
-		who = who.get_slice(" ", who.get_slice_count(" ") - 1)
-		tgt = tgt.get_slice(" ", tgt.get_slice_count(" ") - 1) if tgt != "" else ""
-		line = who + "  " + caption_text
+		tgt = ""   # too long: keep the full actor name and action, drop the target
 	var k := 1.0
 	var w := _w2(line) + (_w2(tgt) + 22.0 if tgt != "" else 0.0)
 	if w > 256.0:
@@ -529,18 +561,38 @@ func _draw_intro() -> void:
 		if a <= 0.0:
 			continue
 		var sc: Color = b.side_colors[side]
-		var r := Rect2(6 if side == 0 else 334, 30, 300, 52)
+		var form: Dictionary = b.sides[side].get("formation", {})
+		var beh: Dictionary = form.get("behaviour", {})
+		var r := Rect2(6 if side == 0 else 334, 6, 300, 108)
 		_panel_bg(r, sc, a, 0.5)
 		var cx := r.get_center().x
 		var p := _badge_parts(side)
-		_text_scaled(font_serif, String(b.sides[side].get("formation", {}).get("name", "")).to_upper(), Vector2(cx, 30), Color(sc.lerp(Pal.INK10, 0.35), a), 2)
-		var w := 13.0 + _w2(p[1]) + 16.0 + 13.0 + _w2(p[2])
-		var x := roundf(cx - w * 0.5)
-		_triangle2(Vector2(x, 69), true, Color(Pal.LIFE4, a))
-		_text_scaled_left(font_bold, p[1], Vector2(x + 13, 62), Color(Pal.LIFE4, a), 2)
-		x += 13.0 + _w2(p[1]) + 16.0
-		_triangle2(Vector2(x, 69), false, Color(Pal.BLOOD4, a))
-		_text_scaled_left(font_bold, p[2], Vector2(x + 13, 62), Color(Pal.BLOOD4, a), 2)
+		_text_scaled(font_serif, p[0], Vector2(cx, 30), Color(sc.lerp(Pal.INK10, 0.35), a), 2)
+		var l1: String = ("+ " + p[1]) if p[1] != "" else ""
+		_text(font_bold, l1, Vector2(cx, 74), Color(Pal.LIFE4, a), 1, true)
+		var bt := String(beh.get("name", "")) + ": " + String(beh.get("text", ""))
+		if bool(form.get("locked", false)):
+			bt = "Locked: fights as Strays (no shape behaviour)"
+		var lines := _wrap(bt, 286.0)
+		for i in lines.size():
+			_text(font_bold, lines[i], Vector2(cx, 87 + i * 10), Color(sc.lerp(Pal.INK10, 0.5), a), 1, true)
+		if not bool(form.get("locked", false)):
+			_text(font_bold, "Cost: " + String(form.get("cost", "")), Vector2(cx, 87 + lines.size() * 10 + 2), Color(Pal.BLOOD4, a), 1, true)
+
+
+func _wrap(t: String, w: float) -> PackedStringArray:
+	var out := PackedStringArray()
+	var cur := ""
+	for word in t.split(" "):
+		var nxt := word if cur == "" else cur + " " + word
+		if _w1(nxt) > w and cur != "":
+			out.append(cur)
+			cur = word
+		else:
+			cur = nxt
+	if cur != "":
+		out.append(cur)
+	return out
 
 
 # --- ability cut-in -------------------------------------------------------------------------------
@@ -585,16 +637,11 @@ func _draw_sd_banner() -> void:
 func _draw_fading() -> void:
 	if sd_banner_t < 3.2:
 		var a := clampf(sd_banner_t / 0.3, 0.0, 1.0) * (1.0 - clampf((sd_banner_t - 2.8) / 0.4, 0.0, 1.0))
-		_text_scaled(font_serif, "The memory of this battle is fading...", Vector2(320, 60), Color(Pal.INK10, a), 2)
+		_text_scaled(font_serif, "The memory of this battle is fading...", Vector2(320, 52), Color(Pal.INK10, a), 2)
 	# readout: a fading-eye glyph and the multiplier, under the badges once the line has gone
 	if sd_banner_t < 3.2:
 		return
-	var x := 296.0
-	var y := 34.0
-	draw_circle(Vector2(x + 6, y + 7), 7.0, Pal.FADE2)
-	draw_circle(Vector2(x + 6, y + 7), 4.0, Pal.FADE4)
-	draw_circle(Vector2(x + 6, y + 7), 2.0, Pal.INK2)
-	_text_scaled_left(font_bold, "x%.2f" % b.sd_mult, Vector2(x + 16, y - 1), Pal.FADE4, 2)
+	_text_scaled(font_serif, "Fading  x%.2f" % b.sd_mult, Vector2(320, 52), Pal.INK10, 2)
 
 
 # --- finish -----------------------------------------------------------------------------------------

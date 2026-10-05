@@ -21,7 +21,7 @@
       "class": "healer",
       "label": "Carry the ribbon",
       "shift": { "good": 1, "law": 0},
-      "outcome": "Forty-one names, stitched in red. Ilse reads each one aloud. The old woman smiles at the ones she still knows.",
+      "outcome": "Forty-one names, stitched in red. Your healer reads each one aloud. The old woman smiles at the ones she still knows.",
       "art": { "hide": ["ribbon"] }
     },
     {
@@ -36,7 +36,7 @@
       "class": "mage",
       "label": "Let her forget",
       "shift": { "good": 1, "law": -1},
-      "outcome": "Vesper takes the grief and leaves the woman only the morning. She wanders off, humming. The ribbon stays in Vesper's hand, heavier than silk should be.",
+      "outcome": "Your mage takes the grief and leaves the woman only the morning. She wanders off, humming. The ribbon stays behind, heavier than silk should be.",
       "art": { "hide": ["woman", "ribbon"] }
     },
     {

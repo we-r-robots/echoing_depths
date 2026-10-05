@@ -64,7 +64,12 @@ var _knock_amp := 0.0
 var _glow_t := 0.0
 var _bob_t := 0.0
 var victory_hop := false
+var focus_rim := false
 var dimmed := false
+var lit := false          # part of the focused action: drawn above the dim, with a rim light
+var charge_hold := 0.0
+var charge_pulse := 0.0
+var _echo_t := 0.0
 var flip_at_dest := false
 var buff_glow := 0.0
 var buff_color := Color.WHITE
@@ -320,13 +325,19 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 	_record_history()
 	for i in _ghosts.size():
 		var g := _ghosts[i]
-		g.visible = _ghosts_on and _move != Move.NONE and alive
-		if g.visible:
+		g.visible = (_ghosts_on and _move != Move.NONE and alive) or (_echo_t > 0.0 and alive)
+		if _echo_t > 0.0 and alive and not (_ghosts_on and _move != Move.NONE):
+			g.global_position = position + _sprite_offset() + Vector2(-facing * 6.0 * (i + 1), -2.0 * (i + 1))
+			g.animation = spr.animation
+			g.frame = spr.frame
+		elif g.visible:
 			var hi := (_hist_i - 1 - (i + 1) * 3 + 120) % 12
 			g.global_position = _hist_pos[hi] + _sprite_offset()
 			if g.animation != _hist_anim[hi]:
 				g.animation = _hist_anim[hi]
 			g.frame = _hist_frame[hi]
+	if _echo_t > 0.0:
+		_echo_t -= vdt
 	# flash / tint / ready outline
 	if _flash > 0.0:
 		_flash = maxf(0.0, _flash - vdt * 7.0)
@@ -345,6 +356,10 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 		mat.set_shader_parameter("outline_color", Color(Pal.VIOLET4 if on else Pal.VIOLET3, 1.0))
 	elif is_echo and alive:
 		mat.set_shader_parameter("outline_color", Color(Pal.CRYSTAL3, 0.55))
+	elif lit and alive and focus_rim:
+		mat.set_shader_parameter("outline_color", Color(side_color.lerp(Pal.INK10, 0.55), 1.0))   # focus rim light
+	elif height > 50 and alive:
+		mat.set_shader_parameter("outline_color", Color(Pal.INK7, 0.9))   # rim light: dark giants read against the wall
 	else:
 		mat.set_shader_parameter("outline_color", Color(0, 0, 0, 0))
 	if ko_t >= 0.0:
@@ -367,10 +382,35 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 	if hp_chip < hp_shown:
 		hp_chip = hp_shown
 	heal_glow = maxf(0.0, heal_glow - vdt * 2.0)
-	charge_shown = move_toward(charge_shown, float(charge), vdt * 260.0)
+	if charge_hold > 0.0:
+		charge_hold -= vdt
+		if charge_hold <= 0.0:
+			charge_pulse = 0.6
+	else:
+		charge_shown = move_toward(charge_shown, float(charge), vdt * 160.0)
+	charge_pulse = maxf(0.0, charge_pulse - vdt)
+	if not acting:
+		z_index = 25 if lit else 0
+
+
+## Walk to a new home slot (Vault Door's Hold the door).
+func step_to(dest: Vector2, t0: float, dur: float) -> void:
+	_relocate = true
+	plan_move(Move.LUNGE, t0, t0 + dur, t0 + dur, t0 + dur, dest, 0.0, true)
+
+
+## Echo Step: a staggered afterimage for a moment.
+func echo_afterimage(dur: float) -> void:
+	_echo_t = dur
+
+
+var _relocate := false
 
 
 func _end_move() -> void:
+	if _relocate:
+		_relocate = false
+		home = _dest
 	_move = Move.NONE
 	flip_at_dest = false
 	spr.flip_h = facing < 0

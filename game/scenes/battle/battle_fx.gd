@@ -98,6 +98,14 @@ var _sw_b := PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vecto
 var _sw_t := PackedFloat32Array([9.0, 9.0, 9.0, 9.0])
 var _sw_col := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
 var _sw_next := 0
+var _pp_link := PackedVector2Array()
+var _last_pop := 0
+var _sh_pos := PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
+var _sh_seg := PackedInt32Array([0, 0, 0, 0])
+var _sh_col := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
+var _sh_t := PackedFloat32Array([0.0, 0.0, 0.0, 0.0])
+var _sh_next := 0
+var _shield_pts := PackedVector2Array()
 var _sw_thin: Array[bool] = [false, false, false, false]
 
 # additive light pools (visual time): the "dynamic lighting" of casts, impacts and KOs
@@ -135,6 +143,8 @@ func setup() -> void:
 	_pp_small.resize(MAX_POP)
 	_pp_head.resize(MAX_POP); _pp_head_col.resize(MAX_POP); _pp_tag.resize(MAX_POP); _pp_tag_col.resize(MAX_POP)
 	_digit_buf.resize(8)
+	_pp_link.resize(MAX_POP)
+	_shield_pts.resize(6)
 	var add := CanvasItemMaterial.new()
 	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	for i in MAX_LIGHT:
@@ -250,6 +260,27 @@ func pillar(x: float, y: float, w: float, dur: float, col: Color) -> void:
 
 
 ## A number popup. `delay` staggers popups that land together; `scale` is a whole number.
+func _pop_half_w(value: int, head: String) -> float:
+	var digits := 1 if value < 10 else (2 if value < 100 else 3)
+	var nw := (digits * ADV + 2) * 0.5 if value >= 0 else 0.0
+	var tw := font_bold.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x * 0.5 if head != "" else 0.0
+	return maxf(nw, tw)
+
+
+## Link the last popup to a point (e.g. the hit that a shared/halved number came from).
+func link_last(to: Vector2) -> void:
+	_pp_link[_last_pop] = to
+
+
+## A segmented shield on a unit: one lit segment per supporting ally (Hearthguard).
+func shield(pos: Vector2, segments: int, col: Color, dur: float) -> void:
+	_sh_pos[_sh_next] = pos
+	_sh_seg[_sh_next] = segments
+	_sh_col[_sh_next] = col
+	_sh_t[_sh_next] = dur
+	_sh_next = (_sh_next + 1) % 4
+
+
 func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: String, head_col: Color, tag: String, tag_col: Color, delay := 0.0) -> int:
 	var best := 0
 	var oldest := -1.0
@@ -260,7 +291,21 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 		if _pp_t[i] > oldest:
 			oldest = _pp_t[i]
 			best = i
-	pos = Vector2(clampf(roundf(pos.x), 186.0, 454.0), maxf(roundf(pos.y), 140.0))
+	pos = Vector2(clampf(roundf(pos.x), 186.0, 454.0), maxf(roundf(pos.y), 146.0))
+	# keep same-instant numbers (and their tags) apart sideways, never stacked into one another
+	var hw := _pop_half_w(value, head)
+	for attempt in 4:
+		var hit := -1
+		for j in MAX_POP:
+			if j != best and _pp_on[j] and absf(_pp_y[j] - pos.y) < 14.0 and absf(_pp_x[j] - pos.x) < hw + _pop_half_w(_pp_val[j], _pp_head[j]) + 2.0:
+				hit = j
+				break
+		if hit < 0:
+			break
+		var need := hw + _pop_half_w(_pp_val[hit], _pp_head[hit]) + 2.0
+		pos.x = _pp_x[hit] + (need if pos.x >= _pp_x[hit] else -need)
+		pos.x = clampf(pos.x, 186.0, 454.0)
+	_pp_link[best] = Vector2.ZERO
 	_pp_on[best] = true
 	_pp_small[best] = false
 	_pp_val[best] = value
@@ -274,6 +319,7 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 	_pp_head_col[best] = head_col
 	_pp_tag[best] = tag
 	_pp_tag_col[best] = tag_col
+	_last_pop = best
 	return best
 
 
@@ -314,6 +360,8 @@ func trail(a: Vector2, b: Vector2, col: Color) -> void:
 func fade_popups() -> void:
 	for i in MAX_POP:
 		_pp_on[i] = false
+	for i in MAX_PILLAR:
+		_pl_on[i] = false
 
 
 func clear_all() -> void:
@@ -353,6 +401,7 @@ func tick(vdt: float, now_sim: float) -> void:
 			_py[k] += _vy[k] * vdt
 	for i in 4:
 		_sw_t[i] += vdt
+		_sh_t[i] -= vdt
 	for i in MAX_RING:
 		if _rg_on[i]:
 			_rg_t[i] += vdt
@@ -396,6 +445,23 @@ func _draw() -> void:
 		var top := -20.0
 		draw_rect(Rect2(_pl_x[i] - w, top, w * 2.0, _pl_y[i] - top), Color(c, 0.35 * (1.0 - u)))
 		draw_rect(Rect2(_pl_x[i] - maxf(1.0, w * 0.4), top, maxf(2.0, w * 0.8), _pl_y[i] - top), Color(Pal.INK10, 0.8 * (1.0 - u)))
+	# hearth shields
+	for i in 4:
+		if _sh_t[i] > 0.0:
+			var p := _sh_pos[i]
+			var a := clampf(_sh_t[i] / 0.3, 0.0, 1.0)
+			var segs := maxi(1, _sh_seg[i])
+			var w := 6.0 * segs + 4.0
+			var x0 := roundf(p.x - w * 0.5)
+			for k in segs:
+				draw_rect(Rect2(x0 + 2 + k * 6, p.y - 9, 5, 14), Color(_sh_col[i], 0.85 * a))
+			_shield_pts[0] = Vector2(x0, p.y - 11)
+			_shield_pts[1] = Vector2(x0 + w, p.y - 11)
+			_shield_pts[2] = Vector2(x0 + w, p.y + 4)
+			_shield_pts[3] = Vector2(x0 + w * 0.5, p.y + 9)
+			_shield_pts[4] = Vector2(x0, p.y + 4)
+			_shield_pts[5] = Vector2(x0, p.y - 11)
+			draw_polyline(_shield_pts, Color(Pal.INK10, a), 1.0)
 	# sweeps
 	for i in 4:
 		var st := _sw_t[i]
@@ -437,7 +503,7 @@ func _draw() -> void:
 		for tr in range(5, -1, -1):
 			var uu := maxf(0.0, u - tr * 0.045)
 			var p := _proj_pos(i, uu)
-			var r := 3.0 - tr * 0.45
+			var r := 4.0 - tr * 0.5
 			if _pj_kind[i] == 1:
 				r = 6.0 - tr * 0.8
 			if r <= 0.5:
@@ -455,7 +521,15 @@ func _draw() -> void:
 			c.a = clampf(_life[k] / _lmax[k] * 1.6, 0.0, 1.0)
 			var s := float(_psize[k])
 			draw_rect(Rect2(roundf(_px[k]), roundf(_py[k]), s, s), c)
-	# popups
+	# popups (with links: a shared/halved number tied to the hit it came from)
+	for i in MAX_POP:
+		if _pp_on[i] and _pp_t[i] >= 0.0 and _pp_link[i] != Vector2.ZERO:
+			var a := Vector2(_pp_x[i], _pp_y[i] - 6.0)
+			var b := _pp_link[i]
+			var n := int(a.distance_to(b) / 4.0)
+			for k in n:
+				if k % 2 == 0:
+					draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), Pal.AMBER6, 1.0)
 	for i in MAX_POP:
 		if _pp_on[i] and _pp_t[i] >= 0.0:
 			_draw_popup(i)

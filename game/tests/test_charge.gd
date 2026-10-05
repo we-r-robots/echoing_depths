@@ -31,7 +31,7 @@ func test_full_charge_triggers_ability() -> void:
 func test_charge_on_act_rate() -> void:
 	var r := CombatSim.simulate(22, duo(hero("mage", 1, 0)), duo(hero("mage", 1, 0)))
 	var rate := int(round(float(GameData.get_class_def("mage")["charge_on_act"]) * float(GameData.combat()["charge_act_scale"])))
-	var mult := 1.0 + 0.10   # fallback formation Loose Ranks: charge +10%
+	var mult := 1.0   # duo() placements are Strays: no charge bonus
 	for ev: Dictionary in of_type(r, "charge"):
 		if ev["reason"] == "act" and int(ev["charge"]) < 100:
 			eq(int(ev["delta"]), int(round(rate * mult)), "charge gained per basic action")
@@ -51,7 +51,7 @@ func test_charge_on_hit() -> void:
 			var u := unit_stats(r, int(ev["uid"]))
 			eq(int(ev["uid"]), int(dmg["dst"]), "hit charge goes to the damaged unit")
 			var expect := int(round(float(dmg["amount"]) * 100.0 / float(u["max_hp"]) *
-				float(GameData.get_class_def(String(u["class"]))["charge_on_hit"]) * float(GameData.combat()["charge_hit_scale"]) * 1.1))
+				float(GameData.get_class_def(String(u["class"]))["charge_on_hit"]) * float(GameData.combat()["charge_hit_scale"])))
 			eq(int(ev["delta"]), expect, "charge per % HP lost")
 			return
 	check(false, "no hit charge event")

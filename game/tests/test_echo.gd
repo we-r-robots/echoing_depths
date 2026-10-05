@@ -4,6 +4,7 @@ const CombatSim = preload("res://core/combat_sim.gd")
 const PartyGen = preload("res://core/party_gen.gd")
 const Echo = preload("res://core/echo.gd")
 const Rng = preload("res://core/rng.gd")
+const GameData = preload("res://core/game_data.gd")
 
 
 func test_round_trip_json() -> void:
@@ -56,3 +57,37 @@ func test_rejects_bad_input() -> void:
 func test_sim_rejects_invalid_party() -> void:
 	var r := CombatSim.simulate(1, {"heroes": []}, PartyGen.demo_party())
 	check(r.has("error"), "empty party reported as error, not a crash")
+
+
+func test_unlocks_round_trip() -> void:
+	var p := PartyGen.demo_party()
+	p["unlocked_formations"] = ["kindred", "seawall"]
+	var e := Echo.make(p)
+	eq(e["unlocked_formations"], ["kindred", "seawall"], "Echo records the unlocks used")
+	var back: Dictionary = Echo.from_json(Echo.to_json(e))
+	check(not back.has("error"), "parses: %s" % back.get("error", ""))
+	eq(back["echo"]["unlocked_formations"], ["kindred", "seawall"], "unlocks survive JSON")
+	eq(int(back["echo"]["version"]), 2, "Echo v2")
+	# the replay fights with the recorded unlocks, identically
+	var foe := PartyGen.demo_rival()
+	eq(JSON.stringify(CombatSim.simulate(4, p, foe)["events"]), JSON.stringify(CombatSim.simulate(4, back["echo"], foe)["events"]),
+		"replay with recorded unlocks matches the live fight")
+	# a locked shape in the recorded set fights as Strays
+	var wall := {"heroes": [hero("fighter", 0, 0), hero("fighter", 0, 1), hero("rogue", 0, 2), hero("rogue", 0, 3)],
+		"unlocked_formations": ["kindred"]}
+	var we: Dictionary = Echo.from_json(Echo.to_json(Echo.make(wall)))["echo"]
+	eq(CombatSim.simulate(1, we, foe)["events"][0]["sides"][0]["formation"]["id"], "strays", "locked Seawall Echo fights as Strays")
+
+
+func test_v1_echo_loads_with_default_unlocks() -> void:
+	var v1 := '{"format":"echoing_depths.echo","version":1,"heroes":[{"class":"fighter","level":1,"slot":[0,0]},{"class":"mage","level":1,"slot":[1,0]}]}'
+	var res := Echo.from_json(v1)
+	check(not res.has("error"), "v1 Echo still loads: %s" % res.get("error", ""))
+	eq(res["echo"]["unlocked_formations"], GameData.Formations.DEFAULT_UNLOCKED, "v1 Echo gets the default unlocked set")
+	eq(int(res["echo"]["version"]), 2, "migrated to v2")
+
+
+func test_bad_unlocks_rejected() -> void:
+	for bad in ['"x"', '["kindred", 5]', '["nope"]']:
+		var txt := '{"format":"echoing_depths.echo","version":2,"unlocked_formations":%s,"heroes":[{"class":"fighter","level":1,"slot":[0,0]},{"class":"mage","level":1,"slot":[1,0]}]}' % bad
+		check(Echo.from_json(txt).has("error"), "rejected unlocked_formations %s" % bad)

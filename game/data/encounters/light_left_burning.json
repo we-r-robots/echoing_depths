@@ -21,7 +21,7 @@
       "label": "Bind her hand",
       "shift": { "good": 1, "law": 0},
       "recruit": { "class": "rogue", "name": "Tamsin" },
-      "outcome": "Ilse cleans the cut and binds it. Tamsin flinches, then doesn't. She tells you their names while they are still there to tell, and shoulders her pack."
+      "outcome": "Your healer cleans the cut and binds it. Tamsin flinches, then doesn't. She tells you their names while they are still there to tell, and shoulders her pack."
     },
     {
       "id": "test_blade",
@@ -29,7 +29,7 @@
       "label": "Take her as your second",
       "shift": { "good": 0, "law": 1},
       "recruit": { "class": "rogue", "name": "Tamsin" },
-      "outcome": "Three passes. She is fast, and cheats, and grins when she loses. Brannoc nods once. That is enough."
+      "outcome": "Three passes. She is fast, and cheats, and grins when she loses. Your fighter nods once. That is enough."
     },
     {
       "id": "read_her",
@@ -37,7 +37,7 @@
       "label": "Take the faces she is losing",
       "shift": { "good": -1, "law": -1},
       "art": { "hide": ["girl"] },
-      "outcome": "Vesper takes the faces gently, the way you take a cup from someone asleep. Tamsin blinks, shoulders her pack, and walks back toward the surface, lighter and unsure why."
+      "outcome": "Your mage takes the faces gently, the way you take a cup from someone asleep. Tamsin blinks, shoulders her pack, and walks back toward the surface, lighter and unsure why."
     }
   ]
 }

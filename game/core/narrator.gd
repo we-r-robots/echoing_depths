@@ -6,22 +6,31 @@ const COL_NAMES := ["front", "back"]
 ## once at the top instead of on every hit.
 const MOD_TEXT := {"back_row_attacker": "attacker in back row", "back_row_target": "target in back row",
 	"back_row_both": "both in back row", "execute": "EXECUTE", "crit": "CRIT",
-	"sudden_death": "the Fading"}
+	"sudden_death": "the Fading", "brace": "braced", "share_the_blow": "shared blow", "flank": "flank",
+	"hearthguard": "hearthguard", "echo_step": "echo step", "chorus_splash": "chorus splash"}
+const BEH_TEXT := {"shoulder_to_shoulder": "shoulder to shoulder, gains charge", "covering_fire": "covering fire, targets the attacker",
+	"guardian": "guardian intercepts the hit", "brace": "braces, neighbours share the blow", "opening_volley": "opening volley, acts early",
+	"flank": "flanks the enemy in its row", "hearthguard": "hearthguard, takes less damage", "share_the_blow": "shares the blow down the wall",
+	"chorus_splash": "chorus, splash +10%", "keepers_ring": "keeper's ring, can't be targeted", "shardpoint": "shardpoint, the tip gains charge",
+	"echo_step": "echo step, splash halved", "scattered": "scattered, splash can't spread", "draws_melee": "draws the melee",
+	"taunt": "the lit post taunts melee"}
 const STAT_TEXT := {"hp_pct": "max HP", "atk_pct": "Atk", "def_pct": "Def", "mag_pct": "Mag", "spd_pct": "Spd",
-	"crit_add": "crit", "charge_pct": "charge", "heal_pct": "healing"}
+	"crit_add": "crit", "charge_pct": "charge", "heal_pct": "healing", "dmg_taken_pct": "damage taken"}
 
 
 static func narrate(events: Array) -> PackedStringArray:
 	var lines := PackedStringArray()
 	var units := {}
+	var cur_action := "the attack"
 	for ev: Dictionary in events:
 		var t := "[%6.2fs] " % float(ev["t"])
 		match String(ev["type"]):
 			"fight_start":
 				for side: Dictionary in ev["sides"]:
 					var f: Dictionary = side["formation"]
-					lines.append("== %s: formation %s (%s | %s)%s" % [side["name"], f["name"],
-						_mods_text(f["buffs"]), _mods_text(f["debuffs"]), _comps_text(side["compositions"])])
+					lines.append("== %s: %s%s%s" % [side["name"], f["name"],
+						" (%s is locked: fights as Strays)" % f["shape_name"] if f["locked"] else "",
+						_comps_text(side["compositions"])])
 					for u: Dictionary in side["units"]:
 						units[int(u["uid"])] = u
 						lines.append("     %s  %s Lv%d  %s row %d  HP %d  Atk %d Def %d Mag %d Spd %d" % [
@@ -29,6 +38,7 @@ static func narrate(events: Array) -> PackedStringArray:
 							int(u["max_hp"]), int(u["atk"]), int(u["def"]), int(u["mag"]), int(u["spd"])])
 				lines.append("== The Fading begins at %.0fs" % float(ev["sudden_death_at"]))
 			"action_start":
+				cur_action = "%s's %s" % [_tag(units[int(ev["uid"])]), ev["name"]]
 				var who: Dictionary = units[int(ev["uid"])]
 				var what := "uses %s!" % String(ev["name"]).to_upper() if ev["kind"] == "ability" else String(ev["name"]).to_lower() + "s"
 				var tgt := ""
@@ -61,11 +71,25 @@ static func narrate(events: Array) -> PackedStringArray:
 					lines.append(t + "    %s is fully charged: %s" % [_tag(units[int(ev["uid"])]),
 						"ability next, jumps the turn queue" if q == 0 else "ability queued (#%d)" % (q + 1)])
 			"formation_proc":
-				lines.append(t + "    ~ %s %s %+d%% %s (%s)" % [ev["name"], STAT_TEXT[ev["stat"]],
-					roundi(float(ev["value"]) * 100.0), "for " + _tag(units[int(ev["uid"])]), ev["trigger"]])
+				var who := _tag(units[int(ev["uid"])])
+				if String(ev["stat"]) != "":
+					lines.append(t + "    ~ %s %s %+d%% for %s (%s)" % [ev["name"], STAT_TEXT[ev["stat"]],
+						roundi(float(ev["value"]) * 100.0), who, ev["trigger"]])
+				else:
+					var rel := int(ev["related"])
+					var what: String = BEH_TEXT.get(ev["effect"], ev["effect"])
+					if ev["effect"] == "taunt" or ev["effect"] == "draws_melee":
+						what = "%s draws %s" % ["the lit post" if ev["effect"] == "taunt" else "it", cur_action]
+					lines.append(t + "    ~ %s: %s: %s%s" % [ev["name"], what, who,
+						(" (vs %s)" % _tag(units[rel])) if rel >= 0 else ""])
+			"formation_move":
+				lines.append(t + "    ~ Hold the door: %s steps forward from the back row into row %d" % [
+					_tag(units[int(ev["uid"])]), int(ev["to"][1]) + 1])
 			"formation":
 				var fm: Dictionary = ev["formation"]
-				lines.append(t + "%s forms %s: %s | %s" % ["AB"[int(ev["side"])], fm["name"], _mods_text(fm["buffs"]), _mods_text(fm["debuffs"])])
+				lines.append(t + "%s forms %s: %s | %s: %s | cost: %s%s" % ["AB"[int(ev["side"])], fm["name"],
+					_mods_text(fm["buffs"]), fm["behaviour"]["name"], fm["behaviour"]["text"], fm["cost"],
+					(" " + _mods_text(fm["debuffs"])) if not (fm["debuffs"] as Array).is_empty() else ""])
 			"ko":
 				lines.append(t + "    *** %s is knocked out ***" % _tag(units[int(ev["uid"])]))
 			"sudden_death":

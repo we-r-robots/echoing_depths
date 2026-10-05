@@ -54,6 +54,8 @@ func _draw() -> void:
 		var cx := x0 + 27.0 if u.side == 0 else x0 - 5.0
 		var cy := y0 + 2.0
 		var cf: float = clampf(u.charge_shown / float(u.charge_max), 0.0, 1.0)
+		if u.charge_pulse > 0.0:
+			_diamond(cx, cy, 3.0 + roundf(u.charge_pulse * 6.0), Color(Pal.VIOLET4, u.charge_pulse))
 		_diamond(cx, cy, 3.0, Color(Pal.INK1, a))
 		_diamond(cx, cy, 2.0, Color(Pal.VIOLET1, a))
 		if u.is_ready:

@@ -44,7 +44,7 @@ zoom = Vector2(2, 2)
 position = Vector2(320, 180)
 
 [node name="FadeLayer" type="CanvasLayer" parent="."]
-layer = 4
+layer = -5
 
 [node name="Fade" type="ColorRect" parent="FadeLayer"]
 visible = false

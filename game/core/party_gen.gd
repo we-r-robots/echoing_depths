@@ -4,36 +4,29 @@ extends RefCounted
 const Rng = preload("res://core/rng.gd")
 const GameData = preload("res://core/game_data.gd")
 const Alignment = preload("res://core/alignment.gd")
+const Formation = preload("res://core/formation.gd")
 
 const NAMES := ["Brakka", "Ilse", "Moth", "Corin", "Vael", "Tamsin", "Oren", "Sable", "Wren", "Hale",
 	"Ysolde", "Pell", "Dagny", "Fenn", "Liora", "Ash"]
 
-## 4-hero slot layouts (each is a known formation shape or a loose layout).
-const LAYOUTS := [
-	[[0, 0], [0, 1], [1, 0], [1, 1]],   # square
-	[[0, 1], [1, 0], [1, 1], [1, 2]],   # shield
-	[[0, 0], [0, 1], [0, 2], [1, 1]],   # anvil
-	[[0, 1], [0, 2], [0, 3], [1, 1]],   # vanguard
-	[[0, 1], [1, 1], [1, 2], [1, 3]],   # watchtower
-	[[0, 1], [0, 2], [1, 2], [1, 3]],   # staggered
-	[[0, 0], [0, 1], [0, 2], [0, 3]],   # wall
-	[[1, 0], [1, 1], [1, 2], [1, 3]],   # rearguard
-	[[0, 0], [0, 3], [1, 1], [1, 2]],   # loose
-]
-
-
 ## A random but valid player party.
-## opts: "size" (default 4), "advanced_chance" (0..1, default 0.35)
+## opts: "size" (2..4, default 4), "advanced_chance" (0..1, default 0.35),
+##   "shape" (force a shape id or "strays"), "unlocked" (Array of unlocked shape ids; default all,
+##   so generated parties show their shape; pass [] for "nothing unlocked").
+## The layout is a random shape of that size (or Strays) at a random height/mirror; classes are
+## then picked per slot, leaning melee in front and casters behind (75%), as a player would.
 static func random_party(rng: Rng, opts: Dictionary = {}) -> Dictionary:
 	var size := int(opts.get("size", 4))
 	var adv_chance := float(opts.get("advanced_chance", 0.35))
-	var bases: Array = GameData.Classes.BASE_CLASS_IDS
+	var layout := random_layout(rng, size, String(opts.get("shape", "")))
 	var picks: Array = []
-	for i in size:
-		picks.append(bases[rng.int_range(0, bases.size() - 1)])
-	# plausible formation: enough front slots for the melee classes, melee in front first
-	var layout: Array = _pick_layout(rng, picks) if size == 4 else _line_layout(size)
-	var slots := _assign_slots(picks, layout)
+	var slots: Array = []
+	for cell: Array in layout:
+		var front := int(cell[0]) == 0
+		var lean := rng.next_float() < 0.75
+		var pool: Array = ["fighter", "rogue"] if front == lean else ["healer", "mage"]
+		picks.append(pool[rng.int_range(0, 1)])
+		slots.append(cell)
 	var heroes: Array = []
 	var used_names := {}
 	for i in size:
@@ -60,33 +53,67 @@ static func random_party(rng: Rng, opts: Dictionary = {}) -> Dictionary:
 		heroes.append({"name": hname, "class": cid,
 			"level": rng.int_range(1, GameData.max_level(cid) - (2 if cid == base else 0)),
 			"items": items, "alignment": pos, "slot": slots[i]})
-	return {"name": "Party", "heroes": heroes}
+	var unlocked: Array = opts.get("unlocked", all_shapes())
+	return {"name": "Party", "heroes": heroes, "unlocked_formations": unlocked.duplicate()}
 
 
-static func _pick_layout(rng: Rng, picks: Array) -> Array:
-	var melee := 0
-	for cid: String in picks:
-		if int(GameData.get_class_def(cid)["preferred_col"]) == 0:
-			melee += 1
-	var fits: Array = []
-	for lay: Array in LAYOUTS:
-		var front := 0
-		for s: Array in lay:
-			if int(s[0]) == 0:
-				front += 1
-		if front >= maxi(1, melee):
-			fits.append(lay)
-	return fits[rng.int_range(0, fits.size() - 1)]
-
-
-static func _line_layout(size: int) -> Array:
+## Every shape id (all unlocked).
+static func all_shapes() -> Array:
 	var out: Array = []
-	for i in size:
-		out.append([i % 2, i >> 1])
+	for sh: Dictionary in GameData.Formations.SHAPES:
+		out.append(sh["id"])
 	return out
 
 
-## Front slots go to classes that prefer the front.
+## Slots for a random shape of `size` heroes (or `shape_id` if given; "strays" = a scattered
+## placement that matches no shape), at a random height and mirror.
+static func random_layout(rng: Rng, size: int, shape_id: String = "") -> Array:
+	var shapes: Array = []
+	for sh: Dictionary in GameData.Formations.SHAPES:
+		if int(sh["size"]) == size and (shape_id == "" or sh["id"] == shape_id):
+			shapes.append(sh)
+	var pick := rng.int_range(0, shapes.size()) if shape_id == "" else (0 if not shapes.is_empty() else shapes.size())
+	if pick >= shapes.size():   # Strays
+		for _attempt in 200:
+			var cells: Array = []
+			var used := {}
+			while cells.size() < size:
+				var c := [rng.int_range(0, 1), rng.int_range(0, 3)]
+				if not used.has(c[0] * 4 + c[1]):
+					used[c[0] * 4 + c[1]] = true
+					cells.append(c)
+			if String(Formation.detect(cells)["id"]) == "strays":
+				return cells
+		return [[0, 0], [1, 2], [0, 3], [1, 0]].slice(0, size)
+	var sh: Dictionary = shapes[pick]
+	var cells2: Array = (sh["cells"] as Array).duplicate(true)
+	if bool(sh["mirror"]) and rng.next_float() < 0.5:
+		cells2 = Formation._flip(cells2)
+	var h := 0
+	for c: Array in cells2:
+		h = maxi(h, int(c[1]) + 1)
+	var off := rng.int_range(0, 4 - h)
+	var out: Array = []
+	for c: Array in cells2:
+		out.append([int(c[0]), int(c[1]) + off])
+	return out
+
+
+## One canonical 4-hero placement per tetromino, plus a Strays placement (kept for probes/tools).
+const LAYOUTS := [
+	[[0, 0], [0, 1], [0, 2], [0, 3]],   # seawall
+	[[1, 0], [1, 1], [1, 2], [1, 3]],   # lumari_chorus
+	[[0, 0], [0, 1], [1, 0], [1, 1]],   # vault_door
+	[[0, 0], [0, 1], [0, 2], [1, 0]],   # crescent
+	[[0, 0], [1, 0], [1, 1], [1, 2]],   # lighthouse
+	[[0, 0], [0, 1], [0, 2], [1, 1]],   # keepers_ring
+	[[0, 1], [1, 0], [1, 1], [1, 2]],   # shardpoint
+	[[0, 0], [0, 1], [1, 1], [1, 2]],   # echo_step
+	[[0, 0], [0, 3], [1, 1], [1, 2]],   # strays
+]
+
+
+## Front slots go to classes that prefer the front (helper for tools that pick classes first).
 static func _assign_slots(picks: Array, layout: Array) -> Array:
 	var front: Array = []
 	var back: Array = []
@@ -117,7 +144,7 @@ static func demo_party() -> Dictionary:
 		{"name": "Ilse", "class": "healer", "level": 3, "items": {"weapon": "oak_staff", "armor": "silk_robe", "relic": "dawn_locket"},
 			"alignment": [1, 1], "slot": [1, 1]},
 		{"name": "Vael", "class": "mage", "level": 3, "items": {"weapon": "crystal_wand", "armor": "", "relic": ""},
-			"alignment": [1, -1], "slot": [1, 2]}]}
+			"alignment": [1, -1], "slot": [1, 2]}], "unlocked_formations": all_shapes()}
 
 
 ## A rival party (stands in for an Echo in demos).
@@ -130,7 +157,7 @@ static func demo_rival() -> Dictionary:
 		{"name": "Tamsin", "class": "mage", "level": 3, "items": {"weapon": "oak_staff", "armor": "", "relic": ""},
 			"alignment": [1, -1], "slot": [0, 2]},
 		{"name": "Oren", "class": "healer", "level": 2, "items": {"weapon": "", "armor": "silk_robe", "relic": ""},
-			"alignment": [1, 1], "slot": [1, 1]}]}
+			"alignment": [1, 1], "slot": [1, 1]}], "unlocked_formations": all_shapes()}
 
 
 ## A Vault monster group scaled by depth (1..). Deterministic from rng.

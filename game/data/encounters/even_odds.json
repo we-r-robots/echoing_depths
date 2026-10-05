@@ -26,11 +26,11 @@
       "outcome": [
         {
           "weight": 1,
-          "text": "The flame gutters, then steadies in Ilse's grip. Warmth, and with it a stranger's lullaby she now knows by heart."
+          "text": "The flame gutters, then steadies in a careful grip. Warmth, and with it a stranger's lullaby, known now by heart."
         },
         {
           "weight": 1,
-          "text": "The lantern goes dark the moment it leaves the brass hand. Still, in the smoke, Ilse sees a child's face, and keeps it."
+          "text": "The lantern goes dark the moment it leaves the brass hand. Still, in the smoke, there is a child's face. It is kept."
         }
       ],
       "art": { "hide": ["lit", "glow"] }

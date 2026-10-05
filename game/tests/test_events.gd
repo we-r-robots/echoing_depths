@@ -5,7 +5,7 @@ const PartyGen = preload("res://core/party_gen.gd")
 const GameData = preload("res://core/game_data.gd")
 const Rng = preload("res://core/rng.gd")
 
-const TYPES := ["fight_start", "formation", "formation_proc", "action_start", "ability", "damage", "heal", "charge", "ko", "sudden_death", "fight_end"]
+const TYPES := ["fight_start", "formation", "formation_proc", "formation_move", "action_start", "ability", "damage", "heal", "charge", "ko", "sudden_death", "fight_end"]
 const TOS := ["primary", "primary_adjacent", "primary_column", "primary_column_rest", "other_enemies", "melee_enemy", "all_enemies", "front_enemies", "front_random",
 	"random_enemy", "self", "all_allies", "lowest_hp_ally"]
 const SELECTORS := ["melee", "back_first", "lowest_hp_enemy", "random_enemy", "lowest_hp_ally", "self", "all_enemies", "all_allies"]

@@ -1,0 +1,3446 @@
+{
+ "_doc": "Run-layer encounter pool. Same format as data/encounters/<id>.json (EncounterDB) so the encounter screen can show them; 'art' is left empty until art is authored. Extra optional choice fields read by the run layer: 'item' (item id granted to the choice's hero; relics bind on equip), 'recruit' ({class, name}; class '*' = a seeded random base class fixed when the map is generated). Placeholder writing. 'luck' {chance, good, law, text}: with that chance the choice's shift and outcome turn out differently. Some encounters give one class two choices pointing different ways (alignment steering). 'rest' {label, heal, outcome}: an extra party-wide choice that recovers health; its cost is that nobody gains a memory at this node.",
+ "encounters": [
+  {
+   "id": "drowned_bell",
+   "kind": "riddle",
+   "title": "The Drowned Bell",
+   "art": {},
+   "text": "A bell hangs in still water. Carved on its lip: [crystal]I speak only when no one strikes me.[/crystal]",
+   "choices": [
+    {
+     "id": "answer_echo",
+     "class": "mage",
+     "label": "Answer: an echo",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The water stirs. The bell rings once, from very far away."
+    },
+    {
+     "id": "wait_silent",
+     "class": "healer",
+     "label": "Wait in silence",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Hours pass. The bell hums, pleased to be listened to."
+    },
+    {
+     "id": "strike_it",
+     "class": "fighter",
+     "label": "Strike it anyway",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "It does not ring. Something under the water laughs."
+    },
+    {
+     "id": "cut_rope",
+     "class": "rogue",
+     "label": "Cut it down",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "item": "wild_feather",
+     "outcome": "It sinks without a sound. A feather floats up where it fell."
+    },
+    {
+     "id": "ring_it_for_the_dead",
+     "class": "rogue",
+     "label": "Ring it for the dead",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "One clear note. Somewhere below, something stops weeping.",
+     "luck": {
+      "chance": 0.35,
+      "good": 0,
+      "law": -1,
+      "text": "It rings wrong. The water boils, briefly, and you run."
+     }
+    }
+   ]
+  },
+  {
+   "id": "mirror_hall",
+   "kind": "riddle",
+   "title": "Hall of Unkind Mirrors",
+   "art": {},
+   "text": "Each mirror shows the party as the Vault remembers them. None of the reflections agree.",
+   "choices": [
+    {
+     "id": "trust_first",
+     "class": "fighter",
+     "label": "Trust the first reflection",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It is the plainest one. It is right."
+    },
+    {
+     "id": "break_false",
+     "class": "mage",
+     "label": "Unmake the false ones",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Glass rains like snow. One mirror is left, smiling."
+    },
+    {
+     "id": "comfort_it",
+     "class": "healer",
+     "label": "Comfort the weeping one",
+     "shift": {
+      "good": 1,
+      "law": -1
+     },
+     "outcome": "It stops weeping. So, briefly, does the Vault."
+    },
+    {
+     "id": "steal_frame",
+     "class": "rogue",
+     "label": "Pry off the silver frame",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "item": "twin_daggers",
+     "outcome": "Good silver. Two thin blades were hidden in the frame."
+    },
+    {
+     "id": "shatter_your_own_reflect",
+     "class": "fighter",
+     "label": "Shatter your own reflection",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "You never liked how it looked at you. The hall goes quiet."
+    }
+   ]
+  },
+  {
+   "id": "lumari_lock",
+   "kind": "riddle",
+   "title": "The Lumari Lock",
+   "art": {},
+   "text": "A door of [crystal]crystal[/crystal] with a lock shaped like a word nobody remembers.",
+   "choices": [
+    {
+     "id": "recall_word",
+     "class": "mage",
+     "label": "Search your memory for it",
+     "shift": {
+      "good": 0,
+      "law": 2
+     },
+     "outcome": "The word arrives as if it was always yours. The door remembers you back."
+    },
+    {
+     "id": "pick_lock",
+     "class": "rogue",
+     "label": "Pick it",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Crystal tumblers, delicate as frost. It opens on the third try."
+    },
+    {
+     "id": "pray_open",
+     "class": "healer",
+     "label": "Ask it kindly",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "The door considers this, and opens."
+    },
+    {
+     "id": "shoulder_it",
+     "class": "fighter",
+     "label": "Shoulder through",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Crystal is harder than doors. Eventually it is not."
+    }
+   ],
+   "rest": {
+    "label": "Rest by the warm crystal",
+    "heal": 1,
+    "outcome": "The door can wait. You sleep against the crystal, and wake mended."
+   }
+  },
+  {
+   "id": "gamblers_lantern",
+   "kind": "chance",
+   "title": "The Gambler's Lantern",
+   "art": {},
+   "text": "A lantern burns with two flames, one [amber]amber[/amber], one [fade]gray[/fade]. Blow out one.",
+   "choices": [
+    {
+     "id": "blow_gray",
+     "class": "healer",
+     "label": "Blow out the gray",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": [
+      {
+       "weight": 2,
+       "text": "The amber flame grows. Warmth, for a while."
+      },
+      {
+       "weight": 1,
+       "text": "Both go out. The dark is only dark."
+      }
+     ]
+    },
+    {
+     "id": "blow_amber",
+     "class": "mage",
+     "label": "Blow out the amber",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": [
+      {
+       "weight": 1,
+       "text": "The gray flame shows you a door that is not there."
+      },
+      {
+       "weight": 1,
+       "text": "Cold, and a whisper of someone's name."
+      }
+     ]
+    },
+    {
+     "id": "pocket_it",
+     "class": "rogue",
+     "label": "Pocket the lantern",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "It is lighter than it looks. So is your conscience."
+    },
+    {
+     "id": "leave_it",
+     "class": "fighter",
+     "label": "Leave it burning",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Some things are not yours to choose."
+    },
+    {
+     "id": "light_a_third_flame",
+     "class": "healer",
+     "label": "Light a third flame",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "A new flame, neither amber nor gray. Nobody told you that was allowed.",
+     "luck": {
+      "chance": 0.35,
+      "good": 1,
+      "law": 0,
+      "text": "It takes. Warmth spreads, and the Vault seems, for a moment, surprised."
+     }
+    }
+   ]
+  },
+  {
+   "id": "dice_of_bone",
+   "kind": "chance",
+   "title": "Dice of Bone",
+   "art": {},
+   "text": "An Echo with no face rattles two dice and gestures at the empty seat.",
+   "choices": [
+    {
+     "id": "roll_high",
+     "class": "rogue",
+     "label": "Play, and cheat",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "item": "shadow_cloak",
+     "outcome": [
+      {
+       "weight": 2,
+       "text": "You win its cloak. It does not seem to mind."
+      },
+      {
+       "weight": 1,
+       "text": "It saw. It lets you keep the cloak anyway."
+      }
+     ]
+    },
+    {
+     "id": "roll_fair",
+     "class": "fighter",
+     "label": "Play fair",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": [
+      {
+       "weight": 1,
+       "text": "You lose. It bows."
+      },
+      {
+       "weight": 1,
+       "text": "You win. It bows lower."
+      }
+     ]
+    },
+    {
+     "id": "read_dice",
+     "class": "mage",
+     "label": "Read the dice",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The pips are names. You stop reading."
+    },
+    {
+     "id": "bless_seat",
+     "class": "healer",
+     "label": "Bless the empty seat",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The Echo sets its dice down, and is still."
+    },
+    {
+     "id": "offer_it_a_fair_game",
+     "class": "rogue",
+     "label": "Offer it a fair game",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "You play honestly. The Echo looks at you a long time before it rolls."
+    }
+   ]
+  },
+  {
+   "id": "crumbling_stair",
+   "kind": "chance",
+   "title": "The Crumbling Stair",
+   "art": {},
+   "text": "A stair over a drop with no bottom. Every third step is already gone.",
+   "choices": [
+    {
+     "id": "leap",
+     "class": "rogue",
+     "label": "Leap the gaps",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": [
+      {
+       "weight": 3,
+       "text": "Light feet, long fall avoided."
+      },
+      {
+       "weight": 1,
+       "text": "A slip, a grab, a lost boot."
+      }
+     ]
+    },
+    {
+     "id": "brace",
+     "class": "fighter",
+     "label": "Brace and carry the others",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "item": "padded_vest",
+     "outcome": "Slow, heavy, certain. A dead climber's vest hangs on the last step."
+    },
+    {
+     "id": "float",
+     "class": "mage",
+     "label": "Float across",
+     "shift": {
+      "good": 0,
+      "law": -2
+     },
+     "outcome": "The air holds you because you insist."
+    },
+    {
+     "id": "rope_line",
+     "class": "healer",
+     "label": "Rope everyone together",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Nobody falls. Nobody would have been allowed to."
+    }
+   ],
+   "rest": {
+    "label": "Camp on the landing",
+    "heal": 1,
+    "outcome": "A night of not falling. It is enough to heal on."
+   }
+  },
+  {
+   "id": "starving_echo",
+   "kind": "moral",
+   "title": "The Starving Echo",
+   "art": {},
+   "text": "An Echo of a child begs for a memory, any memory, so it can remember being fed.",
+   "choices": [
+    {
+     "id": "give_memory",
+     "class": "healer",
+     "label": "Give it a warm memory",
+     "shift": {
+      "good": 2,
+      "law": 0
+     },
+     "outcome": "It eats the memory of bread and smiles. You will not miss it. Probably."
+    },
+    {
+     "id": "send_it_on",
+     "class": "mage",
+     "label": "Unbind it gently",
+     "shift": {
+      "good": 1,
+      "law": 1
+     },
+     "outcome": "It fades without fear."
+    },
+    {
+     "id": "walk_on",
+     "class": "fighter",
+     "label": "Walk on",
+     "shift": {
+      "good": -1,
+      "law": 1
+     },
+     "outcome": "Rules are rules. The Vault feeds its own."
+    },
+    {
+     "id": "trick_it",
+     "class": "rogue",
+     "label": "Feed it a false memory",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "It cannot tell the difference. Neither, later, can you."
+    },
+    {
+     "id": "share_your_rations",
+     "class": "fighter",
+     "label": "Share your rations",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Bread for a ghost. It cannot eat it. It holds it anyway."
+    }
+   ]
+  },
+  {
+   "id": "oathbreaker",
+   "kind": "moral",
+   "title": "The Oathbreaker's Grave",
+   "art": {},
+   "text": "A knight's grave, defaced. Her oath is carved beside it, half scratched away.",
+   "choices": [
+    {
+     "id": "restore_oath",
+     "class": "fighter",
+     "label": "Recarve her oath",
+     "shift": {
+      "good": 0,
+      "law": 2
+     },
+     "item": "oath_seal",
+     "outcome": "The last word comes back under your blade. A seal rests on the stone."
+    },
+    {
+     "id": "read_why",
+     "class": "mage",
+     "label": "Learn why she broke it",
+     "shift": {
+      "good": 1,
+      "law": -1
+     },
+     "outcome": "She broke it to save a village. The village does not remember her."
+    },
+    {
+     "id": "rob_grave",
+     "class": "rogue",
+     "label": "Rob the grave",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "item": "iron_sword",
+     "outcome": "Her sword is still sharp. She will not need it."
+    },
+    {
+     "id": "pray_for_her",
+     "class": "healer",
+     "label": "Pray for her",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Somewhere, a weight lifts."
+    },
+    {
+     "id": "break_your_own_oath_here",
+     "class": "fighter",
+     "label": "Break your own oath here",
+     "shift": {
+      "good": 0,
+      "law": -2
+     },
+     "outcome": "You say it plainly: some oaths are cages. The grave seems to agree.",
+     "luck": {
+      "chance": 0.4,
+      "good": -1,
+      "law": 0,
+      "text": "The words come out crueler than you meant. They stay said."
+     }
+    }
+   ]
+  },
+  {
+   "id": "chained_warden",
+   "kind": "moral",
+   "title": "The Chained Warden",
+   "art": {},
+   "text": "A Vault warden, chained by an earlier party, asks to be freed. It was guarding something.",
+   "choices": [
+    {
+     "id": "free_it",
+     "class": "healer",
+     "label": "Free it",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "It thanks you and returns to its post, as if nothing happened."
+    },
+    {
+     "id": "question_it",
+     "class": "fighter",
+     "label": "Question it first",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It answers truthfully. That is worse."
+    },
+    {
+     "id": "drain_it",
+     "class": "mage",
+     "label": "Take its memories",
+     "shift": {
+      "good": -2,
+      "law": 0
+     },
+     "item": "grave_coin",
+     "outcome": "It forgets what it guarded. So does the Vault. A coin drops from its chains."
+    },
+    {
+     "id": "leave_chained",
+     "class": "rogue",
+     "label": "Leave it and loot its post",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "Nothing worth taking. You take it anyway."
+    }
+   ],
+   "rest": {
+    "label": "Shelter in its post",
+    "heal": 1,
+    "outcome": "It keeps watch while you sleep. It was made for this."
+   }
+  },
+  {
+   "id": "rat_king",
+   "kind": "monster",
+   "title": "The Rat King's Court",
+   "art": {},
+   "text": "Hollow rats in a ring around a throne of gnawed bone. They turn as one.",
+   "choices": [
+    {
+     "id": "charge_throne",
+     "class": "fighter",
+     "label": "Charge the throne",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "The court breaks against you."
+    },
+    {
+     "id": "burn_ring",
+     "class": "mage",
+     "label": "Burn the ring",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Fire, and squealing, and smoke."
+    },
+    {
+     "id": "mercy_young",
+     "class": "healer",
+     "label": "Spare the young ones",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "The small ones flee. The large ones do not."
+    },
+    {
+     "id": "take_crown",
+     "class": "rogue",
+     "label": "Steal the crown first",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "A crown of bone. They want it back."
+    },
+    {
+     "id": "bow_to_the_rat_king",
+     "class": "fighter",
+     "label": "Bow to the Rat King",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "You bow. The court titters. Then it attacks, but slower, uncertain."
+    }
+   ]
+  },
+  {
+   "id": "sentinel_gate",
+   "kind": "monster",
+   "title": "The Sentinel Gate",
+   "art": {},
+   "text": "Stone sentinels wake as you approach. Their eyes are [crystal]crystal[/crystal] and very old.",
+   "choices": [
+    {
+     "id": "salute",
+     "class": "fighter",
+     "label": "Salute, then fight",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "They salute back, and raise their fists."
+    },
+    {
+     "id": "speak_old",
+     "class": "healer",
+     "label": "Speak the old greeting",
+     "shift": {
+      "good": 1,
+      "law": 1
+     },
+     "outcome": "Half of them stand down. Half is not all."
+    },
+    {
+     "id": "shatter_eyes",
+     "class": "mage",
+     "label": "Shatter their eyes",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "Blind stone still swings."
+    },
+    {
+     "id": "slip_past",
+     "class": "rogue",
+     "label": "Slip past",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Nearly. Stone is faster than it looks."
+    },
+    {
+     "id": "wake_their_memory_of_dut",
+     "class": "mage",
+     "label": "Wake their memory of duty",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "They remember the oath they swore. They remember you are not in it.",
+     "luck": {
+      "chance": 0.35,
+      "good": -1,
+      "law": 0,
+      "text": "You wake the wrong memory: a massacre. They fight like it is still happening."
+     }
+    }
+   ]
+  },
+  {
+   "id": "wraith_choir",
+   "kind": "monster",
+   "title": "The Wraith Choir",
+   "art": {},
+   "text": "Memory wraiths sing a song you almost know. Each verse costs you a word.",
+   "choices": [
+    {
+     "id": "sing_along",
+     "class": "healer",
+     "label": "Sing with them",
+     "shift": {
+      "good": 1,
+      "law": -1
+     },
+     "outcome": "For a verse, you are in harmony. Then they notice."
+    },
+    {
+     "id": "drown_out",
+     "class": "fighter",
+     "label": "Shout them down",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "The song breaks. The singers do not."
+    },
+    {
+     "id": "steal_song",
+     "class": "mage",
+     "label": "Steal the song",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "You have it now. They want it back."
+    },
+    {
+     "id": "cut_strings",
+     "class": "rogue",
+     "label": "Go for the conductor",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "There is always a conductor."
+    }
+   ]
+  },
+  {
+   "id": "lost_sellsword",
+   "kind": "recruitment",
+   "title": "The Lost Sellsword",
+   "art": {},
+   "text": "Someone sits on a broken pillar, counting coins for a party that no longer exists.",
+   "choices": [
+    {
+     "id": "offer_share",
+     "class": "fighter",
+     "label": "Offer a fair share",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "recruit": {
+      "class": "*",
+      "name": ""
+     },
+     "outcome": "A handshake. A new name to remember."
+    },
+    {
+     "id": "offer_hope",
+     "class": "healer",
+     "label": "Offer a reason",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "recruit": {
+      "class": "*",
+      "name": ""
+     },
+     "outcome": "They stand. They had been waiting for anyone to ask."
+    },
+    {
+     "id": "take_coins",
+     "class": "rogue",
+     "label": "Take the coins",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "They do not stop you. They do not follow you either."
+    },
+    {
+     "id": "read_past",
+     "class": "mage",
+     "label": "Read what they lost",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "You learn their party's names. You do not ask theirs."
+    }
+   ]
+  },
+  {
+   "id": "caged_wanderer",
+   "kind": "recruitment",
+   "title": "The Caged Wanderer",
+   "art": {},
+   "text": "A cage of [crystal]crystal[/crystal] bars. The wanderer inside has been here long enough to forget why.",
+   "choices": [
+    {
+     "id": "pick_cage",
+     "class": "rogue",
+     "label": "Pick the cage",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "recruit": {
+      "class": "*",
+      "name": ""
+     },
+     "outcome": "Click. The wanderer steps out, blinking, and falls in behind you."
+    },
+    {
+     "id": "break_bars",
+     "class": "fighter",
+     "label": "Break the bars",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "recruit": {
+      "class": "*",
+      "name": ""
+     },
+     "outcome": "Crystal shrieks. The wanderer takes your hand."
+    },
+    {
+     "id": "leave_caged",
+     "class": "mage",
+     "label": "Study the cage instead",
+     "shift": {
+      "good": -1,
+      "law": 1
+     },
+     "outcome": "Remarkable craft. The wanderer stops asking."
+    },
+    {
+     "id": "ease_mind",
+     "class": "healer",
+     "label": "Ease their mind and go",
+     "shift": {
+      "good": 1,
+      "law": 1
+     },
+     "outcome": "They sleep, peaceful, still caged."
+    },
+    {
+     "id": "break_the_cage_with_a_pr",
+     "class": "healer",
+     "label": "Break the cage with a prayer",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Crystal cracks under a hymn. You have never heard of that working before."
+    }
+   ],
+   "rest": {
+    "label": "Share their long rest",
+    "heal": 1,
+    "outcome": "Time moves slowly near the cage. Wounds close."
+   }
+  },
+  {
+   "id": "fading_camp",
+   "kind": "recruitment",
+   "title": "The Fading Camp",
+   "art": {},
+   "text": "A campfire going gray at the edges. One survivor is still warm enough to walk.",
+   "choices": [
+    {
+     "id": "share_fire",
+     "class": "healer",
+     "label": "Share your fire",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "recruit": {
+      "class": "*",
+      "name": ""
+     },
+     "outcome": "The gray retreats a hand's width. They come with you."
+    },
+    {
+     "id": "recruit_hard",
+     "class": "rogue",
+     "label": "Promise them a cut",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "recruit": {
+      "class": "*",
+      "name": ""
+     },
+     "outcome": "A cut of what? They do not ask. They come."
+    },
+    {
+     "id": "kindle",
+     "class": "mage",
+     "label": "Rekindle the fire",
+     "shift": {
+      "good": 1,
+      "law": -1
+     },
+     "outcome": "Amber again, for a night. They stay to guard it."
+    },
+    {
+     "id": "salvage",
+     "class": "fighter",
+     "label": "Salvage the camp",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "item": "chain_mail",
+     "outcome": "Good mail, left by someone who no longer needs it."
+    }
+   ],
+   "rest": {
+    "label": "Sleep by the fire",
+    "heal": 1,
+    "outcome": "The gray stays back while the fire lasts. You rest, all of you."
+   }
+  },
+  {
+   "id": "sundial_below",
+   "kind": "riddle",
+   "title": "The Sundial Below the Sun",
+   "art": {},
+   "text": "A sundial in a room that has never seen daylight. Its shadow points anyway, toward [crystal]an hour that was erased[/crystal].",
+   "choices": [
+    {
+     "id": "name_the_lost_hour",
+     "class": "mage",
+     "label": "Name the lost hour",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "You say it, and for a moment the shadow trembles, as if it had been waiting centuries to be corrected."
+    },
+    {
+     "id": "mourn_the_lost_hour",
+     "class": "healer",
+     "label": "Mourn the lost hour",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Somebody was born in that hour. Somebody died in it. You keep them both."
+    },
+    {
+     "id": "turn_the_dial_by_hand",
+     "class": "rogue",
+     "label": "Turn the dial by hand",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "The shadow follows your fingers. Time, it turns out, is easy to steal down here."
+    },
+    {
+     "id": "stand_where_the_shadow_f",
+     "class": "fighter",
+     "label": "Stand where the shadow falls",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It falls across your chest like a sash of office. The room approves."
+    },
+    {
+     "id": "let_the_hour_stay_lost",
+     "class": "healer",
+     "label": "Let the hour stay lost",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Some hours are better left. You say a short rite and walk on."
+    }
+   ]
+  },
+  {
+   "id": "question_door",
+   "kind": "riddle",
+   "title": "The Door That Asks",
+   "art": {},
+   "text": "A door with a mouth. [crystal]What is lighter than a feather, and no one can hold it long?[/crystal]",
+   "choices": [
+    {
+     "id": "a_breath",
+     "class": "mage",
+     "label": "A breath",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The mouth smiles, and opens wide enough to walk through."
+    },
+    {
+     "id": "a_promise",
+     "class": "fighter",
+     "label": "A promise",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "\"Wrong,\" says the door, \"but kinder.\" It opens anyway."
+    },
+    {
+     "id": "wedge_the_jaw_open",
+     "class": "rogue",
+     "label": "Wedge the jaw open",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "It does not answer. It will not forget you either."
+    },
+    {
+     "id": "a_memory",
+     "class": "healer",
+     "label": "A memory",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "The door weeps a little, and lets you pass."
+    }
+   ]
+  },
+  {
+   "id": "counting_stones",
+   "kind": "riddle",
+   "title": "The Counting Stones",
+   "art": {},
+   "text": "Seven stones, six names carved. The seventh is smooth and warm, as if someone has only just stopped touching it.",
+   "choices": [
+    {
+     "id": "carve_your_own_name",
+     "class": "healer",
+     "label": "Carve your own name",
+     "shift": {
+      "good": 1,
+      "law": -1
+     },
+     "outcome": "Your name sits among strangers. It looks, somehow, like it belongs."
+    },
+    {
+     "id": "leave_the_stone_blank",
+     "class": "fighter",
+     "label": "Leave the stone blank",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Some places should stay empty. The Vault keeps the silence for you."
+    },
+    {
+     "id": "carve_the_name_it_wants",
+     "class": "mage",
+     "label": "Carve the name it wants",
+     "shift": {
+      "good": 0,
+      "law": 2
+     },
+     "outcome": "Your hand writes a name you have never heard. The stones settle, satisfied."
+    },
+    {
+     "id": "pocket_the_warm_stone",
+     "class": "rogue",
+     "label": "Pocket the warm stone",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "It cools in your pack. Someone, somewhere, stops being remembered."
+    },
+    {
+     "id": "carve_a_false_name",
+     "class": "rogue",
+     "label": "Carve a false name",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "The Vault accepts it. Someone who never lived is now remembered forever.",
+     "luck": {
+      "chance": 0.3,
+      "good": 1,
+      "law": 0,
+      "text": "Your hand slips and writes your mother's name. You leave it."
+     }
+    }
+   ]
+  },
+  {
+   "id": "glass_garden",
+   "kind": "riddle",
+   "title": "The Glass Garden",
+   "art": {},
+   "text": "Flowers of thin [crystal]crystal[/crystal]. A sign: pick only the one that is still alive.",
+   "choices": [
+    {
+     "id": "listen_for_the_one_that",
+     "class": "healer",
+     "label": "Listen for the one that hums",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "One of them hums, very faintly. It wilts gratefully in your hand."
+    },
+    {
+     "id": "look_for_the_one_that_ca",
+     "class": "mage",
+     "label": "Look for the one that casts no light",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The dark one is the living one. Life down here does not shine."
+    },
+    {
+     "id": "pick_them_all_and_sort_i",
+     "class": "rogue",
+     "label": "Pick them all and sort it out later",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Glass breaks. One of the shards bleeds."
+    },
+    {
+     "id": "pick_none",
+     "class": "fighter",
+     "label": "Pick none",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The garden bows. Some tests are passed by refusing them."
+    }
+   ]
+  },
+  {
+   "id": "ink_well",
+   "kind": "riddle",
+   "title": "The Inkwell Scribe",
+   "art": {},
+   "text": "A Lumari scribe made of ink writes the same sentence again and again. It needs someone to finish it.",
+   "choices": [
+    {
+     "id": "finish_the_sentence",
+     "class": "mage",
+     "label": "Finish the sentence",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "\"...and so we sealed ourselves away.\" The scribe stops writing, and dissolves, relieved."
+    },
+    {
+     "id": "ask_who_it_was_writing_t",
+     "class": "healer",
+     "label": "Ask who it was writing to",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "To a child. To anyone. To you, now."
+    },
+    {
+     "id": "smudge_it",
+     "class": "rogue",
+     "label": "Smudge it",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "The sentence is lost. The scribe begins again, slower."
+    },
+    {
+     "id": "guard_it_while_it_writes",
+     "class": "fighter",
+     "label": "Guard it while it writes",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "You stand watch for an hour. The scribe never thanks you, and never needs to."
+    },
+    {
+     "id": "rewrite_the_sentence",
+     "class": "mage",
+     "label": "Rewrite the sentence",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "\"...and so they were forgotten, and it was just.\" The scribe hesitates, then copies it."
+    }
+   ]
+  },
+  {
+   "id": "echoing_well",
+   "kind": "riddle",
+   "title": "The Echoing Well",
+   "art": {},
+   "text": "Shout into the well and it answers with something you once said, but kinder.",
+   "choices": [
+    {
+     "id": "shout_a_regret",
+     "class": "healer",
+     "label": "Shout a regret",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "It returns as forgiveness. Not yours. Close enough."
+    },
+    {
+     "id": "shout_an_oath",
+     "class": "fighter",
+     "label": "Shout an oath",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It comes back word for word, unchanged. Some things echo true."
+    },
+    {
+     "id": "shout_a_question",
+     "class": "mage",
+     "label": "Shout a question",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "It answers with a question of its own, in a voice like yours, older."
+    },
+    {
+     "id": "drop_a_coin_and_listen",
+     "class": "rogue",
+     "label": "Drop a coin and listen",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "No splash. The well keeps what it is given."
+    }
+   ],
+   "rest": {
+    "label": "Drink and rest",
+    "heal": 1,
+    "outcome": "The water tastes of someone's childhood. It heals like one, too."
+   }
+  },
+  {
+   "id": "weighing_scales",
+   "kind": "riddle",
+   "title": "The Weighing Scales",
+   "art": {},
+   "text": "Great brass scales. One pan holds a feather of [fade]gray[/fade]. The other is empty and waiting for you.",
+   "choices": [
+    {
+     "id": "place_your_shield",
+     "class": "fighter",
+     "label": "Place your shield",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The pans balance. Duty weighs exactly as much as loss."
+    },
+    {
+     "id": "place_your_hand",
+     "class": "healer",
+     "label": "Place your hand",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Warm skin against cold brass. The feather rises."
+    },
+    {
+     "id": "weigh_the_feather_down_w",
+     "class": "rogue",
+     "label": "Weigh the feather down with a thumb",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "The scales tip. The Vault sees, and says nothing."
+    },
+    {
+     "id": "weigh_a_memory",
+     "class": "mage",
+     "label": "Weigh a memory",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "You give it the face of someone you once loved. The pans balance. You do not remember whose face."
+    },
+    {
+     "id": "weigh_a_strangers_grief",
+     "class": "healer",
+     "label": "Weigh a stranger's grief",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "You carry it for them, without asking. The scales balance."
+    }
+   ]
+  },
+  {
+   "id": "map_of_nowhere",
+   "kind": "riddle",
+   "title": "The Map of Nowhere",
+   "art": {},
+   "text": "A map of a country that no longer exists. A pin marks a house. Someone wants you to remember it for them.",
+   "choices": [
+    {
+     "id": "memorise_the_house",
+     "class": "healer",
+     "label": "Memorise the house",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Blue door. A fig tree. A dog asleep in the road. It is yours now."
+    },
+    {
+     "id": "read_the_cartographers_n",
+     "class": "mage",
+     "label": "Read the cartographer's notes",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Margins full of grief and geometry. You learn more about the woman than the land."
+    },
+    {
+     "id": "fold_it_and_carry_it",
+     "class": "fighter",
+     "label": "Fold it and carry it",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "You will find the place, or what is left of it. You said so aloud."
+    },
+    {
+     "id": "burn_it_for_warmth",
+     "class": "rogue",
+     "label": "Burn it for warmth",
+     "shift": {
+      "good": -2,
+      "law": 0
+     },
+     "outcome": "The country is gone. Now its map is too. It was a cold night."
+    }
+   ]
+  },
+  {
+   "id": "broken_choir",
+   "kind": "riddle",
+   "title": "The Broken Choir",
+   "art": {},
+   "text": "Nine stone singers. One mouth is silent, and the song does not resolve without it.",
+   "choices": [
+    {
+     "id": "sing_the_missing_part",
+     "class": "healer",
+     "label": "Sing the missing part",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Your voice is not good. It does not need to be. The chord closes."
+    },
+    {
+     "id": "find_the_note_in_the_sto",
+     "class": "mage",
+     "label": "Find the note in the stone",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The note is still there, hiding in the grain. You coax it out."
+    },
+    {
+     "id": "break_the_silent_statue",
+     "class": "fighter",
+     "label": "Break the silent statue",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "The song resolves into something harsher. It is still a song."
+    },
+    {
+     "id": "steal_the_silent_ones_je",
+     "class": "rogue",
+     "label": "Steal the silent one's jewels",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Two sapphire eyes. It was not going to use them."
+    }
+   ]
+  },
+  {
+   "id": "coin_of_two_kings",
+   "kind": "chance",
+   "title": "The Coin of Two Kings",
+   "art": {},
+   "text": "A coin with a different king on each face, both long forgotten. Flip it, and one of them is remembered.",
+   "choices": [
+    {
+     "id": "flip_it",
+     "class": "rogue",
+     "label": "Flip it",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It lands on edge. Neither king, then. You keep it anyway."
+    },
+    {
+     "id": "call_the_elder_king",
+     "class": "fighter",
+     "label": "Call the elder king",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "A tired old face, and a law that was once just. You remember both."
+    },
+    {
+     "id": "let_the_child_king_live",
+     "class": "healer",
+     "label": "Let the child king live",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "A boy crowned too young. He is someone's son again, for a while."
+    },
+    {
+     "id": "split_the_coin",
+     "class": "mage",
+     "label": "Split the coin",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Two halves, two kings, neither whole. You have made a small new grief."
+    },
+    {
+     "id": "bury_the_coin",
+     "class": "fighter",
+     "label": "Bury the coin",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Neither king, and neither forgotten. The earth keeps them both.",
+     "luck": {
+      "chance": 0.35,
+      "good": 0,
+      "law": -1,
+      "text": "The coin will not stay buried. You leave it spinning in the dirt."
+     }
+    }
+   ]
+  },
+  {
+   "id": "lots_of_bone",
+   "kind": "chance",
+   "title": "Drawing Lots",
+   "art": {},
+   "text": "Four straws in a dead man's fist. One is short. The Vault likes its games fair.",
+   "choices": [
+    {
+     "id": "draw_first",
+     "class": "fighter",
+     "label": "Draw first",
+     "shift": {
+      "good": 1,
+      "law": 1
+     },
+     "outcome": "Long straw. You were always going to take the risk anyway."
+    },
+    {
+     "id": "palm_a_straw",
+     "class": "rogue",
+     "label": "Palm a straw",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Everyone draws long. The dead man's fist closes, disappointed."
+    },
+    {
+     "id": "read_which_is_short",
+     "class": "mage",
+     "label": "Read which is short",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "You know before you draw. Knowing is its own kind of short straw."
+    },
+    {
+     "id": "draw_for_the_weakest",
+     "class": "healer",
+     "label": "Draw for the weakest",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "You take their turn. Short straw. You smile. It is only a straw."
+    }
+   ]
+  },
+  {
+   "id": "spinning_wheel",
+   "kind": "chance",
+   "title": "The Spinning Wheel",
+   "art": {},
+   "text": "A wheel of fortune, painted with things the Fading took: a harbor, a song, a name.",
+   "choices": [
+    {
+     "id": "spin_it_hard",
+     "class": "rogue",
+     "label": "Spin it hard",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "It spins for a long time. When it stops, you hear gulls.",
+     "item": "wild_feather"
+    },
+    {
+     "id": "spin_it_gently",
+     "class": "healer",
+     "label": "Spin it gently",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "A lullaby. Somebody's grandmother sang it. Now so do you."
+    },
+    {
+     "id": "hold_it_still",
+     "class": "fighter",
+     "label": "Hold it still",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Nothing is won. Nothing is lost. The wheel thanks you for that."
+    },
+    {
+     "id": "read_the_paint",
+     "class": "mage",
+     "label": "Read the paint",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Each picture is a debt. You count them, coldly, all the way down."
+    },
+    {
+     "id": "spin_it_for_someone_else",
+     "class": "fighter",
+     "label": "Spin it for someone else",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "For the next party. The wheel stops on a harbor at dawn."
+    }
+   ]
+  },
+  {
+   "id": "flooded_vault",
+   "kind": "chance",
+   "title": "The Flooded Gallery",
+   "art": {},
+   "text": "Water to the waist, and beneath it, the glint of something. Or of something's teeth.",
+   "choices": [
+    {
+     "id": "dive_for_it",
+     "class": "rogue",
+     "label": "Dive for it",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "A ring, a bone, a ring on a bone. You take the ring.",
+     "item": "grave_coin"
+    },
+    {
+     "id": "wade_in_first",
+     "class": "fighter",
+     "label": "Wade in first",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Cold. Nothing bites. You wave the others through."
+    },
+    {
+     "id": "freeze_the_water",
+     "class": "mage",
+     "label": "Freeze the water",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "You walk across ice that should not be. Below, the glint goes dark."
+    },
+    {
+     "id": "bless_the_water",
+     "class": "healer",
+     "label": "Bless the water",
+     "shift": {
+      "good": 1,
+      "law": 1
+     },
+     "outcome": "The water stills and clears. Only a drowned lantern. You leave it lit."
+    }
+   ]
+  },
+  {
+   "id": "loaded_dice",
+   "kind": "chance",
+   "title": "Two Echoes Wagering",
+   "art": {},
+   "text": "Two Echoes gamble over a memory neither can quite remember. They want a third player.",
+   "choices": [
+    {
+     "id": "play_and_win",
+     "class": "rogue",
+     "label": "Play and win",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "You win the memory. It is of a wedding. You will never know whose."
+    },
+    {
+     "id": "play_by_their_rules",
+     "class": "fighter",
+     "label": "Play by their rules",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "You lose with dignity. They seem to respect that."
+    },
+    {
+     "id": "give_the_memory_back_to",
+     "class": "healer",
+     "label": "Give the memory back to both",
+     "shift": {
+      "good": 2,
+      "law": 0
+     },
+     "outcome": "Half each. They stop playing, and remember, and weep."
+    },
+    {
+     "id": "take_the_stakes_and_walk",
+     "class": "mage",
+     "label": "Take the stakes and walk",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "They do not notice. They keep playing for nothing."
+    }
+   ]
+  },
+  {
+   "id": "fortune_teller",
+   "kind": "chance",
+   "title": "The Fortune Teller",
+   "art": {},
+   "text": "A Lumari automaton reads palms. Its own hand is missing.",
+   "choices": [
+    {
+     "id": "offer_your_palm",
+     "class": "healer",
+     "label": "Offer your palm",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "It traces a long life line and stops before the end. \"Enough,\" it says."
+    },
+    {
+     "id": "read_its_palm_instead",
+     "class": "mage",
+     "label": "Read its palm instead",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "You read what is left of it. It was built to comfort. It is tired."
+    },
+    {
+     "id": "pick_its_pocket",
+     "class": "rogue",
+     "label": "Pick its pocket",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Brass gears and a single pearl. Fortunes are cheap.",
+     "item": "rusty_blade"
+    },
+    {
+     "id": "repair_its_hand",
+     "class": "fighter",
+     "label": "Repair its hand",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "It flexes new fingers and reads its own future first. It laughs."
+    },
+    {
+     "id": "ask_your_real_fortune",
+     "class": "rogue",
+     "label": "Ask your real fortune",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "It tells you, gently. You will not repeat it.",
+     "luck": {
+      "chance": 0.35,
+      "good": -1,
+      "law": 0,
+      "text": "It tells you who you will betray. You laugh, too quickly."
+     }
+    }
+   ]
+  },
+  {
+   "id": "shifting_stairs",
+   "kind": "chance",
+   "title": "The Shifting Stairs",
+   "art": {},
+   "text": "Stairs that rearrange when you are not looking. Somewhere, a landing that leads back up.",
+   "choices": [
+    {
+     "id": "dont_look_away",
+     "class": "rogue",
+     "label": "Don't look away",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "You run without blinking. You arrive. Your eyes burn."
+    },
+    {
+     "id": "take_every_step_delibera",
+     "class": "fighter",
+     "label": "Take every step deliberately",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Slow, but the stairs give up trying to trick you."
+    },
+    {
+     "id": "look_away_on_purpose",
+     "class": "mage",
+     "label": "Look away on purpose",
+     "shift": {
+      "good": 0,
+      "law": -2
+     },
+     "outcome": "The stairs rearrange into somewhere better. You choose not to ask why."
+    },
+    {
+     "id": "hold_hands_in_a_chain",
+     "class": "healer",
+     "label": "Hold hands in a chain",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "No one gets lost. The stairs, sulking, stop shifting."
+    }
+   ]
+  },
+  {
+   "id": "mushroom_ring",
+   "kind": "chance",
+   "title": "The Ring of Pale Caps",
+   "art": {},
+   "text": "A ring of pale mushrooms glowing [fade]gray[/fade]. Step in, and you hear voices from the surface.",
+   "choices": [
+    {
+     "id": "step_in_and_listen",
+     "class": "healer",
+     "label": "Step in and listen",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Your mother's voice, or one like it. She says you'll be fine."
+    },
+    {
+     "id": "harvest_them",
+     "class": "rogue",
+     "label": "Harvest them",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "They sell well in Lanternrest. They scream, a little, when picked."
+    },
+    {
+     "id": "eat_one",
+     "class": "mage",
+     "label": "Eat one",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "For an hour, you remember being someone else. It is not unpleasant."
+    },
+    {
+     "id": "kick_the_ring_apart",
+     "class": "fighter",
+     "label": "Kick the ring apart",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "The voices stop. The silence is honest, at least."
+    }
+   ],
+   "rest": {
+    "label": "Rest outside the ring",
+    "heal": 1,
+    "outcome": "The voices lull you to sleep. You wake whole, and a little homesick."
+   }
+  },
+  {
+   "id": "lost_satchel",
+   "kind": "chance",
+   "title": "The Lost Satchel",
+   "art": {},
+   "text": "A satchel on a hook, still dry. A name tag, half faded. Inside: something heavy.",
+   "choices": [
+    {
+     "id": "open_it",
+     "class": "rogue",
+     "label": "Open it",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Good steel and somebody's letters. You keep the steel.",
+     "item": "iron_sword"
+    },
+    {
+     "id": "read_the_letters",
+     "class": "healer",
+     "label": "Read the letters",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "\"Come home.\" Eleven times. You fold them back carefully."
+    },
+    {
+     "id": "carry_it_out_unopened",
+     "class": "fighter",
+     "label": "Carry it out unopened",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It is not yours. You will find whoever it was waiting for."
+    },
+    {
+     "id": "divine_its_owner",
+     "class": "mage",
+     "label": "Divine its owner",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Dead three floors down. She would want it used.",
+     "item": "silk_robe"
+    }
+   ]
+  },
+  {
+   "id": "traitors_trial",
+   "kind": "moral",
+   "title": "The Traitor's Trial",
+   "art": {},
+   "text": "Echoes sit in judgment of an Echo. They ask you to cast the deciding vote.",
+   "choices": [
+    {
+     "id": "condemn_by_the_law",
+     "class": "fighter",
+     "label": "Condemn by the law",
+     "shift": {
+      "good": 0,
+      "law": 2
+     },
+     "outcome": "The law is clear. The sentence is carried out. No one looks at you afterwards."
+    },
+    {
+     "id": "plead_for_mercy",
+     "class": "healer",
+     "label": "Plead for mercy",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "They listen. He is spared, and does not know why."
+    },
+    {
+     "id": "break_him_out",
+     "class": "rogue",
+     "label": "Break him out",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "He runs into the dark. Whether he was guilty, you never learn."
+    },
+    {
+     "id": "read_the_truth_from_him",
+     "class": "mage",
+     "label": "Read the truth from him",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "He was guilty. And sorry. You tell them both."
+    }
+   ]
+  },
+  {
+   "id": "the_ferryman",
+   "kind": "moral",
+   "title": "The Ferryman's Toll",
+   "art": {},
+   "text": "A ferryman on a black river. He takes one memory as toll. Any one you choose.",
+   "choices": [
+    {
+     "id": "pay_with_a_happy_memory",
+     "class": "healer",
+     "label": "Pay with a happy memory",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "He takes your best summer. He handles it gently."
+    },
+    {
+     "id": "pay_with_a_stolen_memory",
+     "class": "rogue",
+     "label": "Pay with a stolen memory",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Not yours to give. He takes it anyway, and gives you a look."
+    },
+    {
+     "id": "pay_with_a_painful_one",
+     "class": "fighter",
+     "label": "Pay with a painful one",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "He takes the night your brother died. You feel lighter and worse."
+    },
+    {
+     "id": "swim_across",
+     "class": "mage",
+     "label": "Swim across",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "The water is cold, and full of things that once had names."
+    },
+    {
+     "id": "pay_him_honestly",
+     "class": "rogue",
+     "label": "Pay him honestly",
+     "shift": {
+      "good": 1,
+      "law": 1
+     },
+     "outcome": "A real memory, freely given. The ferryman smiles for the first time in an age."
+    }
+   ]
+  },
+  {
+   "id": "starving_village",
+   "kind": "moral",
+   "title": "The Remembered Village",
+   "art": {},
+   "text": "A village perfectly preserved in [crystal]crystal[/crystal]. One house is cracked; its family is fading out.",
+   "choices": [
+    {
+     "id": "seal_the_crack_with_your",
+     "class": "healer",
+     "label": "Seal the crack with your warmth",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It holds. The family goes on, frozen and safe, forever."
+    },
+    {
+     "id": "free_them_to_fade",
+     "class": "mage",
+     "label": "Free them to fade",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "They step out of the crystal, and are gone. Free."
+    },
+    {
+     "id": "guard_it_and_move_on",
+     "class": "fighter",
+     "label": "Guard it and move on",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Someone will come to repair it. You leave a marker."
+    },
+    {
+     "id": "take_their_crystal",
+     "class": "rogue",
+     "label": "Take their crystal",
+     "shift": {
+      "good": -2,
+      "law": 0
+     },
+     "outcome": "It is valuable. They were going anyway."
+    }
+   ],
+   "rest": {
+    "label": "Shelter in an empty house",
+    "heal": 1,
+    "outcome": "Crystal walls, a crystal hearth. The silence heals."
+   }
+  },
+  {
+   "id": "child_echo",
+   "kind": "moral",
+   "title": "The Lost Child",
+   "art": {},
+   "text": "A child-shaped Echo asks if you've seen her parents. You have: two floors up, fighting.",
+   "choices": [
+    {
+     "id": "take_her_to_them",
+     "class": "healer",
+     "label": "Take her to them",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Three Echoes, together again. They don't fight anymore."
+    },
+    {
+     "id": "tell_her_the_truth",
+     "class": "fighter",
+     "label": "Tell her the truth",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "She listens. She thanks you. She walks the other way."
+    },
+    {
+     "id": "let_her_forget_them",
+     "class": "mage",
+     "label": "Let her forget them",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "She stops searching. She stops a great many things."
+    },
+    {
+     "id": "lie_kindly",
+     "class": "rogue",
+     "label": "Lie kindly",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "\"They're waiting at the top.\" She runs off, happy. It was the kindest lie you know."
+    },
+    {
+     "id": "show_her_where_they_are",
+     "class": "mage",
+     "label": "Show her where they are",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "A flicker of light leads her up the stair. You watch her go."
+    }
+   ]
+  },
+  {
+   "id": "dying_warden",
+   "kind": "moral",
+   "title": "The Dying Warden",
+   "art": {},
+   "text": "A Lumari warden, cracked through, asks you to carry its post's last orders to the surface.",
+   "choices": [
+    {
+     "id": "swear_to_carry_them",
+     "class": "fighter",
+     "label": "Swear to carry them",
+     "shift": {
+      "good": 0,
+      "law": 2
+     },
+     "outcome": "The orders are old and probably meaningless. You will deliver them anyway."
+    },
+    {
+     "id": "ease_its_passing",
+     "class": "healer",
+     "label": "Ease its passing",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It goes quietly, orders still in its mouth."
+    },
+    {
+     "id": "take_its_knowledge",
+     "class": "mage",
+     "label": "Take its knowledge",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Floor plans, wards, a single name. You keep them. It keeps nothing."
+    },
+    {
+     "id": "loot_its_post",
+     "class": "rogue",
+     "label": "Loot its post",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "A sealed drawer, a fine blade. Orders are for the living.",
+     "item": "twin_daggers"
+    }
+   ]
+  },
+  {
+   "id": "ransom_note",
+   "kind": "moral",
+   "title": "The Ransomed Memory",
+   "art": {},
+   "text": "A rival party holds a Lanternrest child's memory of her father, and wants your rations for it.",
+   "choices": [
+    {
+     "id": "pay_the_ransom",
+     "class": "healer",
+     "label": "Pay the ransom",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "You go hungry. Somewhere, a girl remembers his laugh again."
+    },
+    {
+     "id": "demand_it_by_right",
+     "class": "fighter",
+     "label": "Demand it by right",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "They hand it over, eventually. You did not raise your voice."
+    },
+    {
+     "id": "steal_it_back",
+     "class": "rogue",
+     "label": "Steal it back",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "In and out. They never notice. Nor do they need to."
+    },
+    {
+     "id": "copy_it_and_keep_the_cop",
+     "class": "mage",
+     "label": "Copy it and keep the copy",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "She gets it back. So, quietly, do you."
+    }
+   ]
+  },
+  {
+   "id": "last_lantern",
+   "kind": "moral",
+   "title": "The Last Lantern",
+   "art": {},
+   "text": "A shrine lantern burns on nothing at all. Feeding it a memory would keep this floor lit for the next party.",
+   "choices": [
+    {
+     "id": "feed_it_a_memory",
+     "class": "healer",
+     "label": "Feed it a memory",
+     "shift": {
+      "good": 2,
+      "law": 0
+     },
+     "outcome": "It flares bright. Someone else will find their way by your forgotten afternoon."
+    },
+    {
+     "id": "tend_it_with_oil",
+     "class": "fighter",
+     "label": "Tend it with oil",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Ordinary oil. Ordinary flame. It is enough for a while."
+    },
+    {
+     "id": "study_how_it_burns",
+     "class": "mage",
+     "label": "Study how it burns",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Memory into light. You understand the lantern now. You wish you didn't."
+    },
+    {
+     "id": "snuff_it_and_take_the_br",
+     "class": "rogue",
+     "label": "Snuff it and take the brass",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "The floor goes dark behind you. Brass is brass."
+    },
+    {
+     "id": "guard_the_flame_instead",
+     "class": "rogue",
+     "label": "Guard the flame instead",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "You sit with it a while. No one needs to steal it if someone is watching."
+    }
+   ],
+   "rest": {
+    "label": "Rest in its light",
+    "heal": 1,
+    "outcome": "The lantern keeps the floor warm. You heal, and owe it."
+   }
+  },
+  {
+   "id": "bargaining_shade",
+   "kind": "moral",
+   "title": "The Bargaining Shade",
+   "art": {},
+   "text": "A shade offers to show you the way down if you leave one of your memories with it forever.",
+   "choices": [
+    {
+     "id": "bargain_it_down",
+     "class": "mage",
+     "label": "Bargain it down",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "A shorter memory, a fair road. Contracts are contracts."
+    },
+    {
+     "id": "agree_then_cheat",
+     "class": "rogue",
+     "label": "Agree, then cheat",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "You give it a false memory. It knows. It shows you the way anyway, laughing."
+    },
+    {
+     "id": "refuse_and_find_the_way",
+     "class": "fighter",
+     "label": "Refuse and find the way",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Three hours lost. Your memories, all yours."
+    },
+    {
+     "id": "ask_what_it_lost",
+     "class": "healer",
+     "label": "Ask what it lost",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Its own name. You cannot give it back. You sit with it a while."
+    }
+   ]
+  },
+  {
+   "id": "prisoners_of_glass",
+   "kind": "moral",
+   "title": "Prisoners of Glass",
+   "art": {},
+   "text": "Echoes trapped in a mirror beg to be released. Released Echoes forget themselves.",
+   "choices": [
+    {
+     "id": "release_them",
+     "class": "healer",
+     "label": "Release them",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "They step out, and blink, and become no one. Free."
+    },
+    {
+     "id": "leave_them_as_they_are",
+     "class": "fighter",
+     "label": "Leave them as they are",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Trapped, but themselves. You cannot choose for them."
+    },
+    {
+     "id": "free_only_those_who_ask",
+     "class": "mage",
+     "label": "Free only those who ask twice",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Two of nine. Rules are mercy, sometimes."
+    },
+    {
+     "id": "sell_the_mirror",
+     "class": "rogue",
+     "label": "Sell the mirror",
+     "shift": {
+      "good": -2,
+      "law": 0
+     },
+     "outcome": "Somebody in Lanternrest collects such things. Somebody always does."
+    }
+   ]
+  },
+  {
+   "id": "ash_hounds",
+   "kind": "monster",
+   "title": "The Ash Pack",
+   "art": {},
+   "text": "Three hounds of [fade]gray[/fade] ash circle the light. They have forgotten their names, but not their hunger.",
+   "choices": [
+    {
+     "id": "hold_the_line",
+     "class": "fighter",
+     "label": "Hold the line",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Teeth on steel. The line holds, mostly."
+    },
+    {
+     "id": "pick_off_the_stragglers",
+     "class": "rogue",
+     "label": "Pick off the stragglers",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "The weakest one first. That is how packs are broken."
+    },
+    {
+     "id": "blow_them_apart",
+     "class": "mage",
+     "label": "Blow them apart",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Ash in the air, ash in your mouth, ash that snarls and re-forms."
+    },
+    {
+     "id": "name_them_back",
+     "class": "healer",
+     "label": "Name them back",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "One hesitates at its old name. Only one."
+    }
+   ]
+  },
+  {
+   "id": "weeping_knight",
+   "kind": "monster",
+   "title": "The Weeping Knight",
+   "art": {},
+   "text": "A Lumari knight in [crystal]crystal[/crystal] mail guards a door that is no longer there.",
+   "choices": [
+    {
+     "id": "challenge_it_honourably",
+     "class": "fighter",
+     "label": "Challenge it honourably",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "It salutes. Then it fights like a storm."
+    },
+    {
+     "id": "strike_while_it_weeps",
+     "class": "rogue",
+     "label": "Strike while it weeps",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "A low blow. It turns, and stops weeping."
+    },
+    {
+     "id": "show_it_the_door_is_gone",
+     "class": "mage",
+     "label": "Show it the door is gone",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "It looks. It does not believe you. It attacks."
+    },
+    {
+     "id": "pray_for_it",
+     "class": "healer",
+     "label": "Pray for it",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It lowers its sword for a breath. Then duty pulls it back."
+    },
+    {
+     "id": "give_it_a_door_to_guard",
+     "class": "mage",
+     "label": "Give it a door to guard",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Stone rises into a doorway. The knight weeps, and takes its post, and still fights you.",
+     "luck": {
+      "chance": 0.35,
+      "good": -1,
+      "law": -1,
+      "text": "The door you make is a cage. The knight knows the difference."
+     }
+    }
+   ]
+  },
+  {
+   "id": "gnawing_swarm",
+   "kind": "monster",
+   "title": "The Gnawing Swarm",
+   "art": {},
+   "text": "Hollow rats, hundreds, chewing the names off the walls.",
+   "choices": [
+    {
+     "id": "wade_in",
+     "class": "fighter",
+     "label": "Wade in",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Teeth everywhere. You stamp, and swing, and stamp."
+    },
+    {
+     "id": "burn_the_walls_clean",
+     "class": "mage",
+     "label": "Burn the walls clean",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "The names burn with them. Nothing to chew now."
+    },
+    {
+     "id": "save_the_names_first",
+     "class": "healer",
+     "label": "Save the names first",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "You copy what you can. Then the rats notice you."
+    },
+    {
+     "id": "bait_them_away",
+     "class": "rogue",
+     "label": "Bait them away",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "A trail of crumbs, a narrow tunnel, and a fight on your terms."
+    }
+   ]
+  },
+  {
+   "id": "sentinel_pair",
+   "kind": "monster",
+   "title": "The Twin Sentinels",
+   "art": {},
+   "text": "Two stone sentinels guard a stair. One is cracked, and still loyal.",
+   "choices": [
+    {
+     "id": "take_the_strong_one",
+     "class": "fighter",
+     "label": "Take the strong one",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Stone against steel. The loud way."
+    },
+    {
+     "id": "break_the_cracked_one_fi",
+     "class": "rogue",
+     "label": "Break the cracked one first",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "It falls quickly. Its twin does not forgive you."
+    },
+    {
+     "id": "turn_one_against_the_oth",
+     "class": "mage",
+     "label": "Turn one against the other",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "They grind against each other, and then against you."
+    },
+    {
+     "id": "mend_the_cracked_one",
+     "class": "healer",
+     "label": "Mend the cracked one",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It stands taller, and still blocks the stair."
+    }
+   ]
+  },
+  {
+   "id": "wisp_lights",
+   "kind": "monster",
+   "title": "The False Lights",
+   "art": {},
+   "text": "Wisps that look like lanterns lead parties into the dark. Tonight they've chosen you.",
+   "choices": [
+    {
+     "id": "follow_the_real_light",
+     "class": "healer",
+     "label": "Follow the real light",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "You find the true lantern, and the wisps come screaming."
+    },
+    {
+     "id": "snuff_them_one_by_one",
+     "class": "mage",
+     "label": "Snuff them one by one",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Methodical. They do not like method."
+    },
+    {
+     "id": "let_them_lead_then_turn",
+     "class": "rogue",
+     "label": "Let them lead, then turn",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Into their nest. Surprise is a weapon too."
+    },
+    {
+     "id": "charge_the_brightest",
+     "class": "fighter",
+     "label": "Charge the brightest",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "It bursts. Its sisters gather."
+    }
+   ]
+  },
+  {
+   "id": "memory_eater",
+   "kind": "monster",
+   "title": "The Memory Eater",
+   "art": {},
+   "text": "A wraith grown fat on stolen memories. It wears the faces it has eaten.",
+   "choices": [
+    {
+     "id": "free_the_faces",
+     "class": "healer",
+     "label": "Free the faces",
+     "shift": {
+      "good": 2,
+      "law": 0
+     },
+     "outcome": "One by one they slip away. It grows thinner, and angrier."
+    },
+    {
+     "id": "out-feed_it",
+     "class": "mage",
+     "label": "Out-feed it",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "You pull the memories into yourself. It is a race now."
+    },
+    {
+     "id": "cut_it_open",
+     "class": "fighter",
+     "label": "Cut it open",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Faces spill out like coins. It still fights."
+    },
+    {
+     "id": "find_its_heart",
+     "class": "rogue",
+     "label": "Find its heart",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "There is always a heart. You go looking."
+    },
+    {
+     "id": "offer_yourself_as_bait",
+     "class": "healer",
+     "label": "Offer yourself as bait",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "It turns to you, hungry. You stand very still while the others strike."
+    }
+   ]
+  },
+  {
+   "id": "hollow_giant",
+   "kind": "monster",
+   "title": "The Hollow Giant",
+   "art": {},
+   "text": "A stone giant wanders, emptied. It does not know it is a monster. It only knows you are in the way.",
+   "choices": [
+    {
+     "id": "brace_and_stop_it",
+     "class": "fighter",
+     "label": "Brace and stop it",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "It hits your shield like the tide."
+    },
+    {
+     "id": "try_to_calm_it",
+     "class": "healer",
+     "label": "Try to calm it",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "It hesitates. The others with it do not."
+    },
+    {
+     "id": "bring_the_ceiling_down",
+     "class": "mage",
+     "label": "Bring the ceiling down",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Dust and rubble and an angry giant."
+    },
+    {
+     "id": "climb_it",
+     "class": "rogue",
+     "label": "Climb it",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "There is a weak seam at the neck. Everyone knows that. Getting there is the trick."
+    }
+   ],
+   "rest": {
+    "label": "Hide and recover",
+    "heal": 1,
+    "outcome": "It passes, eventually. You use the hours."
+   }
+  },
+  {
+   "id": "drowned_crew",
+   "kind": "monster",
+   "title": "The Drowned Crew",
+   "art": {},
+   "text": "The crew of a ship that sank before the Fading, rowing nowhere through a flooded hall.",
+   "choices": [
+    {
+     "id": "board_them",
+     "class": "fighter",
+     "label": "Board them",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Wet wood and old cutlasses. It is almost fun."
+    },
+    {
+     "id": "sing_them_to_rest",
+     "class": "healer",
+     "label": "Sing them to rest",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Half of them stop rowing and weep. Half of them do not."
+    },
+    {
+     "id": "capsize_the_boat",
+     "class": "mage",
+     "label": "Capsize the boat",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Over it goes. They were already drowned. They climb back up."
+    },
+    {
+     "id": "steal_the_oars",
+     "class": "rogue",
+     "label": "Steal the oars",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Stranded crews get angry.",
+     "item": "padded_vest"
+    }
+   ]
+  },
+  {
+   "id": "thornwall",
+   "kind": "monster",
+   "title": "The Thorn Wall",
+   "art": {},
+   "text": "Brambles of black [crystal]crystal[/crystal] that grow toward warmth. And something moves inside them.",
+   "choices": [
+    {
+     "id": "cut_a_path",
+     "class": "fighter",
+     "label": "Cut a path",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Steady work. The thing inside comes to meet you."
+    },
+    {
+     "id": "wither_them",
+     "class": "mage",
+     "label": "Wither them",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "They blacken and crack, and what lived inside crawls out."
+    },
+    {
+     "id": "find_a_gap",
+     "class": "rogue",
+     "label": "Find a gap",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "There's always a gap. There's always something waiting in it."
+    },
+    {
+     "id": "ask_them_to_part",
+     "class": "healer",
+     "label": "Ask them to part",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "They do, slowly. Their guardian does not."
+    }
+   ]
+  },
+  {
+   "id": "deserter",
+   "kind": "recruitment",
+   "title": "The Deserter",
+   "art": {},
+   "text": "A soldier sits by the stair, armor half off. Their company went down without them.",
+   "choices": [
+    {
+     "id": "offer_redemption",
+     "class": "fighter",
+     "label": "Offer redemption",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "\"One more descent,\" they say. \"With someone who won't leave.\"",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "forgive_them",
+     "class": "healer",
+     "label": "Forgive them",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "They break down, then stand up, and come with you.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "take_their_armor",
+     "class": "rogue",
+     "label": "Take their armor",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "They let you. They don't need it where they're going.",
+     "item": "chain_mail"
+    },
+    {
+     "id": "read_why_they_ran",
+     "class": "mage",
+     "label": "Read why they ran",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Fear, plain and honest. You leave them to it."
+    }
+   ]
+  },
+  {
+   "id": "lamplighter_apprentice",
+   "kind": "recruitment",
+   "title": "The Lamplighter's Apprentice",
+   "art": {},
+   "text": "A young lamplighter from Lanternrest followed you down. They say the old man sent them. He doesn't remember doing it.",
+   "choices": [
+    {
+     "id": "welcome_them",
+     "class": "healer",
+     "label": "Welcome them",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "They light the way. That is what they are for.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "send_them_home",
+     "class": "fighter",
+     "label": "Send them home",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "They go. Safe. Disappointed. Alive."
+    },
+    {
+     "id": "make_them_carry_the_pack",
+     "class": "rogue",
+     "label": "Make them carry the packs",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "They don't complain. They learn things.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "ask_about_the_old_man",
+     "class": "mage",
+     "label": "Ask about the old man",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Forgetful, kind, and older than the town. You file that away."
+    }
+   ]
+  },
+  {
+   "id": "echo_who_woke",
+   "kind": "recruitment",
+   "title": "The Echo Who Woke",
+   "art": {},
+   "text": "An Echo blinks, and is suddenly a person again, confused, alive, and very far from the surface.",
+   "choices": [
+    {
+     "id": "steady_them",
+     "class": "healer",
+     "label": "Steady them",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "They take your hand. They don't remember their name, so they borrow one.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "bind_them_to_the_party",
+     "class": "mage",
+     "label": "Bind them to the party",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "A small working, a tether. They follow, and do not fade.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "ask_what_they_know",
+     "class": "rogue",
+     "label": "Ask what they know",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Floor plans, a cache. Useful. You leave them waking."
+    },
+    {
+     "id": "escort_them_up",
+     "class": "fighter",
+     "label": "Escort them up",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Three floors back. Time lost, life saved."
+    }
+   ]
+  },
+  {
+   "id": "mercenary_echo",
+   "kind": "recruitment",
+   "title": "The Mercenary",
+   "art": {},
+   "text": "A sellsword whose party all became Echoes. They'll fight for anyone who pays in memories.",
+   "choices": [
+    {
+     "id": "pay_in_stolen_ones",
+     "class": "rogue",
+     "label": "Pay in stolen ones",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "They don't ask where they came from.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "pay_in_coin_instead",
+     "class": "fighter",
+     "label": "Pay in coin instead",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "They squint at the coin, and accept the novelty.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "refuse_to_pay",
+     "class": "healer",
+     "label": "Refuse to pay",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Memories are not for selling. They shrug, and go."
+    },
+    {
+     "id": "read_their_contract",
+     "class": "mage",
+     "label": "Read their contract",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Fine print all the way down. You do not sign."
+    }
+   ]
+  },
+  {
+   "id": "pilgrim",
+   "kind": "recruitment",
+   "title": "The Pilgrim",
+   "art": {},
+   "text": "A pilgrim who believes the Vaults are holy. They want to see the bottom before they die.",
+   "choices": [
+    {
+     "id": "walk_with_them",
+     "class": "healer",
+     "label": "Walk with them",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "A prayer for every floor. It helps more than you'd expect.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "protect_them",
+     "class": "fighter",
+     "label": "Protect them",
+     "shift": {
+      "good": 1,
+      "law": 1
+     },
+     "outcome": "They walk behind your shield, singing.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "argue_theology",
+     "class": "mage",
+     "label": "Argue theology",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "They win. They usually do."
+    },
+    {
+     "id": "rob_their_offering_bowl",
+     "class": "rogue",
+     "label": "Rob their offering bowl",
+     "shift": {
+      "good": -2,
+      "law": 0
+     },
+     "outcome": "They forgive you before you've left. That is worse."
+    },
+    {
+     "id": "test_their_faith",
+     "class": "fighter",
+     "label": "Test their faith",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "You push. They do not break. You are almost sorry.",
+     "luck": {
+      "chance": 0.35,
+      "good": 0,
+      "law": 1,
+      "text": "They answer with scripture you half remember. You lower your hand."
+     }
+    }
+   ],
+   "rest": {
+    "label": "Keep vigil with them",
+    "heal": 1,
+    "outcome": "A night of prayer and stillness. Even the unbelievers rest."
+   }
+  },
+  {
+   "id": "twin_survivor",
+   "kind": "recruitment",
+   "title": "The Surviving Twin",
+   "art": {},
+   "text": "One twin made it out of a collapse. The other is an Echo now, standing right beside them.",
+   "choices": [
+    {
+     "id": "help_them_say_goodbye",
+     "class": "healer",
+     "label": "Help them say goodbye",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The Echo fades smiling. The living twin follows you, eyes dry.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "bind_the_echo_to_them",
+     "class": "mage",
+     "label": "Bind the Echo to them",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Two of them now, one body's worth. It's not natural. They come with you.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "stand_guard_while_they_g",
+     "class": "fighter",
+     "label": "Stand guard while they grieve",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "An hour. Then they stand, and go back the way they came."
+    },
+    {
+     "id": "take_the_echos_gear",
+     "class": "rogue",
+     "label": "Take the Echo's gear",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "Echoes don't need boots. The twin watches you do it."
+    }
+   ]
+  },
+  {
+   "id": "caged_singer",
+   "kind": "recruitment",
+   "title": "The Songbird",
+   "art": {},
+   "text": "A singer in a hanging cage, kept by wraiths for her voice. She has forgotten every song but one.",
+   "choices": [
+    {
+     "id": "pick_the_cage_silently",
+     "class": "rogue",
+     "label": "Pick the cage silently",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "She doesn't make a sound until you're clear. Then she laughs.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "cut_her_down",
+     "class": "fighter",
+     "label": "Cut her down",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "Loud. Quick. She lands on her feet, swinging.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "teach_her_a_new_song",
+     "class": "healer",
+     "label": "Teach her a new song",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "She learns it fast. She sings it while they come for you."
+    },
+    {
+     "id": "take_the_last_song",
+     "class": "mage",
+     "label": "Take the last song",
+     "shift": {
+      "good": -1,
+      "law": -1
+     },
+     "outcome": "Now she remembers nothing. Now, at least, the wraiths will let her go."
+    }
+   ]
+  },
+  {
+   "id": "old_veteran",
+   "kind": "recruitment",
+   "title": "The Veteran's Last Descent",
+   "art": {},
+   "text": "A veteran of twenty descents wants a twenty-first. Their hands shake. Their eyes don't.",
+   "choices": [
+    {
+     "id": "accept_them",
+     "class": "fighter",
+     "label": "Accept them",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "They know every floor. They know every trap.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "heal_their_hands",
+     "class": "healer",
+     "label": "Heal their hands",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Steady again, for now. They pick up their gear.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "buy_their_maps_instead",
+     "class": "rogue",
+     "label": "Buy their maps instead",
+     "shift": {
+      "good": -1,
+      "law": 0
+     },
+     "outcome": "They sell. They wanted to go anyway."
+    },
+    {
+     "id": "tell_them_its_time_to_st",
+     "class": "mage",
+     "label": "Tell them it's time to stop",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "They hear you. They sit down, and stay."
+    }
+   ],
+   "rest": {
+    "label": "Hear their stories by the fire",
+    "heal": 1,
+    "outcome": "Twenty descents, one night. You sleep well after."
+   }
+  },
+  {
+   "id": "thief_in_the_dark",
+   "kind": "recruitment",
+   "title": "The Thief in the Dark",
+   "art": {},
+   "text": "Someone has been stealing your rations for two floors. Tonight you catch them.",
+   "choices": [
+    {
+     "id": "recruit_them",
+     "class": "rogue",
+     "label": "Recruit them",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "Professional courtesy. They're good at this.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "feed_them",
+     "class": "healer",
+     "label": "Feed them",
+     "shift": {
+      "good": 1,
+      "law": 0
+     },
+     "outcome": "They were starving. Now they're yours.",
+     "recruit": {
+      "class": "*",
+      "name": ""
+     }
+    },
+    {
+     "id": "punish_them_by_law",
+     "class": "fighter",
+     "label": "Punish them by law",
+     "shift": {
+      "good": 0,
+      "law": 2
+     },
+     "outcome": "Justice served. They leave lighter, and wiser."
+    },
+    {
+     "id": "make_them_forget_you",
+     "class": "mage",
+     "label": "Make them forget you",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "They walk off, puzzled, still hungry."
+    },
+    {
+     "id": "let_them_go_with_the_foo",
+     "class": "healer",
+     "label": "Let them go with the food",
+     "shift": {
+      "good": 0,
+      "law": -1
+     },
+     "outcome": "They vanish with your bread. You feel strangely lighter."
+    }
+   ]
+  }
+ ]
+}

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-04 22:05",
+  "updated": "2026-10-05 10:44",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -66,7 +66,7 @@
       "name": "Hero and monster sprites",
       "bar": "Sea of Stars",
       "wave": 1,
-      "status": "building",
+      "status": "queued",
       "rounds": [
         {
           "winner": "bar",
@@ -80,14 +80,14 @@
         }
       ],
       "preview": "captures/hero-sprites/r5/f00060.png",
-      "note": "4 heroes and 3 Vault monsters with idle, attack, cast, hit and KO animations, shown on the 2x4 formation grid. Critic round 1 judging blind against Sea of Stars."
+      "note": "On hold: the user is deciding whether to refine or restyle the character and monster art. General look, encounters and UI are a solid start."
     },
     {
       "id": "encounter-screen",
       "name": "Encounter choice screen",
       "bar": "Slay the Spire",
       "wave": 1,
-      "status": "building",
+      "status": "queued",
       "rounds": [
         {
           "winner": "bar",
@@ -100,7 +100,7 @@
           "image": "captures/encounter-screen/all_hollow_hound_r4/f00180.png"
         }
       ],
-      "note": "Built: five encounters, illustrated scenes, hero-bound choices with memory and alignment shift, animated resolution. Critic round 1 judging blind.",
+      "note": "On hold: the user is deciding whether to refine or restyle the character and monster art. General look, encounters and UI are a solid start.",
       "preview": "captures/encounter-screen/all_hollow_hound_r4/f00180.png"
     },
     {
@@ -144,17 +144,22 @@
           "winner": "bar",
           "gap": "Lost all 3 pairs against real Sea of Stars combat frames (won 2 against idle Super Auto Pets frames). Spec holds and the earlier fixes landed, but the board has no spectacle: eight small, similarly lit units, and ability effects only a few pixels across.",
           "image": "captures/battle-scene/r9/f00600.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Won 3 of 5 blind pairs (beat Sea of Stars once, both Super Auto Pets frames) but lost 2 of 3 against Sea of Stars. 10 of 16 formation behaviours read clearly; 6 are only text tags. The healed ally is still dimmed in Mend.",
+          "image": "captures/battle-scene/r11/f00600.png"
         }
       ],
-      "preview": "captures/battle-scene/r9/f00600.png",
-      "note": "FF1-style side view, 2-column x 4-row grid per side, formation banners with buff and debuff, ATB and HP bars, ability cues. Critic round 1 judging blind against Sea of Stars and Super Auto Pets."
+      "preview": "captures/battle-scene/r11/f00600.png",
+      "note": "Updating for the new formations: banner, on-board behaviour moments, Hold the door step-forward."
     },
     {
       "id": "alignment-ui",
       "name": "Alignment grid and memories UI",
       "bar": "Sea of Stars",
       "wave": 2,
-      "status": "building",
+      "status": "queued",
       "rounds": [
         {
           "winner": "bar",
@@ -163,23 +168,37 @@
         }
       ],
       "preview": "captures/alignment-ui/r5/f00060.png",
-      "note": "Hero detail screen: 5x5 alignment grid with memory trail, Relic offset, hidden class regions and corner rarity; stats, gear, ability; Advance or Hold Back prompt. Critic round 1 judging blind against Sea of Stars menus."
+      "note": "On hold: the user is deciding whether to refine or restyle the character and monster art. General look, encounters and UI are a solid start."
     },
     {
       "id": "party-formation",
-      "name": "Party pick and formation screen",
-      "bar": "Super Auto Pets",
+      "name": "Hero draft and formation setup screens",
+      "bar": "Super Auto Pets team screen + Sea of Stars menus",
       "wave": 2,
-      "status": "queued",
-      "rounds": []
+      "status": "building",
+      "rounds": [
+        {
+          "winner": "bar",
+          "gap": "Soft pass not counted: both wins came against weak Super Auto Pets frames. Lost to the Sea of Stars menu on density; the formation panel is a wall of small text, and list portraits don't match the grid sprites.",
+          "image": "captures/party-formation/final/f00420.png"
+        }
+      ],
+      "preview": "captures/party-formation/final/f00420.png",
+      "note": "Hero draft and formation setup: drag or tap onto the 2x4 grid, live shape naming with bonus, behaviour, cost and growth path, locked shapes shown as Strays, opponent formation hidden."
     },
     {
       "id": "run-loop",
-      "name": "Run loop: hidden map, phases, Echo PvP",
-      "bar": "Spec + playthrough",
+      "name": "Run loop core: hidden map, encounters, phases, Echo PvP, rewards",
+      "bar": "Slay the Spire run flow + spec",
       "wave": 3,
-      "status": "queued",
-      "rounds": []
+      "status": "building",
+      "rounds": [
+        {
+          "winner": "bar",
+          "gap": "The legend gate doesn't follow the user's design yet, the opponent's formation leaks before the fight, 89% of runs repeat encounters (only 20 exist), and the run has no arc: PvP is a flat coin flip with no mid-run spikes."
+        }
+      ],
+      "note": "Built: hidden map (29 nodes), phases, memories, Echo PvP against a saved pool, health, rewards, pluggable Legend gate, a bot that plays 200 runs. 77 tests pass. Critic waits until the party-size and formation design is settled."
     },
     {
       "id": "lanternrest",
@@ -196,6 +215,28 @@
       "wave": 3,
       "status": "queued",
       "rounds": []
+    },
+    {
+      "id": "settings",
+      "name": "Settings incl. Battle Effects (Low/Medium/High)",
+      "bar": "Sea of Stars options menu",
+      "wave": 3,
+      "status": "queued",
+      "rounds": []
+    },
+    {
+      "id": "formation-redesign",
+      "name": "Formation redesign: distinct per-shape effects",
+      "bar": "05-formations.md + Super Auto Pets readability",
+      "wave": 3,
+      "status": "building",
+      "rounds": [
+        {
+          "winner": "bar",
+          "gap": "Close: detection perfect across 210 placements and every cue truthful. Small fixes: Strays cancelled splash even between adjacent units, Keeper's Ring slightly weak (38.8%), monster ability share 24%, one ring check missing, two cue wordings."
+        }
+      ],
+      "note": "Approved design (05-formations.md): 15 lore-named shapes growing from dominoes to tetrominoes, Strays, Training Grounds unlocks (locked shapes fight as Strays). Combat-core builder implementing."
     }
   ],
   "log": [
@@ -398,6 +439,74 @@
     {
       "t": "22:05",
       "msg": "Battle scene round 7: lost all 3 pairs against real Sea of Stars combat. Spec and earlier fixes hold; gap is spectacle (ability effects too small, no single focus). Paused for the user's direction."
+    },
+    {
+      "t": "08:19",
+      "msg": "Checkpoint committed on branch gauntlet-build and tagged checkpoint-pre-spectacle. Battle round 8 started as a switchable spectacle experiment for the user to approve."
+    },
+    {
+      "t": "08:51",
+      "msg": "New direction from the user: mechanics and a playable vertical slice before art polish. Spectacle level 2 is the default and will become a Battle Effects setting. Run loop core builder started."
+    },
+    {
+      "t": "09:08",
+      "msg": "Run loop core built: 29-node hidden map, phases, Echo PvP, health, rewards, pluggable Legend gate. 77 tests pass. Critic held until the party-size and formation design is settled."
+    },
+    {
+      "t": "09:10",
+      "msg": "Formation design drafted for the user (05-formations-draft.md): shapes grow from dominoes to tetrominoes, each with a bonus, a behaviour and a cost. Legendary uses a rising chance."
+    },
+    {
+      "t": "09:31",
+      "msg": "Formation draft updated with the user's answers: lore names (Kindred, Tidebreak, Seawall, Lighthouse, Keeper's Ring...), Strays for loose ranks, Training Grounds drills, opponent formations hidden."
+    },
+    {
+      "t": "09:39",
+      "msg": "Formation design approved as 05-formations.md. Training Grounds unlocks formation bonuses; drills dropped. Formation build started in the combat core."
+    },
+    {
+      "t": "09:48",
+      "msg": "API overload passed (health check OK, status page all operational). Formation build restarted."
+    },
+    {
+      "t": "10:18",
+      "msg": "Formation redesign built: 15 shapes plus Strays, all within 41-58% win rate, 87 tests pass, every cue truthful. User approved the rebalance and two behaviour changes (Keeper's Ring full protection, Lighthouse draws casters); builder applying them."
+    },
+    {
+      "t": "10:22",
+      "msg": "Formation changes applied: Keeper's Ring now fires in 32 of 100 fights (was 3), the Lighthouse taunt in 39 (was 7); all shapes 41-57%; run layer passes unlocks; 89 tests pass. Formation critic round 1 started."
+    },
+    {
+      "t": "10:24",
+      "msg": "More capacity: four agents in parallel. Formation critic, run loop critic, hero draft and formation setup screens builder, and battle scene update for the new formations."
+    },
+    {
+      "t": "10:28",
+      "msg": "Run loop round 1: FAILED. Spec fixes sent back (legend gate, hidden opponent formation, 60+ encounters with no repeats, meaningful routing). Run arc and alignment steering are questions for the user."
+    },
+    {
+      "t": "10:36",
+      "msg": "User decisions for runs: floor guardians plus rest encounters, PvP matched by floor, about 1 in 4 encounters let a hero steer between two directions. Sent to the run builder."
+    },
+    {
+      "t": "10:37",
+      "msg": "Battle scene updated for the new formations: lore banner, an on-board moment for every behaviour, Hold the door step-forward, 16 per-shape clips. Critic round 8 judging."
+    },
+    {
+      "t": "10:40",
+      "msg": "Formation round 1: FAILED but close (detection perfect, cues truthful). Small fixes sent back to the combat builder."
+    },
+    {
+      "t": "10:40",
+      "msg": "Battle round 8: 3 of 5 blind wins; 10 of 16 formation behaviours read clearly. Round 9: on-board visuals for the other 6, a proper Mend fix, less text clutter, rim light on focused units."
+    },
+    {
+      "t": "10:42",
+      "msg": "Hero draft and formation setup screens built. Critic round 1 judging against Super Auto Pets' team screen and Sea of Stars menus."
+    },
+    {
+      "t": "10:44",
+      "msg": "Setup screens round 1: critic passed it, but both wins were against weak reference frames, so it's not counted. Sent back: calmer panel hierarchy, matching portraits, labelled stats."
     }
   ],
   "questions": [

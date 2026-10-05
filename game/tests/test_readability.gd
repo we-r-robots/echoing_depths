@@ -250,18 +250,26 @@ func test_formation_cues_are_truthful_and_banner_complete() -> void:
 					at[t]["heal"][int(ev["src"])] = true
 				"charge":
 					at[t]["charge"][int(ev["uid"])] = true
+		var actor := -1
 		for ev: Dictionary in evs:
+			if ev["type"] == "action_start":
+				actor = int(ev["uid"])
 			if ev["type"] != "formation_proc" or ev["trigger"] == "start":
 				continue
 			cues += 1
-			if not at[int(round(float(ev["t"]) * 1000.0))][String(ev["trigger"])].has(int(ev["uid"])):
+			var trig := String(ev["trigger"])
+			if trig == "protect" or trig == "draw":
+				if int(ev["related"]) != actor:   # the unit acting on this formation right now
+					bad += 1
+			elif not at[int(round(float(ev["t"]) * 1000.0))][trig].has(int(ev["uid"])):
 				bad += 1
 		# banner: the formation event lists every buff and debuff of the side's shape (data)
 		for s in 2:
 			var banner: Dictionary = evs[1 + s]
 			eq(String(banner["type"]), "formation", "banner event follows fight_start")
 			var f: Dictionary = banner["formation"]
-			check((f["buffs"] as Array).size() >= 1 and (f["debuffs"] as Array).size() >= 1, "banner shows a buff and a debuff")
+			check((f["buffs"] as Array).size() >= 1 and String(f["behaviour"]["text"]) != "" and String(f["cost"]) != "",
+				"banner shows the bonus, the behaviour and the cost")
 	check(cues > 1000, "cues sampled (%d)" % cues)
 	eq(bad, 0, "formation cues on a unit not doing the named trigger")
 
@@ -310,6 +318,8 @@ func test_formation_cue_rules() -> void:
 							tagged_at[ev["t"]] = true
 				"formation_proc":
 					cues += 1
+					if String(ev["stat"]) == "":
+						continue   # behaviour cues: truthfulness is checked in test_formation / below
 					var key := "%d|%s|%s" % [ev["side"], ev["source"], ev["stat"]]
 					if once.has(key) or dead.has(int(ev["uid"])) or tagged_at.has(ev["t"]):
 						check(false, "cue breaks the rules: %s" % ev)

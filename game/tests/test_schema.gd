@@ -21,9 +21,10 @@ const EVENTS := {
 	"fight_start": {"seed": I, "data_version": I, "sudden_death_at": F, "gauge_fill_per_spd": F, "sides": A},
 	"formation": {"side": [I, [0, 1]], "formation": D, "compositions": A},
 	"formation_proc": {"side": [I, [0, 1]], "uid": I, "source": S, "name": S,
-		"stat": [S, ["hp_pct", "atk_pct", "def_pct", "mag_pct", "spd_pct", "crit_add", "charge_pct", "heal_pct"]],
-		"value": F, "sign": [S, ["buff", "debuff"]],
-		"trigger": [S, ["start", "turn", "attack", "defend", "crit", "charge", "heal"]]},
+		"stat": [S, ["", "hp_pct", "atk_pct", "def_pct", "mag_pct", "spd_pct", "crit_add", "charge_pct", "heal_pct", "dmg_taken_pct"]],
+		"effect": S, "value": F, "sign": [S, ["buff", "debuff"]],
+		"trigger": [S, ["start", "turn", "attack", "defend", "crit", "charge", "heal"]], "related": I},
+	"formation_move": {"side": [I, [0, 1]], "uid": I, "from": A, "to": A, "source": S, "effect": [S, ["hold_the_door"]], "replaces": I},
 	"action_start": {"uid": I, "action": S, "name": S, "kind": [S, ["basic", "ability"]], "anim": S, "target": I,
 		"target_side": [I, [0, 1]], "area": [S, ["single", "all_enemies", "all_allies"]], "duration": F, "impact": F,
 		"gauges": A},
@@ -37,18 +38,21 @@ const EVENTS := {
 	"fight_end": {"winner": [I, [-1, 0, 1]], "reason": [S, ["wipe", "fading", "timeout"]], "survivors": A},
 }
 const SIDE := {"side": I, "name": S, "formation": D, "compositions": A, "units": A}
-const FORMATION := {"id": S, "name": S, "buffs": A, "debuffs": A}
-const MODIFIER := {"scope": [S, ["all", "front", "back", "class"]], "stat": S, "value": F}
+const FORMATION := {"id": S, "name": S, "shape": S, "shape_name": S, "locked": B, "buffs": A, "debuffs": A,
+	"behaviour": D, "cost": S}
+const MODIFIER := {"scope": [S, ["all", "front", "back", "class", "post", "tip", "keeper", "flanker", "gap", "middle"]], "stat": S, "value": F}
 const COMPOSITION := {"id": S, "name": S, "mods": A}
 const UNIT := {"uid": I, "side": I, "name": S, "label": S, "class": S, "class_name": S, "base_class": S,
 	"tier": [S, ["base", "advanced", "legendary", "monster"]], "level": I, "col": [I, [0, 1]], "row": [I, [0, 1, 2, 3]],
 	"hp": I, "max_hp": I, "atk": I, "def": I, "mag": I, "spd": I, "crit": F, "charge": I, "charge_max": I,
 	"gauge": F, "basic": D, "ability": D}
 const ACTION_REF := {"id": S, "name": S}
-const MOD_IDS := ["formation", "back_row_attacker", "back_row_target", "execute", "sudden_death"]
+const MOD_IDS := ["formation", "back_row_attacker", "back_row_target", "execute", "sudden_death", "brace",
+	"share_the_blow", "flank", "hearthguard", "echo_step", "chorus_splash"]
 const MOD_FORMATION := {"id": S, "mult": F, "source": S, "name": S, "side": [I, [0, 1]]}
 const MOD_PLAIN := {"id": S, "mult": F}
-const PRIMARY_IDS := ["crit", "execute", "back_row_attacker", "back_row_target", "back_row_both", "formation", "sudden_death"]
+const PRIMARY_IDS := ["crit", "execute", "back_row_attacker", "back_row_target", "back_row_both", "formation", "sudden_death",
+	"brace", "share_the_blow", "flank", "hearthguard", "echo_step", "chorus_splash"]
 
 var _bad := 0
 
@@ -112,6 +116,7 @@ func _check_event(ev: Dictionary, where: String) -> void:
 					_conform(u["ability"], ACTION_REF, where + " unit.ability")
 		"formation":
 			_check_formation(ev["formation"], where)
+			_conform(ev["formation"]["behaviour"], {"id": S, "name": S, "text": S}, where + " behaviour")
 		"action_start":
 			for g: Variant in ev["gauges"]:
 				if typeof(g) != F or float(g) < 0.0 or float(g) > 1.0:

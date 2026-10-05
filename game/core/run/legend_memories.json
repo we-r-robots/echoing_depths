@@ -1,0 +1,261 @@
+{
+ "_doc": "Legend's-memory encounters (05-formations.md), one per authored advanced class. Same shape as data/encounters (art empty). Choice 'legend': true makes the hero Legendary; the other is an ordinary memory and closes the gate for this run. Used only by legend_gate.gd.",
+ "encounters": [
+  {
+   "id": "legend_paladin",
+   "kind": "legend",
+   "for_class": "paladin",
+   "legend_name": "The Lantern Saint",
+   "title": "A Legend's Memory: The Lantern Saint",
+   "art": {},
+   "text": "A knight of the first Lanternrest, who held the gate alone for a night and a day. Her oath still hangs in the air here, waiting for a voice.",
+   "choices": [
+    {
+     "id": "accept",
+     "class": "fighter",
+     "label": "Take up her oath",
+     "shift": {
+      "good": 0,
+      "law": 0
+     },
+     "legend": true,
+     "outcome": "Her oath settles on you like armor. You are not only yourself anymore."
+    },
+    {
+     "id": "let_go",
+     "class": "fighter",
+     "label": "Let her rest",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "You leave the oath unspoken. Somewhere, a gate closes gently."
+    }
+   ]
+  },
+  {
+   "id": "legend_berserker",
+   "kind": "legend",
+   "for_class": "berserker",
+   "legend_name": "The Red Tide",
+   "title": "A Legend's Memory: The Red Tide",
+   "art": {},
+   "text": "A warlord whose fury held back the first Fading for a season. His rage is still here, pacing in the dark.",
+   "choices": [
+    {
+     "id": "accept",
+     "class": "fighter",
+     "label": "Let the fury in",
+     "shift": {
+      "good": 0,
+      "law": 0
+     },
+     "legend": true,
+     "outcome": "It is not your anger. It fits anyway."
+    },
+    {
+     "id": "let_go",
+     "class": "fighter",
+     "label": "Turn away from it",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The rage paces on, unclaimed."
+    }
+   ]
+  },
+  {
+   "id": "legend_duelist",
+   "kind": "legend",
+   "for_class": "duelist",
+   "legend_name": "The Last Blade of Veil",
+   "title": "A Legend's Memory: The Last Blade of Veil",
+   "art": {},
+   "text": "A duelist who never lost, and never said why she fought. Her stance is etched into the floor.",
+   "choices": [
+    {
+     "id": "accept",
+     "class": "rogue",
+     "label": "Step into her stance",
+     "shift": {
+      "good": 0,
+      "law": 0
+     },
+     "legend": true,
+     "outcome": "Your feet find the marks. Your blade remembers what it never learned."
+    },
+    {
+     "id": "let_go",
+     "class": "rogue",
+     "label": "Step around it",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The marks fade behind you, patient."
+    }
+   ]
+  },
+  {
+   "id": "legend_assassin",
+   "kind": "legend",
+   "for_class": "assassin",
+   "legend_name": "The Quiet Hand",
+   "title": "A Legend's Memory: The Quiet Hand",
+   "art": {},
+   "text": "Nobody remembers his face. That was the point. His last contract waits here, unsigned.",
+   "choices": [
+    {
+     "id": "accept",
+     "class": "rogue",
+     "label": "Sign the contract",
+     "shift": {
+      "good": 0,
+      "law": 0
+     },
+     "legend": true,
+     "outcome": "Your name goes where his should be. Already, people find it hard to remember you."
+    },
+    {
+     "id": "let_go",
+     "class": "rogue",
+     "label": "Burn the contract",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Ash, and a sense of someone stepping back into the shadows."
+    }
+   ]
+  },
+  {
+   "id": "legend_cleric",
+   "kind": "legend",
+   "for_class": "cleric",
+   "legend_name": "The Mother of Wicks",
+   "title": "A Legend's Memory: The Mother of Wicks",
+   "art": {},
+   "text": "She kept the sick alive through the first Fading with nothing but a candle and a refusal. Her candle is still burning.",
+   "choices": [
+    {
+     "id": "accept",
+     "class": "healer",
+     "label": "Take up her candle",
+     "shift": {
+      "good": 0,
+      "law": 0
+     },
+     "legend": true,
+     "outcome": "The flame does not burn you. It knows your hand."
+    },
+    {
+     "id": "let_go",
+     "class": "healer",
+     "label": "Leave it burning",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Let it light someone else's way."
+    }
+   ]
+  },
+  {
+   "id": "legend_necromancer",
+   "kind": "legend",
+   "for_class": "necromancer",
+   "legend_name": "The Gray Shepherd",
+   "title": "A Legend's Memory: The Gray Shepherd",
+   "art": {},
+   "text": "He tended the dead when the living would not. The Fading's flock still answers to his crook.",
+   "choices": [
+    {
+     "id": "accept",
+     "class": "healer",
+     "label": "Take up the crook",
+     "shift": {
+      "good": 0,
+      "law": 0
+     },
+     "legend": true,
+     "outcome": "Something gray turns to face you, and kneels."
+    },
+    {
+     "id": "let_go",
+     "class": "healer",
+     "label": "Lay it down",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The flock scatters into the mist."
+    }
+   ]
+  },
+  {
+   "id": "legend_archmage",
+   "kind": "legend",
+   "for_class": "archmage",
+   "legend_name": "The First Scholar",
+   "title": "A Legend's Memory: The First Scholar",
+   "art": {},
+   "text": "The Lumari who first wrote memory into crystal. Her last equation hangs unfinished in the air.",
+   "choices": [
+    {
+     "id": "accept",
+     "class": "mage",
+     "label": "Finish the equation",
+     "shift": {
+      "good": 0,
+      "law": 0
+     },
+     "legend": true,
+     "outcome": "The answer is you. It has been you since you came in."
+    },
+    {
+     "id": "let_go",
+     "class": "mage",
+     "label": "Leave it unsolved",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "Some answers should not be written down."
+    }
+   ]
+  },
+  {
+   "id": "legend_warlock",
+   "kind": "legend",
+   "for_class": "warlock",
+   "legend_name": "The Debt-Binder",
+   "title": "A Legend's Memory: The Debt-Binder",
+   "art": {},
+   "text": "A sorcerer who borrowed from the Fading itself and never paid. The debt waits here, compounding.",
+   "choices": [
+    {
+     "id": "accept",
+     "class": "mage",
+     "label": "Assume the debt",
+     "shift": {
+      "good": 0,
+      "law": 0
+     },
+     "legend": true,
+     "outcome": "Power, and the long cold patience of something owed."
+    },
+    {
+     "id": "let_go",
+     "class": "mage",
+     "label": "Refuse the debt",
+     "shift": {
+      "good": 0,
+      "law": 1
+     },
+     "outcome": "The ledger closes without you."
+    }
+   ]
+  }
+ ]
+}

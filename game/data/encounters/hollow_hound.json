@@ -21,7 +21,7 @@
       "class": "fighter",
       "label": "Stand in its path",
       "shift": { "good": 1, "law": 0},
-      "outcome": "It hits Brannoc like a falling door. He does not fall. When it is over, the hound's last memory, a boy and a stick, is his to carry.",
+      "outcome": "It hits like a falling door. Your fighter does not fall. When it is over, the hound's last memory, a boy and a stick, is theirs to carry.",
       "art": { "hide": ["hound", "eye"] }
     },
     {
@@ -29,7 +29,7 @@
       "class": "healer",
       "label": "Call it by a name",
       "shift": { "good": 2, "law": 0},
-      "outcome": "\"Ash,\" Ilse says, and the gray flickers. For a moment it is only a dog. It lies down at her feet and fades, content to be someone's.",
+      "outcome": "\"Ash,\" your healer says, and the gray flickers. For a moment it is only a dog. It lies down at their feet and fades, content to be someone's.",
       "art": { "hide": ["hound", "eye"] }
     },
     {
@@ -37,7 +37,7 @@
       "class": "mage",
       "label": "Burn the gray out",
       "shift": { "good": 0, "law": -1},
-      "outcome": "Violet fire, and a howl that echoes long after the hound is ash. Vesper breathes in the smoke and tastes a kennel, rain, a master's voice.",
+      "outcome": "Violet fire, and a howl that echoes long after the hound is ash. Your mage breathes in the smoke and tastes a kennel, rain, a master's voice.",
       "art": { "hide": ["hound", "eye"] }
     },
     {

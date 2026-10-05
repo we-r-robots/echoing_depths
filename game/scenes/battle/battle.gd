@@ -22,10 +22,11 @@ const PartyGen = preload("res://core/party_gen.gd")
 const Rng = preload("res://core/rng.gd")
 const Echo = preload("res://core/echo.gd")
 const Layout = preload("res://scenes/battle/battle_layout.gd")
+const Demo = preload("res://scenes/battle/battle_demo.gd")
 const Unit = preload("res://scenes/battle/battle_unit.gd")
 const META_PATH := "res://assets/sprites/sprite_meta.json"
 
-const DEMO_PVP_SEED := 33
+const DEMO_PVP_SEED := 34
 const DEMO_MONSTER_SEED := 31
 const DEMO_MONSTER_DEPTH := 3
 ## The demo shortens sudden death (36 s in Tuning) so the escalation shows inside a 40 s capture.
@@ -60,6 +61,10 @@ enum State { IDLE, INTRO, PLAY, END }
 @export var autoplay_demo := true
 ## Demo fight when nothing calls the API: "pvp" (hero party vs an Echo) or "monsters". --fight=... overrides.
 @export var demo_fight := "pvp"
+## EXPERIMENT (awaiting user approval): ability-turn spectacle. 0 = current look, 1 = subtle, 2 = full.
+## Affects ability turns only: focus dim, camera push, VFX size, hit-stop and shake.
+## Override from the command line with user arg --spectacle=N.
+@export_range(0, 2) var spectacle_level := 2
 
 var units: Array = []                  # BattleUnit by uid
 var side_units: Array = [[], []]       # uids per side in slot order
@@ -103,6 +108,7 @@ var _display := {}
 var _started_by_api := false
 var _demo_running := false
 var _focus_end := -1.0
+var _seek_to := -1.0
 var _cam_push := Vector2.ZERO
 var _num_max_dist := 0.0
 var _hits_in_action := 0
@@ -150,14 +156,30 @@ func _start_demo() -> void:
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		args[kv[0]] = kv[1] if kv.size() > 1 else "true"
+	if args.has("spectacle"):
+		spectacle_level = clampi(int(args["spectacle"]), 0, 2)
+	if args.has("from"):
+		_seek_to = float(args["from"])
+	if args.has("shape"):
+		var sid := String(args["shape"])
+		var d: Array = Demo.SHAPE_DEMOS.get(sid, [1, "pvp", 0])
+		var fs := int(d[0])
+		var mine := Demo.shape_party(sid, int(d[2]))
+		_demo_running = true
+		if String(d[1]) == "monsters":
+			start_fight(mine, PartyGen.monster_group(Rng.new(fs), 3), fs, {}, {})
+		else:
+			var rival: Dictionary = Echo.from_dict(Echo.make(PartyGen.demo_rival(), {"player": "Ashen Pact"})).get("echo", {})
+			start_fight(mine, rival, fs, {}, {"echo_side": 1})
+		return
 	if String(args.get("fight", demo_fight)) == "monsters":
 		var mon := PartyGen.monster_group(Rng.new(DEMO_MONSTER_SEED), DEMO_MONSTER_DEPTH)
 		_demo_running = true
-		start_fight(PartyGen.demo_party(), mon, DEMO_MONSTER_SEED, {}, {})
+		start_fight(Demo.demo_party_unlocked(), mon, DEMO_MONSTER_SEED, {}, {})
 	else:
 		var echo: Dictionary = Echo.from_dict(Echo.make(PartyGen.demo_rival(), {"player": "Ashen Pact"})).get("echo", {})
 		_demo_running = true
-		start_fight(PartyGen.demo_party(), echo, DEMO_PVP_SEED, DEMO_PVP_OPTIONS, {"echo_side": 1})
+		start_fight(Demo.demo_party_unlocked(), echo, DEMO_PVP_SEED, DEMO_PVP_OPTIONS, {"echo_side": 1})
 
 
 ## Simulates the fight with the core sim and plays it back.
@@ -190,6 +212,25 @@ func play_result(res: Dictionary, display: Dictionary = {}) -> void:
 	hud.intro_len = INTRO_LEN
 	hud.fade_in = 1.0
 	hud.speed_btn.text = "x%d" % int(SPEEDS[_speed_i])
+
+
+func is_ab_focus(ev: Dictionary) -> bool:
+	return String(ev.get("kind", "")) == "ability"
+
+
+## Jumps playback to sim time t (no effects on the way), e.g. to capture one behaviour.
+func _seek(t: float) -> void:
+	_instant = true
+	while _ev_i < events.size() and float(events[_ev_i]["t"]) < t:
+		var ev: Dictionary = events[_ev_i]
+		sim_t = float(ev["t"])
+		_ev_i += 1
+		_dispatch(ev)
+	_instant = false
+	sim_t = maxf(sim_t, t)
+	fx.clear_all()
+	for u in units:
+		u.plan_move(Unit.Move.STAY, sim_t, sim_t, sim_t, sim_t, u.home)
 
 
 func set_speed(x: float) -> void:
@@ -266,6 +307,9 @@ func _process(delta: float) -> void:
 			hud.intro_t = _intro_t
 			stage.glyph_reveal = clampf((_intro_t - 0.4) / 0.9, 0.0, 1.0)
 			stage.labels_alpha = 1.0
+			if _intro_t >= INTRO_LEN and _seek_to > 0.0:
+				_seek(_seek_to)
+				_seek_to = -1.0
 			if _intro_t >= INTRO_LEN:
 				_state = State.PLAY
 				hud.intro_t = -1.0
@@ -299,12 +343,14 @@ func _process(delta: float) -> void:
 		u.tick(sim_t, 0.0 if (frozen and u.uid != _freeze_actor) else vdt, us)
 	if _focus_end >= 0.0 and sim_t > _focus_end + 0.05:
 		_focus_end = -1.0
+		fx.fade_popups()   # numbers never outlive their action
 		for u in units:
 			u.dimmed = false
+			u.lit = false
 	# dim for ability moments
 	var want_dim := 0.0
 	if _cur_action.get("kind", "") == "ability" and sim_t < float(_cur_action.get("t", 0.0)) + float(_cur_action.get("duration", 0.0)):
-		want_dim = 0.5
+		want_dim = [0.5, 0.6, 0.75][spectacle_level]
 	_dim_a = move_toward(_dim_a, want_dim, vdt * 4.0)
 	dim.color = Color(Pal.INK1, _dim_a)
 	dim.visible = _dim_a > 0.01
@@ -325,6 +371,11 @@ func _update_camera(delta: float) -> void:
 		var a = units[int(_cur_action["uid"])]
 		if a.acting:
 			target = Vector2(clampf((a.position.x - 320.0) * 0.05, -3, 3), clampf((a.position.y - 200.0) * 0.05, -3, 3))
+			var tg := int(_cur_action.get("target", -1))
+			if spectacle_level > 0 and String(_cur_action.get("kind", "")) == "ability" and tg >= 0 and tg < units.size():
+				var mid: Vector2 = (a.position + units[tg].position) * 0.5 - Vector2(320, 180)
+				var lim := 4.0 * spectacle_level   # bg_vault.png has an 8 world px margin
+				target = Vector2(clampf(mid.x * 0.25, -lim, lim), clampf(mid.y * 0.25, -lim, lim))
 	_cam_push = _cam_push.move_toward(Vector2.ZERO, delta * 8.0)
 	target += _cam_push
 	_cam_off = _cam_off.lerp(target, clampf(delta * 4.0, 0.0, 1.0))
@@ -398,6 +449,12 @@ func hitstop(t: float, actor := -1) -> void:
 
 # ------------------------------------------------------------------------------------- dispatch
 func _dispatch(ev: Dictionary) -> void:
+	# Anyone hit or healed during a focused action is part of it (e.g. Mend's ally), so un-dim them.
+	if _focus_end >= 0.0 and ev.has("dst"):
+		var d := int(ev["dst"])
+		if d >= 0 and d < units.size():
+			units[d].dimmed = false
+			units[d].lit = is_ab_focus(_cur_action)
 	match String(ev.get("type", "")):
 		"fight_start": _on_fight_start(ev)
 		"formation": pass   # same data as fight_start; shown by the intro cards
@@ -410,6 +467,7 @@ func _dispatch(ev: Dictionary) -> void:
 		"sudden_death": _on_sudden_death(ev)
 		"fight_end": _on_fight_end(ev)
 		"formation_proc": _on_formation_proc(ev)
+		"formation_move": _on_formation_move(ev)
 		_: _on_other(ev)    # unknown / future event types are ignored safely
 
 
@@ -447,6 +505,9 @@ func _on_formation_proc(ev: Dictionary) -> void:
 		return
 	var u = units[uid]
 	var stat := String(ev.get("stat", ""))
+	if stat == "":
+		_behaviour_cue(ev, u)
+		return
 	var v := float(ev.get("value", 0.0))
 	var txt := "%s %s %+d%%" % [String(ev.get("name", "")).to_upper(), hud.STAT_NAMES.get(stat, stat.to_upper()), roundi(v * 100.0)]
 	var col: Color = (side_colors[s] if good else Pal.BLOOD4).lerp(Pal.INK10, 0.2)
@@ -460,6 +521,132 @@ func _on_formation_proc(ev: Dictionary) -> void:
 		stage.slot_pulse[k] = maxf(float(stage.slot_pulse.get(k, 0.0)), 0.35)
 	fx.ring(u.position, 6, 26, 0.5, col, 0.4)
 	fx.light(u.position, col, 1, 0.45, 0.6)
+
+
+## Each formation behaviour reads on the board as its own moment.
+func _behaviour_cue(ev: Dictionary, u) -> void:
+	var s: int = u.side
+	var eff := String(ev.get("effect", ""))
+	var r_id := int(ev.get("related", -1))
+	var r = units[r_id] if r_id >= 0 and r_id < units.size() else null
+	var sc: Color = side_colors[s].lerp(Pal.INK10, 0.25)
+	if eff == "keepers_ring":
+		var an := String(_cur_action.get("anim", ""))
+		if r == null or an.begins_with("melee") or an.begins_with("slam") or int(_cur_action.get("uid", -1)) < 0:
+			return   # the ring only matters when it turned a ranged, magic or dash attack
+	var name_ := String((sides[s].get("formation", {}).get("behaviour", {}) as Dictionary).get("name", eff.capitalize()))
+	if eff == "draws_melee":
+		name_ = "Draws the blow"
+	elif eff == "taunt":
+		name_ = "Lighthouse"
+	elif eff == "scattered":
+		name_ = "Scattered"
+	elif eff == "chorus_splash":
+		name_ = "Chorus splash"
+	hud.pulse_badge(s, 9)
+	stage.glyph_pulse[s] = 1.0
+	stage.slot_pulse[Vector3i(s, u.col, u.row)] = 1.4
+	u.buff_glow = 0.6
+	u.buff_color = sc
+	fx.cue(name_, u.position + Vector2(0, 18), sc, 0.0)
+	match eff:
+		"shoulder_to_shoulder":     # a charge pulse travels from the hit partner and fills this gauge
+			if r != null:
+				fx.projectile(r.chest(), u.position + Vector2(u.facing * 16, 4), sim_t, sim_t + 0.3, Pal.VIOLET3, Pal.VIOLET4, 0, 10.0)
+			u.charge_shown = maxf(0.0, float(u.charge) - float(ev.get("value", 15)))
+			u.charge_hold = 0.3
+		"covering_fire":            # retarget line onto the attacker, crosshair on it
+			if r != null:
+				fx.sweep(u.chest(), r.chest(), Pal.BLOOD4)
+				fx.ring(r.chest(), 18, 6, 0.5, Pal.BLOOD4, 1.0)
+		"guardian":                 # intercept flash between the two
+			if r != null:
+				fx.sweep(r.chest(), u.chest(), Pal.INK10)
+			fx.ring(u.chest(), 6, 22, 0.45, sc, 1.2)
+			fx.light(u.chest(), sc, 1, 0.6, 0.4)
+		"brace", "share_the_blow":  # the blow visibly splits to the neighbour(s)
+			for n in units:
+				if n.alive and n != u and n.side == s and n.col == u.col and absi(n.row - u.row) == 1:
+					fx.sweep(u.chest(), n.chest(), Pal.AMBER6)
+					fx.ring(n.chest(), 4, 14, 0.4, Pal.AMBER6, 1.0)
+			fx.ring(u.chest(), 4, 18, 0.4, Pal.AMBER6, 1.0)
+		"opening_volley":           # the back row's gauges surge at fight start
+			for n in units:
+				if n.alive and n.side == s and n.col == 1:
+					fx.pillar(n.position.x, n.position.y, 6.0, 0.8, sc)
+					fx.particles(n.position + Vector2(0, 4), 12, sc, 20.0, 60.0, 0.8, -40.0, 1, 6.0)
+					n.buff_glow = 0.8
+					n.buff_color = sc
+		"flank":                    # a strike along the row
+			if r != null:
+				fx.sweep(u.chest() + Vector2(0, 4), r.chest() + Vector2(0, 4), sc)
+				stage.slot_pulse[Vector3i(s, 0, u.row)] = 1.4
+		"draws_melee":
+			fx.ring(u.chest(), 16, 4, 0.4, Pal.BLOOD4, 1.0)
+		"hearthguard":              # a hearth glow on the lone front unit, one shield segment per back ally
+			var backs := 0
+			for n in units:
+				if n.alive and n.side == s and n.col == 1:
+					backs += 1
+			fx.shield(u.chest() + Vector2(u.facing * 14, 0), backs, Pal.AMBER5, 0.9)
+			fx.light(u.position + Vector2(0, -12), Pal.AMBER5, 2, 0.6, 0.8)
+			fx.ring(u.position, 4, 22, 0.6, Pal.AMBER5, 0.35)
+			fx.particles(u.position, 12, Pal.AMBER6, 14.0, 35.0, 0.8, -20.0, 1, 8.0)
+		"taunt":                    # a beam pulls the attack onto the post
+			if r != null:
+				fx.sweep(r.chest(), u.chest(), Pal.AMBER6)
+			fx.pillar(u.position.x, u.position.y, 8.0, 0.5, Pal.AMBER6)
+		"chorus_splash":
+			if r != null:
+				fx.ring(r.chest(), 4, 28, 0.5, Pal.VIOLET4, 0.6)
+		"keepers_ring":             # the attack bends off the ring around the keeper onto this unit
+			var att = units[int(_cur_action.get("uid", -1))]
+			var bend: Vector2 = r.chest() + (att.chest() - r.chest()).normalized() * 22.0
+			fx.sweep(att.chest(), bend, Pal.CRYSTAL5)
+			fx.sweep(bend, u.chest(), Pal.BLOOD4)
+			if r != null:
+				fx.ring(r.position + Vector2(0, -2), 26, 14, 0.6, Pal.CRYSTAL5, 0.4)
+				fx.ring(r.position + Vector2(0, -2), 14, 20, 0.6, Pal.INK10, 0.4)
+				fx.light(r.chest(), Pal.CRYSTAL4, 1, 0.5, 0.6)
+				r.buff_glow = 0.6
+				r.buff_color = Pal.CRYSTAL5
+		"shardpoint":               # a charge spark flies from the ally to the tip and fills its gauge
+			if r != null:
+				fx.projectile(r.chest(), u.position + Vector2(u.facing * 16, 4), sim_t, sim_t + 0.3, Pal.VIOLET3, Pal.VIOLET4, 0, 12.0)
+			u.charge_shown = maxf(0.0, float(u.charge) - float(ev.get("value", 8)))
+			u.charge_hold = 0.3
+		"echo_step":                # a staggered afterimage
+			u.echo_afterimage(0.6)
+		"scattered":                # small separate auras: nothing links them
+			for n in units:
+				if n.alive and n.side == s:
+					fx.ring(n.position, 3, 10, 0.5, sc, 0.4)
+
+
+## Vault Door, Hold the door: the back unit steps forward into the fallen front unit's slot.
+func _on_formation_move(ev: Dictionary) -> void:
+	var uid := int(ev.get("uid", -1))
+	if uid < 0 or uid >= units.size():
+		return
+	var u = units[uid]
+	var to: Array = ev.get("to", [0, u.row])
+	var s: int = u.side
+	stage.alive_cells[s].erase(Vector2i(u.col, u.row))
+	u.col = int(to[0])
+	u.row = int(to[1])
+	stage.alive_cells[s][Vector2i(u.col, u.row)] = true
+	var dest := Layout.slot_pos(s, u.col, u.row)
+	if _instant:
+		u.home = dest
+		u.position = dest
+		return
+	u.step_to(dest, sim_t, 0.9)
+	hitstop(0.35, u.uid)
+	var sc: Color = side_colors[s].lerp(Pal.INK10, 0.25)
+	fx.cue("Hold the door", dest + Vector2(0, 18), sc, 0.1)
+	fx.trail(u.position, dest, sc)
+	stage.slot_pulse[Vector3i(s, u.col, u.row)] = 1.6
+	hud.pulse_badge(s, 9)
 
 
 func _on_fight_start(ev: Dictionary) -> void:
@@ -497,7 +684,7 @@ func _on_fight_start(ev: Dictionary) -> void:
 			continue
 		for n in units:
 			if n != big and n.side == big.side and n.col == big.col and absi(n.row - big.row) == 1:
-				n.home.x -= 28.0 * n.facing
+				n.home.x -= 16.0 * n.facing
 				n.position = n.home
 	for s: Dictionary in sides:
 		var k := int(s["side"])
@@ -527,6 +714,7 @@ func _make_unit(u: Dictionary) -> Node2D:
 	units_root.add_child(node)
 	node.setup(u, m, SHADOWS[sh], int(u["side"]) == echo_side, side_colors[int(u["side"])], swaps)
 	node.g_rate = float(u.get("spd", 10)) * _fill
+	node.focus_rim = spectacle_level >= 1
 	node.g_base = float(u.get("gauge", 0.0))
 	node.t_base = 0.0
 	portraits[node.uid] = _portrait(key, base, String(u.get("tier", "")) == "monster", m)
@@ -599,6 +787,7 @@ func _on_action_start(ev: Dictionary) -> void:
 	for u in units:
 		var involved: bool = u == a or u.uid == int(ev.get("target", -1)) or (area != "single" and u.side == tside)
 		u.dimmed = not involved
+		u.lit = involved and is_ab_focus(ev)
 	if _instant:
 		return
 	var anim := String(ev.get("anim", "melee"))
@@ -617,10 +806,10 @@ func _on_action_start(ev: Dictionary) -> void:
 					dest = Layout.strike_pos(tgt.home, 1 - a.side, reach)   # blink in behind the target
 					a.flip_at_dest = true
 				var arrive := maxf(t0 + 0.09, imp - 0.025)
-				var leave := imp + 0.28                       # linger at the target, return overlaps the gap
+				var leave := minf(imp + 0.22, t_end - 0.06)   # linger at the target, home by the next action
 				fx.trail(a.chest(), tgt.chest(), a.side_color)
 				var hop := anim.begins_with("slam")
-				a.plan_move(Unit.Move.HOP if hop else Unit.Move.LUNGE, t0, arrive, leave, leave + 0.2, dest,
+				a.plan_move(Unit.Move.HOP if hop else Unit.Move.LUNGE, t0, arrive, leave, t_end + 0.08, dest,
 					22.0 if anim == "slam_big" else 14.0, anim != "melee")
 			else:
 				a.plan_move(Unit.Move.STAY, t0, t0, t0, t_end, a.home)
@@ -630,9 +819,11 @@ func _on_action_start(ev: Dictionary) -> void:
 			if tgt != null:
 				var from: Vector2 = a.chest() + Vector2(a.facing * 12, -2)
 				var to: Vector2 = tgt.chest()
-				var travel := clampf(from.distance_to(to) / 520.0, 0.12, 0.24)
+				var travel := clampf(from.distance_to(to) / 400.0, 0.18, 0.3)
 				var launch := maxf(t0 + 0.05, imp - travel)
 				fx.projectile(from, to, launch, imp, cols[0], cols[1], 0, 10.0)
+				fx.ring(from, 2, 12, 0.35, cols[1], 1.0)          # cast flare on the caster
+				fx.light(from, cols[0], 1, 0.6, 0.4)
 				a.schedule_anim(&"attack", maxf(t0, launch - a.impact_offset("attack")))
 			else:
 				a.schedule_anim(&"attack", t0)
@@ -676,20 +867,37 @@ func _ability_shape(aid: String, T, cols: Array) -> void:
 			# a blade sweep through the target's column, crossing the rows above and below it
 			var c0: Vector2 = T.chest()
 			var d := Vector2(Layout.SKEW, 22.0)
-			fx.sweep(c0 - d * 1.2, c0 + d * 1.2, cols[0])
+			fx.sweep(c0 - d * (1.2 + 0.6 * spectacle_level), c0 + d * (1.2 + 0.6 * spectacle_level), cols[0])
+			if spectacle_level > 0:
+				fx.sweep(c0 - d * 1.6 + Vector2(-6, 0), c0 + d * 1.6 + Vector2(6, 0), Pal.INK10)
+				fx.ring(c0, 6, 30 + 16 * spectacle_level, 0.4, cols[0], 1.4)
 			for k in 3:
 				fx.sprite_fx(&"slash", c0 + d * (k - 1), T.facing > 0, Color.WHITE, 1.0)
 		"mend", "sanctuary":
-			fx.pillar(T.position.x, T.position.y, 14.0, 0.7, Pal.LIFE4)
+			fx.pillar(T.position.x, T.position.y, 14.0 + 8.0 * spectacle_level, 0.7, Pal.LIFE4)
 			fx.ring(T.position, 4, 26, 0.6, Pal.LIFE4, 0.35)
 		"quake":
 			for k in 4:
-				fx.ring(T.position + Vector2(-T.facing * k * 6, 0), 8 + k * 10, 50 + k * 16, 0.55 + k * 0.08, Pal.INK10 if k % 2 == 0 else Pal.AMBER6, 0.3)
+				fx.ring(T.position + Vector2(-T.facing * k * 6, 0), 8 + k * 10, (50 + k * 16) * (1.0 + 0.7 * spectacle_level), 0.55 + k * 0.08, Pal.INK10 if k % 2 == 0 else Pal.AMBER6, 0.3)
 			fx.particles(T.position, 30, Pal.FADE3, 80.0, 40.0, 0.7, 160.0, 2, 10.0)
 			shake(5.0)
 		"backstab", "execute":
-			fx.ring(T.chest(), 2, 20, 0.3, Pal.VIOLET4, 1.0)
-			fx.particles(T.chest(), 16, Pal.VIOLET4, 60.0, 10.0, 0.4, 0.0, 1, 2.0)
+			fx.ring(T.chest(), 2, 20 + 14 * spectacle_level, 0.3, Pal.VIOLET4, 1.0)
+			fx.particles(T.chest(), 16 + 16 * spectacle_level, Pal.VIOLET4, 60.0, 10.0, 0.4, 0.0, 1, 2.0)
+
+
+## Spectacle level 1/2: an area ability owns the whole target side.
+func _big_area(aid: String, side: int, cols: Array) -> void:
+	var lv := spectacle_level
+	for u in units:
+		if u.side != side or not u.alive:
+			continue
+		if aid == "unravel" or aid == "hexfire":
+			for k in 3:   # a spiral: staggered rings winding in
+				fx.ring(u.chest() + Vector2(cos(k * 2.1) * 8.0, sin(k * 2.1) * 4.0), 30 + 14 * lv - k * 8, 2, 0.5 + k * 0.1, cols[k % 2], 0.6)
+		else:
+			fx.pillar(u.position.x, u.position.y, 10.0 + 8.0 * lv, 0.6, cols[0])
+	fx.light(Vector2(320.0 + (90.0 if side == 1 else -90.0), 190), cols[1], 4, 0.4 * lv, 0.7)
 
 
 func _fx_cols(aid: String) -> Array:
@@ -746,17 +954,20 @@ func _on_damage(ev: Dictionary) -> void:
 		fx.particles(c, 8 + (6 if crit else 0), cols[1], 55.0, 15.0, 0.45, 40.0, 1, 2.0)
 	if is_ab and not _action_first_hit:
 		_action_first_hit = true
-		hud.screen_flash(cols[0], 0.18)
-		shake(3.0)
-		hitstop(0.3)
+		hud.screen_flash(cols[0], [0.18, 0.28, 0.4][spectacle_level])
+		shake(3.0 * (1.0 + 0.5 * spectacle_level))
+		hitstop(0.3 + 0.06 * spectacle_level)
 		_cam_push = (T.position - Vector2(320, 180)).normalized() * 3.0
 		_ability_shape(aid, T, cols)
 		if String(_cur_action.get("area", "single")) == "all_enemies":
 			var cx := 320.0 + (60.0 if T.side == 1 else -60.0)
-			fx.ring(Vector2(cx, 180), 6, 90, 0.55, cols[0], 0.45)
-			fx.ring(Vector2(cx, 180), 4, 60, 0.45, cols[1], 0.45)
-			fx.light(Vector2(cx, 175), cols[0], 3, 0.55, 0.6)
-			for k in 3:
+			var g := 1.0 + 0.6 * spectacle_level
+			fx.ring(Vector2(cx, 180), 6, 90 * g, 0.55, cols[0], 0.45)
+			fx.ring(Vector2(cx, 180), 4, 60 * g, 0.45, cols[1], 0.45)
+			fx.light(Vector2(cx, 175), cols[0], 3 + spectacle_level, 0.55, 0.6)
+			if spectacle_level > 0:
+				_big_area(aid, T.side, cols)
+			for k in 3 + 3 * spectacle_level:
 				fx.particles(Vector2(cx + randf_range(-40, 40), 180 + randf_range(-30, 30)), 14, cols[1], 90.0, 30.0, 0.6, 60.0, 1, 6.0)
 	if kind == "magic":
 		fx.light(c, cols[0], 1, 0.5, 0.45)
@@ -781,6 +992,17 @@ func _on_damage(ev: Dictionary) -> void:
 		head = ""   # one tag per action: on the first number only
 	var head_col: Color = Pal.AMBER6 if crit else note[1]
 	fx.popup(amount, row, _num_pos(T, dst), 1, false, head, head_col, "", Color.WHITE, delay)
+	var pid := String((ev.get("primary", {}) as Dictionary).get("id", "")) if ev.get("primary", null) is Dictionary else ""
+	if pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
+		var main := int(_cur_action.get("target", -1))
+		if main >= 0 and main < units.size() and main != dst:
+			fx.link_last(units[main].head() + Vector2(0, 6))
+	if pid == "hearthguard":
+		var backs := 0
+		for n in units:
+			if n.alive and n.side == T.side and n.col == 1:
+				backs += 1
+		fx.shield(T.chest() + Vector2(T.facing * 14, 0), backs, Pal.AMBER5, 0.7)
 
 
 ## Picks the one annotation shown under a damage number. Priority: execute > formation > back row
@@ -849,7 +1071,13 @@ func _primary_note(p: Dictionary) -> Array:
 		"formation":
 			var fs := clampi(int(p.get("side", 0)), 0, 1)
 			var nm := String(p.get("name", "Formation")).to_upper()
-			return ["%s %+d%%" % [nm, roundi((mult - 1.0) * 100.0)], side_colors[fs].lerp(Pal.INK10, 0.25)]
+			return ["", side_colors[fs]]   # stat mods live in the banner (pulsed) and the unit glint
+		"brace": return ["shared", Pal.AMBER6]
+		"share_the_blow": return ["shared", Pal.AMBER6]
+		"flank": return ["Flank x%.1f" % mult, Pal.AMBER6]
+		"hearthguard": return ["Hearth -%d%%" % roundi((1.0 - mult) * 100.0), Pal.AMBER6]
+		"echo_step": return ["halved", Pal.CRYSTAL5]
+		"chorus_splash": return ["Chorus", Pal.VIOLET4]
 		"sudden_death":
 			return ["fading x%.2f" % mult, Pal.FADE4] if mult > 1.0 else ["", Color.WHITE]
 	return ["", Color.WHITE]
