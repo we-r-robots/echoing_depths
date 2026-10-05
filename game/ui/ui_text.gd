@@ -146,7 +146,7 @@ static func draw_base(ci: CanvasItem, base: Vector2, s: String, color: Color, f:
 ## Text ringed by a one-font-pixel outline (for text over the world: numbers, tags, banners).
 ## `anchor` 0 left, 1 centre, 2 right of pos.x; pos.y is the top (ascent line).
 static func outlined(ci: CanvasItem, pos: Vector2, s: String, color: Color, f: Font = BOLD, size := BODY,
-		anchor := 0, outline := Pal.INK1, drop := true) -> float:
+		anchor := 0, outline := Pal.INK1, drop := true, ring := 1) -> float:
 	_check(f, size)
 	color = legible(color)
 	var w := width(s, f, size)
@@ -157,8 +157,9 @@ static func outlined(ci: CanvasItem, pos: Vector2, s: String, color: Color, f: F
 	if drop:
 		for k in [Vector2(d * 2, d * 2), Vector2(d, d * 2), Vector2(d * 2, d)]:
 			ci.draw_string(f, base + k, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, oc)
-	for dir: Vector2 in OUTLINE_DIRS:
-		ci.draw_string(f, base + dir * d, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, oc)
+	for r in range(ring, 0, -1):
+		for dir: Vector2 in OUTLINE_DIRS:
+			ci.draw_string(f, base + dir * d * r, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, oc)
 	ci.draw_string(f, base, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 	return x + w
 

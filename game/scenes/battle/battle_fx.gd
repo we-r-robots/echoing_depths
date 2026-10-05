@@ -276,6 +276,36 @@ const HEAD_H := 11.0 * HEAD_SIZE / 15.0 / ZOOM + 2.0
 const TAG_H := 11.0 * TAG_SIZE / 15.0 / ZOOM + 2.5
 
 
+## Gap between the target's sprite top (its tallest idle frame) and the number's baseline, and how
+## far a number rises after it lands (world px; x6 = screen px at 1080p). Together they keep the
+## number within 12 screen px of the head (about 30 while the target crouches in its hit frame), so
+## on the packed grid it never reads on the unit in the row behind.
+const NUM_GAP := 0.0
+const NUM_RISE := 2.0
+## Gap between two stacked numbers on the same head (world px, about half a number line).
+const STACK_GAP := 5.0
+## The furthest a number is nudged sideways off its target's centre line (world px).
+const PUSH_MAX := 9.0
+
+
+## Where a target's number lands (its baseline centre), in world px. `top` is the top of the
+## target's sprite (feet x), `band` the lowest world y the UI keeps for itself (banners, lore caption).
+## A number goes straight above the head; only when even the bare number can't fit under the band
+## (a tall monster in the far row) does it move beside the head, on the side facing the field,
+## still within the target's span. A head word (CRIT!) that would reach the band pushes the number
+## down onto the head instead of off it.
+static func number_anchor(top: Vector2, top_h: float, facing: int, band: float, head_word := false) -> Vector2:
+	var p := Vector2(top.x, top.y - NUM_GAP)
+	var need := NUM_H + NUM_RISE + (HEAD_H if head_word else 0.0)
+	if p.y - NUM_H - NUM_RISE < band:
+		# beside the head: a third of the way to the sprite's edge past its centre line
+		p.x = top.x + minf(top_h * 0.3, 22.0) * facing
+		p.y = band + need
+	elif p.y - need < band:
+		p.y = band + need
+	return Vector2(roundf(p.x), roundf(p.y))
+
+
 func _pop_top(j: int) -> float:
 	return (NUM_H if _pp_val[j] >= 0 else 0.0) + (_head_h(j) if _pp_head[j] != "" else 0.0)
 
@@ -339,8 +369,10 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 		if _pp_t[i] > oldest:
 			oldest = _pp_t[i]
 			best = i
-	pos = Vector2(clampf(roundf(pos.x), 186.0, 454.0), maxf(roundf(pos.y), 146.0))
-	# Same target: stack vertically (newest above, 3 px gap). Different targets: push apart sideways.
+	pos = Vector2(clampf(roundf(pos.x), 186.0, 454.0), roundf(pos.y))
+	var home_x := pos.x
+	# Same target: stack vertically (newest above, half a line apart). Different targets: nudge
+	# sideways, at most PUSH_MAX from the target's centre so the number stays over its own unit.
 	var hw := maxf(_pop_half_w(value, head), _pop_half_w(-1, tag))
 	var my_top := (NUM_H if value >= 0 else 0.0) + (HEAD_H if head != "" else 0.0)
 	for attempt in 8:
@@ -349,7 +381,7 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 			if j == best or not _pp_on[j]:
 				continue
 			var same := _pp_uid[j] == next_uid and next_uid >= 0
-			if same and absf(_pp_y[j] - pos.y) < _pop_top(j) + _pop_bot(tag) + 3.0:
+			if same and absf(_pp_y[j] - pos.y) < _pop_top(j) + _pop_bot(tag) + STACK_GAP:
 				hit = j
 				break
 			var ov_y := pos.y - my_top < _pp_y[j] + _pop_bot(_pp_tag[j]) + 1.0 and _pp_y[j] - _pop_top(j) < pos.y + _pop_bot(tag) + 1.0
@@ -359,11 +391,13 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 		if hit < 0:
 			break
 		if _pp_uid[hit] == next_uid and next_uid >= 0:
-			pos.y = _pp_y[hit] - _pop_top(hit) - 3.0 - _pop_bot(tag)
+			pos.y = _pp_y[hit] - _pop_top(hit) - STACK_GAP - _pop_bot(tag)
 		else:
 			var need := hw + _pop_hw_j(hit) + 2.0
-			pos.x = clampf(_pp_x[hit] + (need if pos.x >= _pp_x[hit] else -need), 186.0, 454.0)
-	pos.y = maxf(pos.y, 120.0)   # never into the banner band
+			var nx := clampf(_pp_x[hit] + (need if pos.x >= _pp_x[hit] else -need), home_x - PUSH_MAX, home_x + PUSH_MAX)
+			if absf(nx - pos.x) < 0.5:
+				break   # can't move further without leaving its target: overlap rather than mislead
+			pos.x = clampf(nx, 186.0, 454.0)
 	_pp_uid[best] = next_uid
 	next_uid = -1
 	_pp_link[best] = Vector2.ZERO
@@ -643,7 +677,7 @@ func _draw_pop_layer() -> void:
 func _draw_popup(ci: CanvasItem, i: int) -> void:
 	var t := _pp_t[i]
 	var rise := 1.0 - pow(1.0 - clampf(t / 0.28, 0.0, 1.0), 3.0)
-	var y := _pp_y[i] - 4.0 * rise - (0.0 if t < 0.8 else (t - 0.8) * 20.0)
+	var y := _pp_y[i] - NUM_RISE * rise
 	var x := _pp_x[i]
 	var visible_blink := t < 0.95 or fmod(t, 0.08) < 0.05
 	if not visible_blink:
@@ -656,7 +690,8 @@ func _draw_popup(ci: CanvasItem, i: int) -> void:
 		var sz := NUM_PUNCH if t < 0.06 else NUM_SIZE
 		var s := ("+" if _pp_plus[i] else "") + str(val)
 		var ty := p.y - UIText.ascent(UIText.BOLD, sz)
-		UIText.outlined(ci, Vector2(p.x, ty), s, ROW_COL[_pp_row[i]], UIText.BOLD, sz, 1)
+		# a two-font-pixel dark ring keeps the digits apart from bright slashes and sparks
+		UIText.outlined(ci, Vector2(p.x, ty), s, ROW_COL[_pp_row[i]], UIText.BOLD, sz, 1, Pal.INK1, true, 2)
 		top = p.y - UIText.cap(UIText.BOLD, sz)
 		var tag := _pp_tag[i]
 		if tag != "":
@@ -665,4 +700,10 @@ func _draw_popup(ci: CanvasItem, i: int) -> void:
 	if head != "":
 		var hs := TAG_SIZE if _pp_small[i] else HEAD_SIZE
 		var hy := (top - 3.0 if val >= 0 else p.y) - UIText.ascent(UIText.BOLD, hs)
+		if _pp_small[i]:
+			# world cues (formation behaviours) sit on a dark plate so they read over a busy floor
+			var hw := UIText.width(head, UIText.BOLD, hs) * 0.5 + 4.0
+			var plate := Rect2(roundf(p.x - hw), roundf(hy - 1.0), roundf(hw * 2.0), roundf(UIText.ascent(UIText.BOLD, hs) + 4.0))
+			ci.draw_rect(plate, Color(Pal.INK1, 0.82))
+			ci.draw_rect(plate, Color(_pp_head_col[i], 0.55), false, 1.0)
 		UIText.outlined(ci, Vector2(p.x, hy), head, _pp_head_col[i], UIText.BOLD, hs, 1)

@@ -1214,7 +1214,7 @@ func _on_damage(ev: Dictionary) -> void:
 		if _split_tags > 1:
 			split = ""   # one "halved"/"shared" tag per action; the dashed links mark the rest
 	fx.next_uid = dst
-	fx.popup(amount, row, _num_pos(T, dst), 1, false, head, head_col, split, Pal.CRYSTAL5 if split == "halved" else Pal.AMBER6, delay)
+	fx.popup(amount, row, _num_pos(T, dst, head != ""), 1, false, head, head_col, split, Pal.CRYSTAL5 if split == "halved" else Pal.AMBER6, delay)
 	var pid := String((ev.get("primary", {}) as Dictionary).get("id", "")) if ev.get("primary", null) is Dictionary else ""
 	if was_split or pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
 		var main := int(_cur_action.get("target", -1))
@@ -1354,29 +1354,25 @@ func _formation_line(side: int, form: Dictionary) -> int:
 	return 0 if nb > 0 else -1
 
 
-## Number anchor: just above the target's head; a second/third hit on the same target in one
-## action sits beside the first. Tall units near the top band get it beside the head instead.
-func _num_pos(T, uid: int) -> Vector2:
-	var k := int((_stack.get(uid, [0.0, 0]) as Array)[1])
-	# baseline 2 world px above the top of the sprite's real bounds (critic r1: a fixed height put
-	# a tall sentinel's number on its chest and a small rat's high over its neighbour)
-	var p: Vector2 = T.top() + Vector2(0.0, -2.0)
-	if T.is_crystal:
-		p = T.position + Vector2(0.0, -50.0)
-	if p.y < 140.0:
-		# too tall for the band under the banners: beside its head, on the side facing the field
-		p = Vector2(T.top().x + (T.top_h * 0.3 + 10.0) * T.facing, 140.0)
+## Number anchor: just above the target's head (BattleFX.number_anchor). Measured in world px, the
+## same units the units stand in; the banner band and the lore caption come in from the UI layer.
+func _num_pos(T, uid: int, head_word := false) -> Vector2:
+	var to_world := (world.get_global_transform() * view.get_canvas_transform()).affine_inverse()
+	var band: float = (to_world * Vector2(0.0, hud.BANNER_H + 2.0 + 3.0)).y
 	# never under the memory lore caption (a UI band over the top of the field)
 	var lb: float = hud.lore_bottom()
 	if lb > 0.0:
-		var to_world := (world.get_global_transform() * view.get_canvas_transform()).affine_inverse()
-		var wy: float = (to_world * Vector2(0.0, lb + 10.0)).y + fx.NUM_H
-		p.y = maxf(p.y, wy)
+		band = maxf(band, (to_world * Vector2(0.0, lb + 4.0)).y)
+	var top: Vector2 = T.top()
+	var top_h: float = T.top_h
+	if T.is_crystal:
+		top = T.position + Vector2(0.0, -48.0)
+		top_h = 48.0
+	var p: Vector2 = fx.number_anchor(top, top_h, T.facing, band, head_word)
 	# measured in SCREEN pixels through the live canvas transform (camera zoom + offset):
-	# centre of the drawn number vs the target's on-screen head top
-	var drawn := Vector2(clampf(p.x, 186.0, 454.0), maxf(p.y, 140.0)) + Vector2(0, -fx.NUM_H * 0.5)
+	# bottom of the drawn number vs the target's on-screen head top
 	var xf := view.get_canvas_transform()
-	_num_max_dist = maxf(_num_max_dist, (xf * drawn).distance_to(xf * T.top()))
+	_num_max_dist = maxf(_num_max_dist, (xf * p).distance_to(xf * top))
 	return p
 
 
@@ -1409,7 +1405,7 @@ func _on_heal(ev: Dictionary) -> void:
 		fx.pillar(T.position.x, T.position.y, 6.0, 0.4, Pal.LIFE4)
 	T.flash(Pal.LIFE4, 0.6)
 	var delay := _stagger(dst)
-	var pos: Vector2 = _num_pos(T, dst)
+	var pos: Vector2 = _num_pos(T, dst, drain)
 	fx.next_uid = dst
 	fx.popup(int(ev.get("amount", 0)), fx.Row.HEAL, pos, 1, true, "DRAIN" if drain else "", Pal.VIOLET4, "", Color.WHITE, delay)
 

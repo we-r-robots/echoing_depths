@@ -296,8 +296,12 @@ func _stat_short(m: Dictionary) -> String:
 
 
 ## Banner title width (the formation name in the serif).
+## Banner titles one size step up from body text (critic r2: the phone frame needs a punchier top tier).
+const BANNER_TITLE := UIText.HEADING
+
+
 func _wt(s: String) -> float:
-	return UIText.width(s, SERIF, UIText.TITLE)
+	return UIText.width(s, SERIF, BANNER_TITLE)
 
 
 ## Banner (BUILD.md: effects are icons): the shape name, then a row of shared effect chips
@@ -440,8 +444,8 @@ func _draw_badge(side: int, alpha: float) -> void:
 	var pulse: float = badge_pulse[side]
 	_panel_bg(r, sc, alpha, pulse)
 	var p := _badge_parts(side)
-	UIText.draw(self, Vector2(r.position.x + 8.0, UIText.centered_y(r.position.y, r.size.y, SERIF, UIText.TITLE)),
-		p[0], Color(sc.lerp(Pal.INK10, 0.15 + pulse * 0.6), alpha), SERIF, UIText.TITLE)
+	UIText.draw(self, Vector2(r.position.x + 8.0, UIText.centered_y(r.position.y, r.size.y, SERIF, BANNER_TITLE)),
+		p[0], Color(sc.lerp(Pal.INK10, 0.15 + pulse * 0.6), alpha), SERIF, BANNER_TITLE)
 
 
 func _panel_bg(r: Rect2, sc: Color, alpha: float, pulse := 0.0) -> void:
@@ -478,7 +482,6 @@ func _draw_caption() -> void:
 	var u = b.units[caption_uid]
 	var sc: Color = b.side_colors[u.side]
 	var r := Rect2(_c - _cap_w / 2.0, 292, _cap_w, 28)
-	_panel_bg(r, sc, 1.0)
 	var sz := UIText.NUMBER
 	var who: String = u.label
 	var what := caption_text
@@ -504,30 +507,41 @@ func _draw_caption() -> void:
 	var w_who := UIText.width(who, BOLD, sz)
 	var w_what := UIText.width(what, BOLD, sz)
 	var w_tgt := UIText.width(tgt, BOLD, sz) if tgt != "" else 0.0
-	var total := w_who + gap * 2.0 + w_what + (arrow_w + w_tgt if tgt != "" else 0.0)
-	# one caption size always: when it doesn't fit, long names give way first (with an ellipsis),
-	# so the target stays
-	if total > room and w_who > 60.0:
-		who = UIText.fit(who, maxf(60.0, w_who - (total - room)), BOLD, sz)
-		w_who = UIText.width(who, BOLD, sz)
-		total = w_who + gap * 2.0 + w_what + (arrow_w + w_tgt if tgt != "" else 0.0)
-	if total > room and w_tgt > 60.0:
-		tgt = UIText.fit(tgt, maxf(60.0, w_tgt - (total - room)), BOLD, sz)
-		w_tgt = UIText.width(tgt, BOLD, sz)
-		total = w_who + gap * 2.0 + w_what + arrow_w + w_tgt
-	if total > room:
-		what = UIText.fit(what, room - w_who - gap * 2.0 - (arrow_w + w_tgt if tgt != "" else 0.0), BOLD, sz)
-		w_what = UIText.width(what, BOLD, sz)
-		total = w_who + gap * 2.0 + w_what + (arrow_w + w_tgt if tgt != "" else 0.0)
-	var y := UIText.centered_y(r.position.y, r.size.y, BOLD, sz)
-	var x := roundf(_c - total / 2.0)
-	x = UIText.outlined(self, Vector2(x, y), who, sc.lerp(Pal.INK10, 0.35), BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
-	x = UIText.outlined(self, Vector2(x, y), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
+	var line1 := w_who + gap * 2.0 + w_what
+	var total := line1 + (arrow_w + w_tgt if tgt != "" else 0.0)
+	var who_col: Color = sc.lerp(Pal.INK10, 0.35)
+	var tgt_col: Color = tc.lerp(Pal.INK10, 0.35)
+	if total <= room:
+		_panel_bg(r, sc, 1.0)
+		var y := UIText.centered_y(r.position.y, r.size.y, BOLD, sz)
+		var x := roundf(_c - total / 2.0)
+		x = UIText.outlined(self, Vector2(x, y), who, who_col, BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
+		x = UIText.outlined(self, Vector2(x, y), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
+		if tgt != "":
+			_caption_target(x, r.get_center().y, y, tgt, tgt_col, arrow_w, sz)
+		return
+	# Too long for one line (long memory names in the Crystal fight): two lines, the panel grows
+	# upward and, if it must, wider into the gap between the party panels. Names are never cut.
+	var lh := UIText.line_h(BOLD, sz)
+	var w_need := maxf(line1, arrow_w + w_tgt) + 16.0
+	var w_max := (_r - _l) - 2.0 * (PANEL_W + 4.0)
+	var w := clampf(w_need, r.size.x, w_max)
+	var r2 := Rect2(roundf(_c - w / 2.0), r.end.y - (lh * 2.0 + 10.0), roundf(w), lh * 2.0 + 10.0)
+	_panel_bg(r2, sc, 1.0)
+	var y1 := UIText.centered_y(r2.position.y + 4.0, lh, BOLD, sz)
+	var x1 := roundf(_c - line1 / 2.0)
+	x1 = UIText.outlined(self, Vector2(x1, y1), who, who_col, BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
+	UIText.outlined(self, Vector2(x1, y1), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
 	if tgt != "":
-		var cy := r.get_center().y
-		_tri[0] = Vector2(x + 4, cy - 4); _tri[1] = Vector2(x + 10, cy); _tri[2] = Vector2(x + 4, cy + 4)
-		draw_colored_polygon(_tri, Pal.INK8)
-		UIText.outlined(self, Vector2(x + arrow_w, y), tgt, tc.lerp(Pal.INK10, 0.35), BOLD, sz, 0, Pal.INK1, false)
+		var y2 := y1 + lh
+		var x2 := roundf(_c - (arrow_w + w_tgt) / 2.0)
+		_caption_target(x2, y2 + UIText.cap(BOLD, sz) * 0.5 + (UIText.ascent(BOLD, sz) - UIText.cap(BOLD, sz)), y2, tgt, tgt_col, arrow_w, sz)
+
+
+func _caption_target(x: float, cy: float, y: float, tgt: String, col: Color, arrow_w: float, sz: int) -> void:
+	_tri[0] = Vector2(x + 4, cy - 4); _tri[1] = Vector2(x + 10, cy); _tri[2] = Vector2(x + 4, cy + 4)
+	draw_colored_polygon(_tri, Pal.INK8)
+	UIText.outlined(self, Vector2(x + arrow_w, y), tgt, col, BOLD, sz, 0, Pal.INK1, false)
 
 
 # --- party panels -----------------------------------------------------------------------------
