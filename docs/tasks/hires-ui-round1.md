@@ -104,6 +104,23 @@ Both existed in this form before this task. The before captures at ccff74d show 
 - Damage numbers are now one colour; the old digit sheet was two-tone.
 - Sprite crowding on the formation board is a separate, known issue. Don't claim it.
 
+## Round-2 build (local, 2026-10-05)
+Built against the fix list above; captures for critic round 2 are in `captures/hires-ui/r2/` (INDEX.md there; before frames re-made from ccff74d in r2/before/).
+- **1 done.** Intro cards: shape name, one row of shared stat chips (▲/▼; value-only labels when the row is crowded, then icon-only from the end) and the behaviour glyph with its ≤20-char label; every chip opens the shared Tip; no "Shardpoint:" prefix. Setup Details opens the shared tooltip box (new `entries` option: icon + sentence rows, plus the growth path) beside the card; the card's rows stay.
+- **2 done.** `UIText.legible` contrast floor (INK6/INK7 → INK8 etc., ≥4.5:1 on INK1–3, tested); the listed muted lines, tooltip body, board headings, item stats, ability text and encounter prose use Depths Sans Bold.
+- **3 done.** Drag result reads "If placed: …" in the board's bottom strip; name plates and role tags draw above every sprite.
+- **4 done.** Grid plates clamped inside the frame (2 design px), pill / NEW text centred, the Relic mark inside its ghost cell.
+- **5 done.** Effect-row tooltips open beside their row with the nub on it.
+- **6 done.** Numbers anchor to the sprite's real top (idle-frame opaque bounds) + 2 world px; too tall for the band → beside the head; kept below the Crystal's lore caption. World cues 4 world px lower (clear of HP bars). Overlapping Crystal memories still crowd (sprite crowding).
+- **7 done.** No rail when the bench is shut; growth block docked under the rows; role tags on the floor under the name (BRACE off the sword).
+- **8 done.** Painting + column centred as a group; hero name in class colour; 4 px lead before "Ready to Awaken"; focused / hovered row gets a lifted fill + crystal border (the gold studs on a row mean "strong shift", not selection).
+- **9 done.** ORDER / FREEDOM rotated a quarter turn; footers one plain clause, no boxed bar.
+- **10 done.** Draft header: serif title + one sans subtitle; neutral stat / role labels.
+- **11 done.** One arrow ("Lv 2 → 3") everywhere; every caption names a target ("all foes", "all allies", "self"), long names shorten instead of dropping it.
+- **12 done (partly).** Hero detail: grid panel narrower, 16 px gap between panels, redundant "1 more to advance" gone, plain footer; setup: looser card rows, no rail, growth docked. Before/after images now carry a phone-size row (setup_whole added).
+- **Smaller items:** victory band opaque; Crystal video stops at 3500 frames (before the loop). Not done: the 3 px orange button frames (button art is an asset, out of scope); "Woven likeness" vs fragment pips.
+- **Tooling:** `tools/godot_run.sh` floats the capture window at the requested size on Hyprland; `tools/capture.sh` retries a wrong-size run.
+
 ## How round 1 was run (repeat this for round 2)
 1. **Captures:** `tools/capture_hires_ui.sh [out_dir] [screen ...]` re-creates captures/hires-ui/ (both resolutions, the videos, before_after/, crops/). Screens: battle crystal monsters setup draft encounter hero_detail videos crops before_after. captures/hires-ui/INDEX.md describes each file.
    - The before_after step needs four pre-task frames in captures/hires-ui/before/, which are not in git, and skips any that are missing. To re-create them, check out ccff74d (the old 640x360 harness) in a worktree and capture:

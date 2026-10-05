@@ -1366,6 +1366,12 @@ func _num_pos(T, uid: int) -> Vector2:
 	if p.y < 140.0:
 		# too tall for the band under the banners: beside its head, on the side facing the field
 		p = Vector2(T.top().x + (T.top_h * 0.3 + 10.0) * T.facing, 140.0)
+	# never under the memory lore caption (a UI band over the top of the field)
+	var lb: float = hud.lore_bottom()
+	if lb > 0.0:
+		var to_world := (world.get_global_transform() * view.get_canvas_transform()).affine_inverse()
+		var wy: float = (to_world * Vector2(0.0, lb + 10.0)).y + fx.NUM_H
+		p.y = maxf(p.y, wy)
 	# measured in SCREEN pixels through the live canvas transform (camera zoom + offset):
 	# centre of the drawn number vs the target's on-screen head top
 	var drawn := Vector2(clampf(p.x, 186.0, 454.0), maxf(p.y, 140.0)) + Vector2(0, -fx.NUM_H * 0.5)

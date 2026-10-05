@@ -746,6 +746,14 @@ func _draw_intro() -> void:
 
 
 # --- Crystal: memory lore caption and fragment banner -----------------------------------------------
+## Bottom of the memory lore caption in UI design px while it shows (numbers keep below it), else -1.
+func lore_bottom() -> float:
+	if lore_t > 3.6 or lore_name == "":
+		return -1.0
+	var lines := UIText.wrap_lines(lore_text, 380.0, SANS, UIText.BODY)
+	return 40.0 + ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + lines.size() * UIText.line_h(SANS, UIText.BODY) + 6.0)
+
+
 func _draw_lore() -> void:
 	if lore_t > 3.6 or lore_name == "":
 		return

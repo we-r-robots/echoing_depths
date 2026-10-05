@@ -693,6 +693,10 @@
     {
       "t": "15:14",
       "msg": "User decision: battle intro cards become icon chips with a tooltip; setup Details exempt but uses the tooltip component. hires-ui round 2 starting locally."
+    },
+    {
+      "t": "16:25",
+      "msg": "hires-ui round-2 build (local): fix list 1-12 built; captures/hires-ui/r2 ready for critic round 2; 133 tests, smoke PASS"
     }
   ],
   "questions": [

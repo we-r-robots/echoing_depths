@@ -171,9 +171,9 @@ for name, (b, a, (x0, y0, x1, y1)) in cases.items():
     img.paste(before, (0, 40))
     img.paste(after, (w + 30, 40))
     d.text((8, h + 52), 'PHONE SIZE (frame shown 960 px wide): before', fill=(230, 230, 230))
-    d.text((w + 38, h + 52), 'PHONE SIZE: after', fill=(230, 230, 230))
+    d.text((w // 2 + 38, h + 52), 'PHONE SIZE: after', fill=(230, 230, 230))
     img.paste(bh, (0, h + 80))
-    img.paste(ah, (w + 30, h + 80))
+    img.paste(ah, (w // 2 + 30, h + 80))
     img.save(os.path.join(out, name + '.png'))
     print('   ', name, img.size)
 EOF
