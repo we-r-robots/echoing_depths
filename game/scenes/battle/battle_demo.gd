@@ -10,7 +10,7 @@ const GameData = preload("res://core/game_data.gd")
 const SHAPE_DEMOS := {
 	"kindred": [30, "pvp", 0], "vigil": [17, "pvp", 1], "lamplight": [7, "monsters", 0],
 	"tidebreak": [41, "monsters", 0], "choir": [1, "pvp", 0], "keystone": [1, "monsters", 0],
-	"hearth": [21, "pvp", 0], "seawall": [58, "monsters", 0], "lumari_chorus": [1, "pvp", 0],
+	"hearth": [21, "pvp", 0], "seawall": [58, "monsters", 0], "lumari_chorus": [76, "pvp", 0],
 	"vault_door": [20, "pvp", 0], "crescent": [30, "monsters", 0], "lighthouse": [58, "monsters", 0],
 	"keepers_ring": [58, "monsters", 0], "shardpoint": [30, "pvp", 0], "echo_step": [7, "pvp", 1],
 	"strays": [7, "pvp", 0],

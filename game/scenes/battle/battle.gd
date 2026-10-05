@@ -128,6 +128,7 @@ var _ko_settle := 0.0
 var _cam_push := Vector2.ZERO
 var _num_max_dist := 0.0
 var _hits_in_action := 0
+var _split_tags := 0
 var _stale_seen := 0
 # frame-time probe (user arg --perf): wall-clock usec per frame, reported at the end of the fight
 var _perf := false
@@ -364,9 +365,9 @@ func _process(delta: float) -> void:
 	# units
 	for u in units:
 		var us := speed
-		if frozen and u.uid != _freeze_actor:
-			us = 0.0
-		u.tick(sim_t, 0.0 if (frozen and u.uid != _freeze_actor) else vdt, us)
+		if frozen and u.uid != _freeze_actor and u.spr.animation != &"hit":
+			us = 0.0   # (a hit reaction keeps playing so no unit freezes on its white hit frame)
+		u.tick(sim_t, 0.0 if (frozen and u.uid != _freeze_actor) else vdt, us, vdt)
 	if not _pending_moves.is_empty() and _focus_end < 0.0 and _freeze <= 0.0 and _vclock > _ko_settle:
 		_play_pending_move()
 	if _move_lit_until > 0.0 and _vclock > _move_lit_until:
@@ -382,7 +383,7 @@ func _process(delta: float) -> void:
 	# dim for ability moments
 	var want_dim := 0.0
 	if _cur_action.get("kind", "") == "ability" and sim_t < float(_cur_action.get("t", 0.0)) + float(_cur_action.get("duration", 0.0)):
-		want_dim = [0.5, 0.6, 0.75][spectacle_level]
+		want_dim = [0.3, 0.32, 0.35][spectacle_level]   # brightness floor: the arena stays lit (>= 65%)
 	_dim_a = move_toward(_dim_a, want_dim, vdt * 4.0)
 	dim.color = Color(Pal.INK1, _dim_a)
 	dim.visible = _dim_a > 0.01
@@ -592,6 +593,9 @@ func _behaviour_cue(ev: Dictionary, u) -> void:
 				fx.projectile(r.chest(), u.position + Vector2(u.facing * 16, 4), sim_t, sim_t + 0.3, Pal.VIOLET3, Pal.VIOLET4, 0, 10.0)
 			u.charge_shown = maxf(0.0, float(u.charge) - float(ev.get("value", 15)))
 			u.charge_hold = 0.3
+			u.dimmed = false
+			u.lit = true
+			fx.ring(u.position + Vector2(u.facing * 16, 4), 14, 3, 0.4, Pal.VIOLET4, 1.0)
 		"covering_fire":            # retarget line onto the attacker, crosshair on it
 			if r != null:
 				fx.sweep(u.chest(), r.chest(), Pal.BLOOD4)
@@ -705,7 +709,7 @@ func _on_crystal_fragment(ev: Dictionary) -> void:
 	var ch: Vector2 = c.chest()
 	hitstop(0.5)
 	shake(6.0)
-	hud.screen_flash(Pal.VIOLET4, 0.45)
+	hud.screen_flash(Pal.INK10, 0.2)
 	hud.show_fragment(fragments)
 	c.flash(Pal.INK10, 1.0)
 	fx.light(ch, Pal.CRYSTAL5, 4, 0.8, 0.8)
@@ -958,6 +962,7 @@ func _portrait(key: String, _base: String, _monster: bool, m: Dictionary) -> Tex
 func _on_action_start(ev: Dictionary) -> void:
 	_cur_action = ev
 	_hits_in_action = 0
+	_split_tags = 0
 	_stale_seen += fx.live_popups()
 	fx.fade_popups()
 	_action_first_hit = false
@@ -1087,7 +1092,7 @@ func _big_area(aid: String, side: int, cols: Array) -> void:
 			for k in 3:   # a spiral: staggered rings winding in
 				fx.ring(u.chest() + Vector2(cos(k * 2.1) * 8.0, sin(k * 2.1) * 4.0), 30 + 14 * lv - k * 8, 2, 0.5 + k * 0.1, cols[k % 2], 0.6)
 		else:
-			fx.pillar(u.position.x, u.position.y, 10.0 + 8.0 * lv, 0.6, cols[0])
+			fx.ring(u.position, 4, 18, 0.5, cols[0], 0.35)
 	fx.light(Vector2(320.0 + (90.0 if side == 1 else -90.0), 190), cols[1], 4, 0.4 * lv, 0.7)
 
 
@@ -1139,13 +1144,11 @@ func _on_damage(ev: Dictionary) -> void:
 		if aid == "smite":
 			fx.pillar(c.x, T.position.y, 7.0, 0.35, cols[0])
 		if anim == "cast_big" and String(_cur_action.get("area", "single")) == "all_enemies":
-			fx.pillar(c.x, T.position.y, 10.0, 0.45, cols[0])
 			fx.ring(T.position, 4, 22, 0.45, cols[1], 0.3)
 		fx.ring(c, 2, 11, 0.3, cols[1].lerp(Color.WHITE, 0.4), 1.0)
 		fx.particles(c, 8 + (6 if crit else 0), cols[1], 55.0, 15.0, 0.45, 40.0, 1, 2.0)
 	if is_ab and not _action_first_hit:
 		_action_first_hit = true
-		hud.screen_flash(cols[0], [0.18, 0.28, 0.4][spectacle_level])
 		shake(3.0 * (1.0 + 0.5 * spectacle_level))
 		hitstop(0.3 + 0.06 * spectacle_level)
 		_cam_push = (T.position - Vector2(320, 180)).normalized() * 3.0
@@ -1153,14 +1156,13 @@ func _on_damage(ev: Dictionary) -> void:
 		if String(_cur_action.get("area", "single")) == "all_enemies":
 			var cx := 320.0 + (60.0 if T.side == 1 else -60.0)
 			var g := 1.0 + 0.6 * spectacle_level
-			fx.ring(Vector2(cx, 180), 6, 90 * g, 0.55, cols[0], 0.45)
-			fx.ring(Vector2(cx, 180), 4, 60 * g, 0.45, cols[1], 0.45)
-			fx.light(Vector2(cx, 175), cols[0], 3 + spectacle_level, 0.55, 0.6)
+			fx.ring(Vector2(cx, 185), 6, 70 * g, 0.55, cols[0], 0.45)
+			fx.light(Vector2(cx, 185), cols[0], 2 + spectacle_level, 0.35, 0.6)
 			if spectacle_level > 0:
 				_big_area(aid, T.side, cols)
 			for k in 3 + 3 * spectacle_level:
 				fx.particles(Vector2(cx + randf_range(-40, 40), 180 + randf_range(-30, 30)), 14, cols[1], 90.0, 30.0, 0.6, 60.0, 1, 6.0)
-	if kind == "magic":
+	if kind == "magic" and String(_cur_action.get("area", "single")) == "single":
 		fx.light(c, cols[0], 1, 0.5, 0.45)
 	elif kind == "physical":
 		fx.light(c, Pal.AMBER5, 1, 0.35 if not crit else 0.6, 0.3)
@@ -1195,10 +1197,15 @@ func _on_damage(ev: Dictionary) -> void:
 				split = "shared"
 	if head == split:
 		head = ""
+	var was_split := split != ""
+	if split != "":
+		_split_tags += 1
+		if _split_tags > 1:
+			split = ""   # one "halved"/"shared" tag per action; the dashed links mark the rest
 	fx.next_uid = dst
 	fx.popup(amount, row, _num_pos(T, dst), 1, false, head, head_col, split, Pal.CRYSTAL5 if split == "halved" else Pal.AMBER6, delay)
 	var pid := String((ev.get("primary", {}) as Dictionary).get("id", "")) if ev.get("primary", null) is Dictionary else ""
-	if split != "" or pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
+	if was_split or pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
 		var main := int(_cur_action.get("target", -1))
 		if main >= 0 and main < units.size() and main != dst:
 			fx.link_last(units[main].head() + Vector2(0, 6))
@@ -1467,8 +1474,8 @@ func _on_fight_end(ev: Dictionary) -> void:
 	var reason := String(ev.get("reason", "wipe"))
 	if reason == "shard" and crystal_uid >= 0:
 		var c = units[crystal_uid]
-		fx.shard_fly(c.chest() + Vector2(0, -24), Vector2(320, 150))
-		fx.light(Vector2(320, 150), Pal.CRYSTAL5, 4, 0.7, 2.5)
+		fx.shard_fly(c.chest() + Vector2(0, -24), Vector2(320, 116))
+		fx.light(Vector2(320, 116), Pal.CRYSTAL5, 4, 0.7, 2.5)
 		hud.screen_flash(Pal.CRYSTAL5, 0.6)
 		shake(4.0)
 	end_subtitle = "%s wins  -  %.1f s%s" % [wname, float(ev.get("t", sim_t)), "  -  the Fading" if reason == "fading" else ""]

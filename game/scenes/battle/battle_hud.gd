@@ -308,11 +308,24 @@ func build_banner() -> void:
 			(c[0] as Control).queue_free()
 		_chips[side] = []
 	for side in 2:
-		for eff: Dictionary in _banner_effects(side):
+		var effs := _banner_effects(side)
+		var room := 314.0 - 6.0 - _w2(_badge_parts(side)[0]) - 8.0 - 4.0
+		var fit := int(room / (EffectIcons.CHIP + 2))
+		var shown := effs.size() if effs.size() <= fit else maxi(0, fit - 1)
+		for k in shown:
 			var chip := EffectChip.new()
 			add_child(chip)
-			chip.setup(eff, "below")
-			_chips[side].append([chip, eff])
+			chip.setup(effs[k], "below")
+			_chips[side].append([chip, effs[k]])
+		if shown < effs.size():
+			var more := MoreChip.new()
+			var rest: PackedStringArray = []
+			for k in range(shown, effs.size()):
+				rest.append("%s: %s" % [effs[k]["title"], effs[k]["text"]])
+			more.n = effs.size() - shown
+			add_child(more)
+			Tip.attach(more, "%d more" % more.n, "\n".join(rest), Pal.INK9, "below")
+			_chips[side].append([more, {"kind": "more", "sign": 0}])
 	if _pulse_layer == null:
 		_pulse_layer = Control.new()
 		_pulse_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -556,7 +569,7 @@ func _draw_timer() -> void:
 
 # --- caption bar ------------------------------------------------------------------------------
 func _draw_caption() -> void:
-	if caption_uid < 0 or end_t >= 0.0 or cutin_t < cutin_hold:
+	if caption_uid < 0 or end_t >= 0.0 or cutin_t < cutin_hold or frag_t < 1.6:
 		return
 	var a := 1.0
 	var u = b.units[caption_uid]
@@ -574,6 +587,9 @@ func _draw_caption() -> void:
 	var w := _w2(line) + (_w2(tgt) + 22.0 if tgt != "" else 0.0)
 	if w > 256.0:
 		tgt = ""   # one caption size always: drop the target name rather than shrink
+		w = _w2(line)
+	if w > 252.0:
+		line = _fit2(line, 252.0)
 		w = _w2(line)
 	var ts := 2 if k == 1.0 else 1
 	var ty := 296.0 if ts == 2 else 303.0
@@ -734,7 +750,10 @@ func _draw_fragment() -> void:
 		return
 	var a := 1.0 - clampf((frag_t - 1.2) / 0.4, 0.0, 1.0)
 	var s := 3 if frag_t < 0.08 else 2
-	_text_scaled(font_serif, "FRAGMENT %d / 4" % frag_n, Vector2(320 + 150, 120), Color(Pal.CRYSTAL5, a), s)
+	var r := Rect2(188, 292, 264, 28)
+	draw_rect(r, Color(Pal.INK1, 0.95 * a))
+	draw_rect(r, Color(Pal.CRYSTAL5, a), false, 1.0)
+	_text_scaled(font_bold, "FRAGMENT %d OF 4" % frag_n, Vector2(320, 294), Color(Pal.CRYSTAL5, a), s)
 
 
 # --- ability cut-in -------------------------------------------------------------------------------
@@ -766,8 +785,8 @@ func _draw_cutin() -> void:
 	if band_h < 30.0:
 		return
 	var tx := roundf(320.0 + dir * (1.0 - minf(1.0, cutin_t / 0.16)) * 60.0)
-	_text(font_bold, u.label.to_upper() + "  -  ABILITY!", Vector2(tx, cy - 6), Pal.VIOLET4, 1, true)
-	_text_scaled(font_serif, cutin_name, Vector2(tx, cy + 13), sc.lerp(Pal.INK10, 0.35), 2)
+	_text(font_bold, u.label.to_upper() + "  -  ABILITY!", Vector2(tx, cy - 11), Pal.VIOLET4, 1, true)
+	_text_scaled(font_serif, cutin_name, Vector2(tx, cy + 17), sc.lerp(Pal.INK10, 0.35), 2)
 
 
 # --- sudden death ---------------------------------------------------------------------------------
@@ -779,11 +798,11 @@ func _draw_sd_banner() -> void:
 func _draw_fading() -> void:
 	if sd_banner_t < 3.2:
 		var a := clampf(sd_banner_t / 0.3, 0.0, 1.0) * (1.0 - clampf((sd_banner_t - 2.8) / 0.4, 0.0, 1.0))
-		_text_scaled(font_serif, "The memory of this battle is fading...", Vector2(320, 40), Color(Pal.INK10, a), 2)
+		_text_scaled(font_serif, "The memory of this battle is fading...", Vector2(320, 58), Color(Pal.INK10, a), 2)
 	# readout: a fading-eye glyph and the multiplier, under the badges once the line has gone
 	if sd_banner_t < 3.2:
 		return
-	_text_scaled(font_serif, "Fading  x%.2f" % b.sd_mult, Vector2(320, 40), Pal.INK10, 2)
+	_text_scaled(font_serif, "Fading  x%.2f" % b.sd_mult, Vector2(320, 58), Pal.INK10, 2)
 
 
 # --- finish -----------------------------------------------------------------------------------------
@@ -858,3 +877,21 @@ func _text_scaled(f: Font, s: String, center: Vector2, c: Color, sc: int) -> voi
 
 func _glyph(idx: int, row: int, x: float, y: float) -> void:
 	draw_texture_rect_region(DIGITS, Rect2(x, y, 10, 13), Rect2(idx * 10, row * 13, 10, 13))
+
+
+## "+N" chip for banner effects beyond the room (opens the rest in the shared tooltip).
+class MoreChip extends Control:
+	var n := 0
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		custom_minimum_size = Vector2(EffectIcons.CHIP, EffectIcons.CHIP)
+		size = custom_minimum_size
+	func _draw() -> void:
+		var r := Rect2(Vector2.ZERO, size)
+		draw_rect(r, Pal.INK1)
+		draw_rect(r.grow(-1), Pal.INK3)
+		draw_rect(r, Pal.INK6, false, 1.0)
+		var f: Font = load("res://assets/fonts/depths_sans_bold.fnt")
+		var t := "+%d" % n
+		var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		draw_string(f, Vector2(roundf((size.x - w) * 0.5), 13), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Pal.INK10)

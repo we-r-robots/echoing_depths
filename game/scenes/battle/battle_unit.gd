@@ -284,7 +284,7 @@ func knock_out() -> void:
 
 
 ## Called every frame by the battle controller.
-func tick(sim_t: float, vdt: float, speed: float) -> void:
+func tick(sim_t: float, vdt: float, speed: float, real_dt := 0.0) -> void:
 	spr.speed_scale = speed
 	if _pending_anim != &"" and sim_t >= _pending_at:
 		play_now(_pending_anim)
@@ -344,10 +344,12 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 		var g := _ghosts[i]
 		g.visible = (_ghosts_on and (_move != Move.NONE or _walk_t >= 0.0) and alive) or (_echo_t > 0.0 and alive)
 		if _echo_t > 0.0 and alive and not (_ghosts_on and (_move != Move.NONE or _walk_t >= 0.0)):
-			g.global_position = position + _sprite_offset() + Vector2(-facing * 6.0 * (i + 1), -2.0 * (i + 1))
+			g.global_position = position + _sprite_offset() + Vector2(-facing * 9.0 * (i + 1), -3.0 * (i + 1))
+			g.modulate.a = 0.0 if i == 2 else 0.16 - i * 0.06
 			g.animation = spr.animation
 			g.frame = spr.frame
 		elif g.visible:
+			g.modulate.a = 0.55 - i * 0.15
 			var hi := (_hist_i - 1 - (i + 1) * 3 + 120) % 12
 			g.global_position = _hist_pos[hi] + _sprite_offset()
 			if g.animation != _hist_anim[hi]:
@@ -357,7 +359,7 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 		_echo_t -= vdt
 	# flash / tint / ready outline
 	if _flash > 0.0:
-		_flash = maxf(0.0, _flash - vdt * 7.0)
+		_flash = maxf(0.0, _flash - maxf(vdt, real_dt) * 14.0)   # 1-2 frames of white, then its own colours
 	mat.set_shader_parameter("flash", 1.0 if _flash > 0.6 else (_flash * 0.9))
 	mat.set_shader_parameter("flash_color", _flash_color if _flash <= 0.6 else Color.WHITE)
 	if buff_glow > 0.0 and alive:
@@ -395,7 +397,7 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 			form_t = -1.0
 	# focus: units not in the current action recede
 	_dim = move_toward(_dim, 1.0 if (dimmed and alive) else 0.0, vdt * 6.0)
-	var dv := 1.0 - 0.42 * _dim
+	var dv := 1.0 - 0.15 * _dim
 	spr.self_modulate = Color(dv, dv, dv + 0.08 * _dim, 1.0)
 	# bars
 	var hs_target := float(hp)

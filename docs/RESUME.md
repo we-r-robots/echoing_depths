@@ -61,3 +61,12 @@ User requirement: fights use the spec's 2-column x 4-row grid per side with visi
   4. Tooltips still mostly restate the label; make them add the "why/when". The zone overlaps the board's bottom edge.
   5. The footer status repeats the card subtitle: drop one.
   6. Draft: centre 3-card offers; keep picked cards aligned with unpicked; CHECK "Set out" disabled at Party 2/2 (r6 f00660), a possible real bug.
+- 2026-10-05: the Crystal is integrated as the final node (committed). Greedy victory 21%, Crystal win 58% when reached. Note for later: on a Crystal defeat ~97% of parties chipped exactly 3 fragments, so fragment Glimmers barely vary; tuning that needs a core-side change (integrity per fragment or memory strength). The run sets crystal_integrity 600 (core default 360).
+
+## Session wrap-up 2026-10-05 (~80% of the Max plan used)
+Committed through the Crystal battle presentation. NEXT SESSION, in order:
+1. battle-scene critic round 10 on captures/battle-scene/r14/ (+ crystal1/). Unaddressed round-9 items: single-target tag collisions (spark over Hearth "16", "shared" into 8/11, merged "Hearthguard Lighthouse"); verify the Fading line clears the banners, the Kindred pulse against the dim, the Lumari splash cue, and the "+N" chip. Numbers on the Crystal and the tall Sentinel sit up to 64 px from the head (accept or fix). Blind pairs: SoS frames 013/018/036, SAP 031/032.
+2. crystal critic round 1 (game sim + run + battle; bar = 06-crystal-of-remembrance.md + a Sea of Stars boss fight).
+3. party-formation round 6 (items listed above), then swap FormationWords.evaluate's stub for core Formation.effective (now shipped, with a parity test); the battle banner shows the locked fallback (state/sub_cells on the banner event).
+4. Then the playable flow: title -> draft -> run (encounter screen, formation setup, battle, Crystal) -> results -> minimal Lanternrest; the PvP splash with team name and crest; the settings screen (Battle Effects Low/Medium/High).
+Open design needs for the user: the advanced/Legendary class roster (only 8 of 36 advanced, 1 Legendary); the art direction for characters.

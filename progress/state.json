@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 11:25",
+  "updated": "2026-10-05 11:31",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -157,7 +157,7 @@
         }
       ],
       "preview": "captures/battle-scene/r13/f00600.png",
-      "note": "Switching the formation banner to the shared effect icons (icons only, tooltips on hover or tap)."
+      "note": "Round-9 fixes mostly in (no white-out, one number per target, brightness floor, icon cap). Not yet re-judged; a few collisions are still unaddressed."
     },
     {
       "id": "alignment-ui",
@@ -287,7 +287,8 @@
       "wave": 3,
       "status": "building",
       "rounds": [],
-      "note": "Combat core done: the Crystal breaks for late-run parties 48-55% of the time in ~40 s fights; 8 memories with distinct behaviours (Ferryman intercepts, Weaver copies your formation, the Keeper dims behaviours). Run integration and battle presentation in progress."
+      "note": "Built end to end: the combat sim, the run's final node, and the battle presentation (a large crystal with an integrity bar and fragment pips, memories surfacing with lore captions, the Shard breaking free). Not yet critic-judged.",
+      "preview": "captures/battle-scene/crystal1/f01200.png"
     }
   ],
   "log": [
@@ -638,6 +639,14 @@
     {
       "t": "11:25",
       "msg": "Setup screens round 5: 2 of 4 blind wins, including the first win over a Sea of Stars menu (draft). Remaining fixes (crowded board, tiny text) queued for next session per the budget plan."
+    },
+    {
+      "t": "11:26",
+      "msg": "Core now implements Strays/Unformed/locked fallback, matching the setup screen exactly (parity test). Shapes 40-58%. Committed."
+    },
+    {
+      "t": "11:31",
+      "msg": "Crystal of Remembrance is now the final node of every run (committed). Greedy victory 21%; Crystal won 58% when reached."
     }
   ],
   "questions": [

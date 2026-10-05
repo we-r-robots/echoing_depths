@@ -93,6 +93,8 @@ var _pp_tag_col := PackedColorArray()
 var _digit_buf := PackedInt32Array()
 
 var sim_t := 0.0
+var _pop_node: Node2D
+var _ci: CanvasItem = self
 # sweeps (visual time): a bright blade line drawn from a to b, e.g. Cleave across a column
 var _sw_a := PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 var _sw_b := PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
@@ -152,6 +154,10 @@ func setup() -> void:
 	_pp_link.resize(MAX_POP)
 	_pp_uid.resize(MAX_POP)
 	_shield_pts.resize(6)
+	_pop_node = Node2D.new()
+	_pop_node.z_index = 5
+	add_child(_pop_node)
+	_pop_node.draw.connect(_draw_pop_layer)
 	var add := CanvasItemMaterial.new()
 	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	for i in MAX_LIGHT:
@@ -240,6 +246,7 @@ func projectile(from: Vector2, to: Vector2, t0: float, t1: float, col: Color, co
 
 
 func ring(c: Vector2, r0: float, r1: float, dur: float, col: Color, flat := 0.35) -> void:
+	r1 = minf(r1, maxf(8.0, minf(c.x - 162.0, 478.0 - c.x)))   # never runs off the view
 	for i in MAX_RING:
 		if not _rg_on[i]:
 			_rg_on[i] = true
@@ -302,6 +309,23 @@ func shield(pos: Vector2, segments: int, col: Color, dur: float) -> void:
 
 
 func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: String, head_col: Color, tag: String, tag_col: Color, delay := 0.0) -> int:
+	# one number per target per action: a further hit on the same target adds to its number
+	if value >= 0 and next_uid >= 0:
+		for j in MAX_POP:
+			if _pp_on[j] and _pp_uid[j] == next_uid and _pp_val[j] >= 0 and _pp_row[j] != Row.HEAL and row != Row.HEAL:
+				_pp_val[j] += value
+				_pp_t[j] = minf(_pp_t[j], 0.0)
+				if head != "" and _pp_head[j] == "":
+					_pp_head[j] = head
+					_pp_head_col[j] = head_col
+				if row == Row.CRIT:
+					_pp_row[j] = row
+				if tag != "" and _pp_tag[j] == "":
+					_pp_tag[j] = tag
+					_pp_tag_col[j] = tag_col
+				next_uid = -1
+				_last_pop = j
+				return j
 	var best := 0
 	var oldest := -1.0
 	for i in MAX_POP:
@@ -363,6 +387,7 @@ func word(text: String, pos: Vector2, col: Color, delay := 0.0) -> int:
 
 ## Light-font cue (formation effects): quieter than numbers and KO/READY words.
 func cue(text: String, pos: Vector2, col: Color, delay := 0.0) -> void:
+	next_uid = 100000 + int(pos.x) * 1000 + int(pos.y)   # same spot: stack, not merge
 	_pp_small[word(text, pos, col, delay)] = true
 
 
@@ -425,7 +450,7 @@ func light(pos: Vector2, col: Color, scale: int, alpha: float, dur: float) -> vo
 	l.visible = true
 	_lt[i] = 0.0
 	_ldur[i] = dur
-	_la[i] = alpha
+	_la[i] = minf(alpha, 0.22)   # additive: keep it a glow, never a white-out of the units under it
 	_lcol[i] = col
 	l.modulate = Color(col, alpha)
 
@@ -474,6 +499,7 @@ func tick(vdt: float, now_sim: float) -> void:
 				# hard steps keep the light banded like the painted art
 				l.modulate = Color(_lcol[i], roundf(a * 8.0) / 8.0)
 	queue_redraw()
+	_pop_node.queue_redraw()
 
 
 func _draw() -> void:
@@ -575,18 +601,7 @@ func _draw() -> void:
 			c.a = clampf(_life[k] / _lmax[k] * 1.6, 0.0, 1.0)
 			var s := float(_psize[k])
 			draw_rect(Rect2(roundf(_px[k]), roundf(_py[k]), s, s), c)
-	# popups (with links: a shared/halved number tied to the hit it came from)
-	for i in MAX_POP:
-		if _pp_on[i] and _pp_t[i] >= 0.0 and _pp_link[i] != Vector2.ZERO:
-			var a := Vector2(_pp_x[i], _pp_y[i] - 6.0)
-			var b := _pp_link[i]
-			var n := int(a.distance_to(b) / 4.0)
-			for k in n:
-				if k % 2 == 0:
-					draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), Pal.AMBER6, 2.0)
-	for i in MAX_POP:
-		if _pp_on[i] and _pp_t[i] >= 0.0:
-			_draw_popup(i)
+
 
 
 func _proj_pos(i: int, u: float) -> Vector2:
@@ -598,6 +613,24 @@ func _proj_pos(i: int, u: float) -> Vector2:
 	var p := a.lerp(b, u)
 	p.y -= _pj_arc[i] * 4.0 * u * (1.0 - u)
 	return p
+
+
+## Numbers, tags and their links draw on a top layer above every spark and sprite effect.
+func _draw_pop_layer() -> void:
+	_ci = _pop_node
+	# popups (with links: a shared/halved number tied to the hit it came from)
+	for i in MAX_POP:
+		if _pp_on[i] and _pp_t[i] >= 0.0 and _pp_link[i] != Vector2.ZERO:
+			var a := Vector2(_pp_x[i], _pp_y[i] - 6.0)
+			var b := _pp_link[i]
+			var n := int(a.distance_to(b) / 4.0)
+			for k in n:
+				if k % 2 == 0:
+					_ci.draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), Pal.AMBER6, 2.0)
+	for i in MAX_POP:
+		if _pp_on[i] and _pp_t[i] >= 0.0:
+			_draw_popup(i)
+	_ci = self
 
 
 func _draw_popup(i: int) -> void:
@@ -646,7 +679,7 @@ func _draw_popup(i: int) -> void:
 
 
 func _glyph(idx: int, row: int, x: float, y: float, sc: int) -> void:
-	draw_texture_rect_region(DIGITS, Rect2(x, y, CW * sc, CH * sc), Rect2(idx * CW, row * CH, CW, CH))
+	_ci.draw_texture_rect_region(DIGITS, Rect2(x, y, CW * sc, CH * sc), Rect2(idx * CW, row * CH, CW, CH))
 
 
 ## Draws text with a 1px ink outline. `center` centres horizontally on pos.x; pos.y is the baseline.
@@ -655,5 +688,5 @@ func _text_outlined(f: Font, text: String, pos: Vector2, col: Color, center: boo
 	var p := Vector2(roundf(pos.x - w * 0.5), roundf(pos.y))
 	var o := Pal.INK1
 	for d: Vector2 in OUTLINE:
-		draw_string(f, p + d, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, o)
-	draw_string(f, p, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)
+		_ci.draw_string(f, p + d, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, o)
+	_ci.draw_string(f, p, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)
