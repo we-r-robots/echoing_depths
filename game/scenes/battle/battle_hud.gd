@@ -289,7 +289,7 @@ func _badge_parts(side: int) -> Array:
 
 func _stat_short(m: Dictionary) -> String:
 	var stat := String(m.get("stat", ""))
-	return "%s%+d" % [STAT_NAMES.get(stat, stat.to_upper()), roundi(float(m.get("value", 0.0)) * 100.0)] + "%"
+	return "%s %+d" % [STAT_NAMES.get(stat, stat.to_upper()), roundi(float(m.get("value", 0.0)) * 100.0)] + "%"
 
 
 ## Banner title width (the formation name in the serif).
@@ -377,6 +377,8 @@ func _banner_effects(side: int) -> Array:
 func badge_width(side: int) -> float:
 	var p := _badge_parts(side)
 	var n: int = (_chips[side] as Array).size()
+	if n > 0 and not (_chips[side][0][0] as Control).visible:
+		n = 0
 	var chips := n * (EffectIcons.CHIP + CHIP_GAP) - CHIP_GAP if n > 0 else 0
 	return ceilf(8.0 + _wt(p[0]) + (10.0 + chips if n > 0 else 0.0) + 6.0)
 
@@ -543,9 +545,6 @@ func _draw_row(side: int, u, p: Vector2) -> void:
 	var bar_x := tx if left else tx - bw
 	var name_col := Pal.INK10 if u.alive else Pal.FADE2
 	var ny := p.y + 0.0
-	var nm := UIText.fit(u.label, 100.0, BOLD, UIText.LABEL)
-	UIText.draw(self, Vector2(tx if left else tx - UIText.width(nm, BOLD, UIText.LABEL), ny), nm,
-		name_col if not acting else sc.lerp(Pal.INK10, 0.5), BOLD, UIText.LABEL)
 	# HP number on the far side of the name
 	var num_x := p.x + PANEL_W - 6.0 if left else p.x + 6.0
 	var hs := ""
@@ -559,6 +558,10 @@ func _draw_row(side: int, u, p: Vector2) -> void:
 		hc = Pal.BLOOD3
 	var hw := UIText.width(hs, BOLD, UIText.LABEL)
 	UIText.draw(self, Vector2(num_x - hw if left else num_x, ny), hs, hc, BOLD, UIText.LABEL)
+	var room := absf(num_x - tx) - 24.0   # the name keeps clear of a 3-digit HP number
+	var nm := UIText.fit(u.label, room, BOLD, UIText.LABEL)
+	UIText.draw(self, Vector2(tx if left else tx - UIText.width(nm, BOLD, UIText.LABEL), ny), nm,
+		name_col if not acting else sc.lerp(Pal.INK10, 0.5), BOLD, UIText.LABEL)
 	if not u.alive:
 		draw_rect(Rect2(bar_x, p.y + 12.0, bw, 1), Pal.INK4)
 		return
@@ -590,6 +593,8 @@ func _draw_row(side: int, u, p: Vector2) -> void:
 
 
 # --- intro cards --------------------------------------------------------------------------------
+## One card per side: the shape's name, its bonus (green), its behaviour in a sentence and its cost
+## (red). Sized to its text.
 func _draw_intro() -> void:
 	var it := intro_t
 	var fade := 1.0 - clampf((it - (intro_len - 0.35)) / 0.3, 0.0, 1.0)
@@ -600,29 +605,41 @@ func _draw_intro() -> void:
 		var sc: Color = b.side_colors[side]
 		var form: Dictionary = b.sides[side].get("formation", {})
 		var beh: Dictionary = form.get("behaviour", {})
-		var cw := 300.0
-		var r := Rect2(_l + 6.0 if side == 0 else _r - 6.0 - cw, 6, cw, 108)
+		var cw := 296.0
+		var tw := cw - 24.0
+		var p := _badge_parts(side)
+		var locked := bool(form.get("locked", false))
+		var bt := String(beh.get("name", "")) + ": " + String(beh.get("text", ""))
+		if locked:
+			bt = "Locked: fights as Strays (no shape behaviour)"
+		var lines := UIText.wrap_lines(bt, tw, SANS, UIText.BODY)
+		var cost := String(form.get("cost", "")) if not locked else ""
+		var cost_lines := UIText.wrap_lines("▼ Cost: " + cost, tw, BOLD, UIText.LABEL) if cost != "" else PackedStringArray()
+		var lh := UIText.line_h(SANS, UIText.BODY)
+		var h := 10.0 + UIText.ascent(SERIF, UIText.HEADING) + 8.0
+		if p[1] != "":
+			h += lh + 3.0
+		h += lines.size() * lh
+		if not cost_lines.is_empty():
+			h += 3.0 + cost_lines.size() * lh
+		h = ceilf(h + 8.0)
+		var r := Rect2(_l + 6.0 if side == 0 else _r - 6.0 - cw, 6, cw, h)
 		_panel_bg(r, sc, a, 0.5)
 		var cx := r.get_center().x
-		var p := _badge_parts(side)
-		var y := r.position.y + 8.0
+		var y := r.position.y + 10.0
 		UIText.outlined(self, Vector2(cx, y), p[0], Color(sc.lerp(Pal.INK10, 0.35), a), SERIF, UIText.HEADING, 1, Pal.INK1, false)
-		y += UIText.ascent(SERIF, UIText.HEADING) + 7.0
+		y += UIText.ascent(SERIF, UIText.HEADING) + 8.0
 		if p[1] != "":
 			UIText.outlined(self, Vector2(cx, y), "▲ " + p[1], Color(Pal.LIFE4, a), BOLD, UIText.LABEL, 1, Pal.INK1, false)
-			y += UIText.line_h(BOLD, UIText.LABEL) + 2.0
-		var bt := String(beh.get("name", "")) + ": " + String(beh.get("text", ""))
-		if bool(form.get("locked", false)):
-			bt = "Locked: fights as Strays (no shape behaviour)"
-		var lines := UIText.wrap_lines(bt, cw - 20.0, SANS, UIText.BODY)
-		for i in lines.size():
-			UIText.outlined(self, Vector2(cx, y), lines[i], Color(Pal.INK10, a), SANS, UIText.BODY, 1, Pal.INK1, false)
-			y += UIText.line_h(SANS, UIText.BODY)
-		if not bool(form.get("locked", false)) and String(form.get("cost", "")) != "":
-			y += 2.0
-			for l in UIText.wrap_lines("▼ Cost: " + String(form.get("cost", "")), cw - 20.0, BOLD, UIText.LABEL):
+			y += lh + 3.0
+		for l in lines:
+			UIText.outlined(self, Vector2(cx, y), l, Color(Pal.INK10, a), SANS, UIText.BODY, 1, Pal.INK1, false)
+			y += lh
+		if not cost_lines.is_empty():
+			y += 3.0
+			for l in cost_lines:
 				UIText.outlined(self, Vector2(cx, y), l, Color(Pal.BLOOD4, a), BOLD, UIText.LABEL, 1, Pal.INK1, false)
-				y += UIText.line_h(BOLD, UIText.LABEL)
+				y += lh
 
 
 # --- Crystal: memory lore caption and fragment banner -----------------------------------------------
@@ -688,8 +705,8 @@ func _draw_cutin() -> void:
 	if band_h < 30.0:
 		return
 	var tx := roundf(_c + dir * (1.0 - minf(1.0, cutin_t / 0.16)) * 60.0)
-	UIText.outlined(self, Vector2(tx, cy - 18.0), u.label.to_upper() + "  ·  ABILITY", Pal.VIOLET4, BOLD, UIText.LABEL, 1, Pal.INK1, false)
-	UIText.outlined(self, Vector2(tx, cy - 7.0), cutin_name, sc.lerp(Pal.INK10, 0.35), SERIF, UIText.HEADING, 1, Pal.INK1, false)
+	UIText.outlined(self, Vector2(tx, cy - 14.0), u.label.to_upper() + "  ·  ABILITY", Pal.VIOLET4, BOLD, UIText.LABEL, 1, Pal.INK1, false)
+	UIText.outlined(self, Vector2(tx, cy - 2.0), cutin_name, sc.lerp(Pal.INK10, 0.35), SERIF, UIText.HEADING, 1, Pal.INK1, false)
 
 
 ## The Fading (sudden death): one line in the game's voice, then a small rising readout.

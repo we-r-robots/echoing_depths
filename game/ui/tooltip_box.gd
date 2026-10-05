@@ -73,7 +73,7 @@ func open(c: Control, pin: bool) -> void:
 	var lh := UIText.line_h(UIText.SANS, UIText.BODY)
 	var h := ceilf(PAD + lh + (3 + _lines.size() * lh if not _lines.is_empty() else 0.0) + PAD - 2)
 	var a := c.get_global_rect()
-	var view := get_viewport_rect()
+	var view := c.get_viewport_rect()   # (this box may not be in the tree yet on its first open)
 	var x0 := view.position.x + 4
 	var x1 := view.end.x - 4
 	var y1 := view.end.y - 4

@@ -1358,14 +1358,14 @@ func _formation_line(side: int, form: Dictionary) -> int:
 ## action sits beside the first. Tall units near the top band get it beside the head instead.
 func _num_pos(T, uid: int) -> Vector2:
 	var k := int((_stack.get(uid, [0.0, 0]) as Array)[1])
-	var p: Vector2 = T.head() + Vector2(0.0, 10.0)   # same-target hits stack (battle_fx)
+	var p: Vector2 = T.head() + Vector2(0.0, 6.0)   # baseline: the number sits on top of the head
 	if T.is_crystal:
 		p = T.position + Vector2(0.0, -50.0)
 	if p.y < 140.0:
 		p = Vector2(T.head().x - 12.0 * T.facing, 140.0)   # tall unit: on its face, below the top band
 	# measured in SCREEN pixels through the live canvas transform (camera zoom + offset):
 	# centre of the drawn number vs the target's on-screen head top
-	var drawn := Vector2(clampf(p.x, 186.0, 454.0), maxf(p.y, 140.0)) + Vector2(0, -8.0)
+	var drawn := Vector2(clampf(p.x, 186.0, 454.0), maxf(p.y, 140.0)) + Vector2(0, -fx.NUM_H * 0.5)
 	var xf := view.get_canvas_transform()
 	_num_max_dist = maxf(_num_max_dist, (xf * drawn).distance_to(xf * T.head()))
 	return p
@@ -1489,11 +1489,11 @@ func _on_fight_end(ev: Dictionary) -> void:
 		fx.light(Vector2(320, 116), Pal.CRYSTAL5, 4, 0.7, 2.5)
 		hud.screen_flash(Pal.CRYSTAL5, 0.6)
 		shake(4.0)
-	end_subtitle = "%s wins  -  %.1f s%s" % [wname, float(ev.get("t", sim_t)), "  -  the Fading" if reason == "fading" else ""]
+	end_subtitle = "%s wins  ·  %.1f s%s" % [wname, float(ev.get("t", sim_t)), "  ·  the Fading" if reason == "fading" else ""]
 	if reason == "shard":
-		end_subtitle = "A Shard breaks free of the Crystal  -  %.1f s" % float(ev.get("t", sim_t))
+		end_subtitle = "A Shard breaks free of the Crystal  ·  %.1f s" % float(ev.get("t", sim_t))
 	elif crystal_uid >= 0 and w != player_side:
-		end_subtitle = "%d of 4 fragments chipped  -  they become Glimmers" % fragments
+		end_subtitle = "%d of 4 fragments chipped  ·  they become Glimmers" % fragments
 	if w >= 0:
 		for u in units:
 			if u.side == w and u.alive:

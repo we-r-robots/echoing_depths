@@ -655,6 +655,10 @@
     {
       "t": "17:30",
       "msg": "hires-ui M1: world/UI render split, new pixel-styled TTF fonts, x-height floor enforced, full-res captures; hero_detail fixed; 132 tests green, smoke PASS"
+    },
+    {
+      "t": "17:44",
+      "msg": "hires-ui M2: battle migrated (numbers, banners, cards, cut-in, Fading line, Crystal), wide-aspect stage; tests + smoke green"
     }
   ],
   "questions": [
