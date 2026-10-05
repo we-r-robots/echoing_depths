@@ -114,6 +114,17 @@ The other dormant templates (The Last Blade of Veil, The Grey Shepherd, The Debt
 7. **Names:** are any of these off-tone? (Possible swaps: Outrider → Lantern Rider, Gaoler → Chainwarden, Tempest → Stormwake.)
 8. Should **lean variants** (the hero's exact cell inside a region) tweak these abilities, or only stats?
 
+## 4b. User answers (2026-10-05)
+**Process: the user approves each class before any work goes into it.** This draft is a proposal only; nothing in it is approved for building yet. Classes are reviewed with the user one by one (or family by family) before implementation.
+1. **Legendaries: one per advanced class** (36, as the spec says), not one per base class. Also worth exploring: a Legendary for a **base class levelled to 6**.
+2. **Moving units: yes, as swaps only** (two units trade places), so it shakes up formations without breaking the formation-bonus logic. Watch it for balance; it may be strong.
+3. **Statuses: yes**, build the shared timed-status system (needed across the larger roster).
+4. **Summons and shapes: undecided.** User idea: in the formation setup screen the player picks the tile a summoner summons to; if two summoners target the same tile and a cast lands while that tile's summon is still alive, the summon levels up instead of being replaced.
+5. *(Corner shape/ability stealers: not yet answered.)*
+6. **Legendary sacrifice: undecided.** The user's only idea so far is sacrificing another hero, which may be hard to balance.
+7. **Names:** the user is fine with letting players rename heroes. (Question 7 was about class and Legendary names; still open.)
+8. **No lean variants: every class is unique.** The grid's regions already divide the classes; don't tweak abilities by exact cell.
+
 ## 5. What I'd build first
 1. **Fill the starting regions** so no common hero becomes a placeholder: Vaultwarden (Fighter N), Cutpurse (Rogue CE), Tempest (Mage CG). These are OK/S only.
 2. **Small schema additions:** the gauge op, effect conditions (alone, Fading active), self-adjacent and column targets, HP transfer, and drain to allies. Together they unlock Outrider, Iron Marshal, Knight Errant, Grey Reaver, Spellsinger, Wickkeeper, Tithekeeper, Bloodletter, Hearthwitch, Greycaller and Lanternbearer.
