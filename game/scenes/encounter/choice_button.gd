@@ -2,7 +2,7 @@ class_name EncounterChoiceButton
 extends Button
 ## One encounter choice, readable without hover (one focus per row, then two quiet lines):
 ##   line 1  the action (serif, one size up)
-##   line 2  Hero  memory gem Lv 2>3 [awaken glyph] [+ Tamsin joins]
+##   line 2  Hero  memory gem Lv 2>3 [Awakens] [+ Tamsin joins]
 ##   line 3  arrow  Cruelty +1, Freedom +1   * Strong shift
 ## Right: the hero's alignment grid, solid cell = now, white ring = after this choice.
 ## Strong-shift rows use the same plate (so they never look selected) with gold studs and a glint.
@@ -57,22 +57,18 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	# line 1, the focus: the action itself, one size step up (serif), in one colour
 	var what := Label.new()
 	what.text = c.get("label", "")
-	# (a label too long for the room beside the grid drops to the bold body face, never clipped)
+	# (a label too long for the room beside the grid drops one size step, never clipped;
+	# then every row on the screen does, so the rows keep one size)
 	var room := width - 42 - (7 * 5 + 6 + 4) - 14
-	if UIText.width(what.text, UIText.SERIF, UIText.HEADING) <= room:
-		what.add_theme_font_override("font", UIText.SERIF)
-		what.add_theme_font_size_override("font_size", UIText.HEADING)
-	else:
-		what.theme_type_variation = &"GoldLabel"
-		what.position.y = 6
-	what.add_theme_color_override("font_color", Pal.INK10)
-	if what.position.y == 0:
-		what.position.y = 3
+	_what = what
+	small = UIText.width(what.text, UIText.SERIF, UIText.HEADING) > room
 	what.position.x = 42
+	_apply_size()
 	_ignore(what)
+	_match_rows.call_deferred()
 
-	# line 2, quiet: who grows (class colour) and the memory it gives; "ready to Awaken" is one
-	# amber glyph on the new level (the legend above the rows says it once)
+	# line 2, quiet: who grows (class colour), the memory it gives and, if it is the one that lets
+	# the hero Awaken, one amber word
 	var l2 := _row(Vector2(42, 24), 3)
 	var who := _label(String(h["name"]), cc, true)
 	l2.add_child(who)
@@ -80,7 +76,11 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	l2.add_child(_icon("res://ui/icons/memory_gem.png", Color.WHITE, 1))
 	l2.add_child(_label("Lv %d \u2192 %d" % [lv, lv + 1], Pal.INK9, true))
 	if awakens:
+		# plain amber word with its glyph, no boxed badge (it reads the same on the run's encounter
+		# screen, which has no legend)
+		l2.add_child(_spacer(2))
 		l2.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
+		l2.add_child(_label("Awakens", Pal.AMBER6, true))
 	if c.has("recruit"):
 		l2.add_child(_spacer(4))
 		l2.add_child(_label("+ %s joins" % c["recruit"]["name"], Pal.LIFE4, true))
@@ -99,7 +99,7 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 		for w: Dictionary in words:
 			parts.append("%s +%d" % [w["word"], w["amount"]])
 		l3.add_child(_label(", ".join(parts), Pal.INK9, true))
-	if eff != s:
+	if eff != s and eff != Vector2i.ZERO:
 		l3.add_child(_label("(capped at edge)", Pal.INK8))
 	elif strong:
 		l3.add_child(_spacer(3))
@@ -115,6 +115,30 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	grid.show_target = true
 	grid.position = Vector2(width - grid.total_size() - 8, int((H - grid.total_size()) / 2.0))
 	add_child(grid)
+
+
+var small := false   # the action label is one size step down (too long for serif 15)
+var _what: Label
+
+
+func _apply_size() -> void:
+	_what.add_theme_font_override("font", UIText.SERIF)
+	_what.add_theme_font_size_override("font_size", UIText.TITLE if small else UIText.HEADING)
+	_what.position.y = 7 if small else 3
+
+
+## One size for every row's action: if any sibling row needed the smaller face, all use it.
+func _match_rows() -> void:
+	var p := get_parent()
+	if p == null:
+		return
+	var any := false
+	for c in p.get_children():
+		if c is EncounterChoiceButton and (c as EncounterChoiceButton).small:
+			any = true
+	if any and not small:
+		small = true
+		_apply_size()
 
 
 func _row(pos: Vector2, sep: int) -> HBoxContainer:

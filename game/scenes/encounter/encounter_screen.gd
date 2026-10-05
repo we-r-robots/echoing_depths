@@ -200,8 +200,7 @@ func _text_height(bb: String) -> int:
 	return ceili(lines * UIText.line_h(font, UIText.BODY))
 
 
-## "[solid] now  [ring] after  [glyph] Awakens", so the grid markers and the awaken glyph on every
-## row read without a tutorial (said once here, not on each row).
+## "[solid] now  [ring] after", so the grid markers on every row read without a tutorial.
 const AWAKEN_ICON := preload("res://ui/icons/arrow2_up.png")
 
 
@@ -209,9 +208,7 @@ func _make_legend() -> Control:
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var font: Font = UIText.BOLD
-	var any_awaken := false
-	for btn: EncounterChoiceButton in _buttons:
-		any_awaken = any_awaken or btn.awakens
+	var any_awaken := false   # (the rows say "Awakens" themselves)
 	var w := 8.0 + UIText.width("now", font, UIText.LABEL) + 6.0 + 10.0 + UIText.width("after", font, UIText.LABEL)
 	if any_awaken:
 		w += 10.0 + 9.0 + UIText.width("ready to Awaken", font, UIText.LABEL)
