@@ -71,3 +71,4 @@ Committed through the Crystal battle presentation. NEXT SESSION, in order:
 4. Then the playable flow: title -> draft -> run (encounter screen, formation setup, battle, Crystal) -> results -> minimal Lanternrest; the PvP splash with team name and crest; the settings screen (Battle Effects Low/Medium/High).
 Open design needs for the user: the advanced/Legendary class roster (only 8 of 36 advanced, 1 Legendary); the art direction for characters.
 - 2026-10-05: cloud setup ready: tools/cloud_setup.sh (env setup script), tools/smoke.sh (passes locally), tools/godot_run.sh (Xvfb fallback), tools/fetch_references.sh, docs/CLOUD.md. Remotes: origin = Gitea (SSH), github = we-r-robots/echoing_depths (SSH key ~/.ssh/github). Both pushed.
+- 2026-10-05: merged the cloud smoke-test fixes (claude/elegant-hypatia-et7t19). NEXT TASK (user-approved): docs/tasks/hires-ui-text.md (high-resolution UI text layer, aspect expand, full-resolution captures), running in a cloud session.
