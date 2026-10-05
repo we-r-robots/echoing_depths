@@ -289,6 +289,15 @@
       "rounds": [],
       "note": "Built end to end: the combat sim, the run's final node, and the battle presentation (a large crystal with an integrity bar and fragment pips, memories surfacing with lore captions, the Shard breaking free). Not yet critic-judged.",
       "preview": "captures/battle-scene/crystal1/f01200.png"
+    },
+    {
+      "id": "hires-ui",
+      "name": "High-resolution UI text layer",
+      "bar": "Sea of Stars menus, Super Auto Pets shop",
+      "wave": 3,
+      "status": "judging",
+      "rounds": [],
+      "note": "World stays 640x360 pixel art; all UI text and chrome on a native-resolution layer with new pixel-styled fonts (x-height >= 14 px at 1080p), aspect expand, full-resolution captures (docs/tasks/hires-ui-text.md)."
     }
   ],
   "log": [
@@ -667,6 +676,10 @@
     {
       "t": "18:35",
       "msg": "hires-ui: captures ready for critic round 1"
+    },
+    {
+      "t": "18:37",
+      "msg": "hires-ui: critic round 1 started (5 blind pairs at full and phone size: SoS 014/015/016, SAP 015/016)"
     }
   ],
   "questions": [
