@@ -709,6 +709,10 @@
     {
       "t": "16:40",
       "msg": "User decision: hero detail ability sentences become icon + short label with the sentence in the tooltip (consistent with intro cards)."
+    },
+    {
+      "t": "17:00",
+      "msg": "playable-flow: title -> run -> results -> Lanternrest playable; settings, PvP splash, crests, run save; 146 tests, smoke PASS"
     }
   ],
   "questions": [
