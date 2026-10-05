@@ -295,9 +295,14 @@
       "name": "High-resolution UI text layer",
       "bar": "Sea of Stars menus, Super Auto Pets shop",
       "wave": 3,
-      "status": "judging",
-      "rounds": [],
-      "note": "World stays 640x360 pixel art; all UI text and chrome on a native-resolution layer with new pixel-styled fonts (x-height >= 14 px at 1080p), aspect expand, full-resolution captures (docs/tasks/hires-ui-text.md)."
+      "status": "building",
+      "rounds": [
+        {
+          "winner": "bar",
+          "gap": "FAIL round 1: ours 2/5 blind pairs (won both Super Auto Pets pairs, lost all three Sea of Stars menu pairs); open review FAIL. Biggest gap: thin, dim secondary text (2.5-3.9:1) fades at phone size, and the finer text reclaimed no space, so screens are no calmer. Also: overlaps on the setup drag preview and the hero-detail plates. Fix list: docs/tasks/hires-ui-round1.md."
+        }
+      ],
+      "note": "World stays 640x360 pixel art; UI text and chrome on a native-resolution layer with new pixel-styled fonts (x-height >= 14 px at 1080p), aspect expand, full-resolution captures. Round 1 FAILED (2/5). Round-2 fixes NOT started: see docs/tasks/hires-ui-round1.md (open question for the user on intro cards / Details first)."
     }
   ],
   "log": [
@@ -680,6 +685,10 @@
     {
       "t": "18:37",
       "msg": "hires-ui: critic round 1 started (5 blind pairs at full and phone size: SoS 014/015/016, SAP 015/016)"
+    },
+    {
+      "t": "19:05",
+      "msg": "hires-ui critic r1: FAIL, ours 2/5 (won both SAP, lost all 3 SoS menus); open review FAIL. Biggest gap: thin dim secondary text fades at phone size; no space reclaimed. Fix list: docs/tasks/hires-ui-round1.md"
     }
   ],
   "questions": [
