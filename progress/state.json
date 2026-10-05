@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 10:44",
+  "updated": "2026-10-05 10:52",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -181,9 +181,14 @@
           "winner": "bar",
           "gap": "Soft pass not counted: both wins came against weak Super Auto Pets frames. Lost to the Sea of Stars menu on density; the formation panel is a wall of small text, and list portraits don't match the grid sprites.",
           "image": "captures/party-formation/final/f00420.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Lost all 4 blind pairs against clean Super Auto Pets and Sea of Stars frames: still three equal-weight text columns. Restructuring to one grid plus one shape card, with a slim portrait tray.",
+          "image": "captures/party-formation/r6/f00420.png"
         }
       ],
-      "preview": "captures/party-formation/final/f00420.png",
+      "preview": "captures/party-formation/r6/f00420.png",
       "note": "Hero draft and formation setup: drag or tap onto the 2x4 grid, live shape naming with bonus, behaviour, cost and growth path, locked shapes shown as Strays, opponent formation hidden."
     },
     {
@@ -191,11 +196,15 @@
       "name": "Run loop core: hidden map, encounters, phases, Echo PvP, rewards",
       "bar": "Slay the Spire run flow + spec",
       "wave": 3,
-      "status": "building",
+      "status": "won",
       "rounds": [
         {
           "winner": "bar",
           "gap": "The legend gate doesn't follow the user's design yet, the opponent's formation leaks before the fight, 89% of runs repeat encounters (only 20 exist), and the run has no arc: PvP is a flat coin flip with no mid-run spikes."
+        },
+        {
+          "winner": "ours",
+          "gap": "PASSED round 2: every spec rule and user decision holds. The run has a real arc (health drains floor by floor, deaths spread over floors 3-5), choices always change what comes next, and runs differ. Polish follow-ups: give guardians an identity, more distinct rival names."
         }
       ],
       "note": "Built: hidden map (29 nodes), phases, memories, Echo PvP against a saved pool, health, rewards, pluggable Legend gate, a bot that plays 200 runs. 77 tests pass. Critic waits until the party-size and formation design is settled."
@@ -229,7 +238,7 @@
       "name": "Formation redesign: distinct per-shape effects",
       "bar": "05-formations.md + Super Auto Pets readability",
       "wave": 3,
-      "status": "building",
+      "status": "judging",
       "rounds": [
         {
           "winner": "bar",
@@ -237,6 +246,15 @@
         }
       ],
       "note": "Approved design (05-formations.md): 15 lore-named shapes growing from dominoes to tetrominoes, Strays, Training Grounds unlocks (locked shapes fight as Strays). Combat-core builder implementing."
+    },
+    {
+      "id": "team-identity",
+      "name": "Team name, crest and PvP splash screen",
+      "bar": "To design with the user",
+      "wave": 3,
+      "status": "queued",
+      "rounds": [],
+      "note": "User idea: players name their team and customise a crest (unlocked through Lanternrest, likely the Banner Hall), shown on a splash screen before PvP battles."
     }
   ],
   "log": [
@@ -507,6 +525,22 @@
     {
       "t": "10:44",
       "msg": "Setup screens round 1: critic passed it, but both wins were against weak reference frames, so it's not counted. Sent back: calmer panel hierarchy, matching portraits, labelled stats."
+    },
+    {
+      "t": "10:45",
+      "msg": "Checkpoint committed. Run loop round 2 fixes in (5 floors with guardians, 65 encounters with no repeats, PvP by floor, rising legend chance); critic round 2 started. User idea queued: team name, crest and PvP splash screen."
+    },
+    {
+      "t": "10:49",
+      "msg": "Setup screens round 2: calm glance panel with details behind a button, matching portraits, labelled stats, concrete costs. Critic round 2 judging against clean reference frames."
+    },
+    {
+      "t": "10:51",
+      "msg": "Setup screens round 2: lost all 4 blind pairs (too busy). Round 3 restructures to one grid plus one shape card."
+    },
+    {
+      "t": "10:52",
+      "msg": "Formation round 2 fixes in: Strays splash rule corrected, Keeper's Ring 43%, monster ability share 26%, all shapes 43-56%. Critic round 2 started."
     }
   ],
   "questions": [

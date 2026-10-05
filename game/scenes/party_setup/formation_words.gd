@@ -28,6 +28,56 @@ const ROLE_WORDS := {
 }
 
 
+## The cost as its concrete mechanical effect. Costs with stat mods use the mods (exact numbers);
+## costs that core implements as geometry or targeting are worded by what the sim does.
+const COST_EFFECT := {
+	"kindred": "Both stand in front: melee hits them at full damage",
+	"vigil": "No front line: melee hits them straight away",
+	"lamplight": "The front hero takes the guarded hit itself",
+	"choir": "No front line: melee hits them straight away",
+	"keystone": "Open-end front hero pulls nearby melee onto itself",
+	"hearth": "The lone front hero takes every melee hit",
+	"lumari_chorus": "No front line, and their physical hits deal half",
+	"vault_door": "No bonus above +5%",
+	"crescent": "Open-end front hero pulls nearby melee onto itself",
+	"lighthouse": "The post takes every melee and single-target hit",
+	"shardpoint": "The tip takes every melee hit",
+	"strays": "No shape behaviour fires",
+}
+## One short line per behaviour (the full text is in data, shown on Details).
+const BEHAVIOUR_SHORT := {
+	"shoulder_to_shoulder": "Hit one in melee and the other gains charge",
+	"covering_fire": "Hit one in melee and the other strikes back",
+	"guardian": "Front hero blocks the first spell on its partner",
+	"brace": "The middle hero shares hits with its neighbours",
+	"opening_volley": "The back row acts first",
+	"flank": "The back hero hits harder in its own row",
+	"hearthguard": "The post takes less damage per back ally",
+	"share_the_blow": "Every hit spreads to the next row",
+	"hold_the_door": "When a front hero falls, the one behind steps up",
+	"keepers_ring": "The ringed hero can't be targeted",
+	"shardpoint": "The tip charges whenever an ally acts",
+	"echo_step": "Area splash is halved",
+	"scattered": "Splash never spreads between them",
+}
+
+
+## Cost as concrete lines: stat mods first (exact), then the geometric effect.
+static func cost_lines(shape: Dictionary) -> Array:
+	var out: Array = mod_lines(shape.get("cost", {}).get("mods", []))
+	var id := String(shape.get("id", ""))
+	if COST_EFFECT.has(id):
+		out.append(String(COST_EFFECT[id]))
+	elif out.is_empty():
+		out.append(String(shape.get("cost", {}).get("text", "")).trim_suffix("."))
+	return out
+
+
+static func behaviour_short(shape: Dictionary) -> String:
+	var b: Dictionary = shape.get("behaviour", {})
+	return String(BEHAVIOUR_SHORT.get(String(b.get("id", "")), String(b.get("text", ""))))
+
+
 static func shape_by_id(id: String) -> Dictionary:
 	if id == "strays":
 		return GameData.Formations.STRAYS

@@ -18,17 +18,16 @@ signal held_changed
 const ROSTER := Rect2(0, 0, 96, 296)
 const GRID := Rect2(100, 0, 196, 296)
 const CW := 80
-const CH := 62
+const CH := 60
 const COL_GAP := 6
 const ROW_GAP := 3
 const GX := 115                 # x of the BACK column; FRONT is GX + CW + COL_GAP
-const GY := 31
+const GY := 40
 const ENTRY_Y := 22
 const ENTRY_H := 67
 const DRAG_START := 3.0
 const LOCK := preload("res://assets/party/lock.png")
 const PLUS := preload("res://assets/party_setup/plus.png")
-const FOE := preload("res://assets/party_setup/foe.png")
 const HAND_POINT := preload("res://assets/party_setup/hand_point.png")
 const HAND_GRAB := preload("res://assets/party_setup/hand_grab.png")
 const MAX_PARTY := 4
@@ -112,7 +111,8 @@ func _add_sprite(i: int, slot: Variant) -> void:
 	var base := PartyModel.base_class(heroes[i])
 	var info := EncounterDB.class_info(base)
 	_infos.append(info)
-	_portraits.append(load(String(info["portrait"])))
+	var por: Texture2D = SpritePortrait.for_class(base, 24)
+	_portraits.append(por if por != null else load(String(info["portrait"])))
 	placement.append(slot.duplicate() if slot is Array else null)
 	var sp := AnimatedSprite2D.new()
 	sp.centered = false
@@ -144,7 +144,7 @@ static func cell_rect(c: Array) -> Rect2:
 
 static func feet_of(c: Array) -> Vector2:
 	var r := cell_rect(c)
-	return Vector2(r.position.x + 40, r.position.y + 50)
+	return Vector2(r.position.x + 40, r.position.y + 48)
 
 
 func _entry_rect(i: int) -> Rect2:
@@ -473,16 +473,12 @@ func _draw_grid() -> void:
 	# column headers: BACK (left) | FRONT (right) -> the foe
 	var bx := GX
 	var fx := GX + CW + COL_GAP
-	PartyDraw.text(self, Vector2(bx, 5), "BACK", Pal.CRYSTAL4, PartyDraw.BOLD, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(bx, 16), "half physical", Pal.INK7, PartyDraw.SANS, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(fx, 5), "FRONT", Pal.AMBER5, PartyDraw.BOLD, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
-	PartyDraw.text(self, Vector2(fx, 16), "melee hits first", Pal.INK7, PartyDraw.SANS, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
-	# foe-side chevrons down the right edge
-	for row in 4:
-		var r := cell_rect([0, row])
-		var cy := r.position.y + CH / 2 - 3
-		var ph := int(_t * 4.0 + row) % 3
-		draw_texture(FOE, Vector2(r.end.x + 3, cy), Pal.BLOOD3 if ph == 0 else Pal.BLOOD2)
+	PartyDraw.text(self, Vector2(bx, 4), "BACK", Pal.CRYSTAL4, PartyDraw.BOLD, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(bx, 15), "deals and takes", Pal.INK8, PartyDraw.SANS, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(bx, 25), "half physical", Pal.INK8, PartyDraw.SANS, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(fx, 4), "FRONT", Pal.AMBER5, PartyDraw.BOLD, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(fx, 15), "melee hits", Pal.INK8, PartyDraw.SANS, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
+	PartyDraw.text(self, Vector2(fx, 25), "here first", Pal.INK8, PartyDraw.SANS, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
 	var ev := _eval()
 	var shape: Dictionary = ev["shape"]
 	var sid := String(shape.get("id", ""))
@@ -558,7 +554,7 @@ func _draw_cell_floor(r: Rect2, col: int) -> void:
 
 func _draw_occupied(r: Rect2, lit: Color, stray: bool, locked: bool) -> void:
 	var cx := r.position.x + 40
-	var fy := r.position.y + 50
+	var fy := r.position.y + 48
 	if not stray:
 		# lantern light pooled under the hero
 		var glow := Pal.CRYSTAL1 if not locked else Pal.FADE1
@@ -675,7 +671,7 @@ func _draw_overlay() -> void:
 		var c: Array = placement[i]
 		var r := cell_rect(c)
 		var nm := String(heroes[i].get("name", "?"))
-		PartyDraw.text(_overlay, Vector2(r.position.x, r.position.y + 50), nm, Pal.INK10 if i != held else Pal.AMBER6,
+		PartyDraw.text(_overlay, Vector2(r.position.x, r.position.y + 48), nm, Pal.INK10 if i != held else Pal.AMBER6,
 			PartyDraw.BOLD, 11, true, CW, HORIZONTAL_ALIGNMENT_CENTER)
 		var tag := ""
 		var fg := Pal.CRYSTAL5

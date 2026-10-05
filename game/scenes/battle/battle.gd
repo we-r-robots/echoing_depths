@@ -641,6 +641,11 @@ func _on_formation_move(ev: Dictionary) -> void:
 		u.position = dest
 		return
 	u.step_to(dest, sim_t, 0.9)
+	u.dimmed = false
+	u.lit = true
+	u.buff_glow = 0.9
+	u.buff_color = side_colors[s].lerp(Pal.INK10, 0.4)
+	fx.light(dest + Vector2(0, -12), side_colors[s], 2, 0.6, 1.0)
 	hitstop(0.35, u.uid)
 	var sc: Color = side_colors[s].lerp(Pal.INK10, 0.25)
 	fx.cue("Hold the door", dest + Vector2(0, 18), sc, 0.1)
@@ -988,12 +993,26 @@ func _on_damage(ev: Dictionary) -> void:
 	var note := _annotation(ev)
 	var head := "CRIT!" if crit else String(note[0])
 	_hits_in_action += 1
-	if not crit and _hits_in_action > 1:
-		head = ""   # one tag per action: on the first number only
+	var keep_tag := head == "shared" or head == "halved"
+	if not crit and _hits_in_action > 1 and not keep_tag:
+		head = ""   # one tag per action (shared/halved numbers always say so)
 	var head_col: Color = Pal.AMBER6 if crit else note[1]
-	fx.popup(amount, row, _num_pos(T, dst), 1, false, head, head_col, "", Color.WHITE, delay)
+	# split hits (Echo step / Share the blow / Brace) are marked from the mods list even when
+	# another annotation (e.g. a crit) owns the primary tag
+	var split := ""
+	for m in ev.get("mods", []):
+		if m is Dictionary:
+			var mid := String(m.get("id", ""))
+			if mid == "echo_step":
+				split = "halved"
+			elif mid == "share_the_blow" or mid == "brace":
+				split = "shared"
+	if head == split:
+		head = ""
+	fx.next_uid = dst
+	fx.popup(amount, row, _num_pos(T, dst), 1, false, head, head_col, split, Pal.CRYSTAL5 if split == "halved" else Pal.AMBER6, delay)
 	var pid := String((ev.get("primary", {}) as Dictionary).get("id", "")) if ev.get("primary", null) is Dictionary else ""
-	if pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
+	if split != "" or pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
 		var main := int(_cur_action.get("target", -1))
 		if main >= 0 and main < units.size() and main != dst:
 			fx.link_last(units[main].head() + Vector2(0, 6))
@@ -1135,7 +1154,7 @@ func _formation_line(side: int, form: Dictionary) -> int:
 ## action sits beside the first. Tall units near the top band get it beside the head instead.
 func _num_pos(T, uid: int) -> Vector2:
 	var k := int((_stack.get(uid, [0.0, 0]) as Array)[1])
-	var p: Vector2 = T.head() + Vector2([0.0, 16.0, -16.0][k], 10.0)
+	var p: Vector2 = T.head() + Vector2(0.0, 10.0)   # same-target hits stack (battle_fx)
 	if p.y < 140.0:
 		p = Vector2(T.head().x - 12.0 * T.facing, 140.0)   # tall unit: on its face, below the top band
 	# measured in SCREEN pixels through the live canvas transform (camera zoom + offset):
@@ -1176,6 +1195,7 @@ func _on_heal(ev: Dictionary) -> void:
 	T.flash(Pal.LIFE4, 0.6)
 	var delay := _stagger(dst)
 	var pos: Vector2 = _num_pos(T, dst)
+	fx.next_uid = dst
 	fx.popup(int(ev.get("amount", 0)), fx.Row.HEAL, pos, 1, true, "DRAIN" if drain else "", Pal.VIOLET4, "", Color.WHITE, delay)
 
 

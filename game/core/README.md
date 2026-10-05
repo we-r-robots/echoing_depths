@@ -94,7 +94,10 @@ Options: `{"log": false}` skips building events (same outcome, faster);
 this section: exact field set, types and enumerated values. If the two ever disagree, that test fails.
 
 **Schema changelog** (for consumers):
-- *Latest:* Keeper's Ring keeper can't be single-targeted at all while the ring stands (any
+- *Latest:* Scattered only spares Strays not standing next to the struck unit (a locked, connected
+  shape takes normal splash); Guardian ignores area/splash hits; covering fire respects Keeper's
+  Ring; Brace/Share numbers from a back-row attacker also carry `back_row_attacker`.
+- *Earlier:* Keeper's Ring keeper can't be single-targeted at all while the ring stands (any
   selector; splash still hits); the Lighthouse post also draws single-target ranged/magic attacks.
   `game/core/run/run.gd` now passes `unlocked_formations` (run option) and the monument records
   the shape that actually fought.
@@ -228,7 +231,7 @@ happens, on the unit doing it, with the same truth rule; a repeating behaviour c
 |---|---|---|---|
 | `shoulder_to_shoulder` | Kindred | partner as it gains charge / `charge` | unit that was hit |
 | `covering_fire` | Vigil | partner whose basic action is retargeted / `turn` | the attacker it now targets |
-| `guardian` | Lamplight | front unit as it takes the intercepted hit / `defend` | the back partner it covered |
+| `guardian` | Lamplight | front unit as it takes the intercepted hit (only a single-target ranged/magic hit aimed at the partner, never splash or area) / `defend` | the back partner it covered |
 | `brace` | Tidebreak | middle unit as it is hit / `defend` | attacker |
 | `opening_volley` | Choir, Lumari Chorus | back units' head start / `start` | −1 |
 | `flank` | Keystone, Crescent | back unit as it hits the enemy in its row / `attack` | target |
@@ -240,7 +243,7 @@ happens, on the unit doing it, with the same truth rule; a repeating behaviour c
 | `keepers_ring` | Keeper's Ring | the unit hit instead of the keeper (while all three front units stand the keeper can't be single-targeted at all; area splash still reaches it) / `defend` | the keeper |
 | `shardpoint` | Shardpoint | the tip as it gains charge / `charge` | the ally that acted |
 | `echo_step` | Echo Step | unit as halved splash lands / `defend` | attacker |
-| `scattered` | Strays | the struck primary target (splash didn't spread) / `defend` | attacker |
+| `scattered` | Strays | the struck primary target, when splash was kept off Strays not standing next to it (splash only spreads within the struck unit's edge-connected group) / `defend` | attacker |
 
 About 8 cues per PvP fight, 7 vs monsters (stat + behaviour cues). In-fight coverage of stat
 cues varies by effect; every bonus, behaviour and cost is always in the banner.

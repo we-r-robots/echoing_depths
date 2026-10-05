@@ -6,7 +6,6 @@ extends Control
 
 signal tapped
 
-const ICONS := HeroCard.ICONS
 const STAT_COLORS := HeroCard.STAT_COLORS
 const ABILITY := preload("res://assets/party/ability.png")
 const TICK := preload("res://assets/party/tick.png")
@@ -20,7 +19,6 @@ var w := 190
 var h := 290
 var _sprite: AnimatedSprite2D
 var _clip: Control
-var _grid: AlignGrid
 var _over: Control
 var _t := 0.0
 var _lift := 0.0
@@ -41,10 +39,6 @@ func _ready() -> void:
 	_over = Control.new()
 	_over.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_over.draw.connect(_draw_over)
-	_grid = AlignGrid.new()
-	_grid.cell = 5
-	_grid.gap = 1
-	add_child(_grid)
 	add_child(_over)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
@@ -69,11 +63,6 @@ func setup(hd: Dictionary, width: int, height: int, phase := 0) -> void:
 		_sprite.frame = phase % maxi(1, frames.get_frame_count(&"idle"))
 		# feet (origin 32,60 at 1x) on the stage floor, centred
 		_sprite.position = Vector2(roundi(_clip.size.x / 2.0) - 64, _clip.size.y - 12 - 120)
-	var a: Array = hd.get("alignment", [0, 0])
-	_grid.position = Vector2(8, 141)
-	_grid.dot_color = Pal.c(info["color"])
-	_grid.from_pos = Vector2i(int(a[0]), int(a[1]))
-	_grid.to_pos = _grid.from_pos
 	queue_redraw()
 
 
@@ -84,7 +73,6 @@ func set_pick(p: int, dim: bool) -> void:
 	dimmed = dim
 	var m := Color(0.5, 0.5, 0.6) if dim else Color.WHITE
 	_clip.modulate = m
-	_grid.modulate = m
 	queue_redraw()
 
 
@@ -136,28 +124,34 @@ func _draw() -> void:
 	var lv := "Lv 1"
 	PartyDraw.text(self, Vector2(0, 109), lv, Pal.INK8, PartyDraw.BOLD, 11, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
 	PartyDraw.text(self, Vector2(0, 124), "fights " + pref.to_lower(), Pal.AMBER5 if pref == "Front" else Pal.CRYSTAL4, PartyDraw.BOLD, 11, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
-	# alignment: the fixed start
-	var gx := 8 + _grid.total_size() + 6
+	# alignment: the fixed start, in words (no unexplained grid on screen one)
 	var a: Array = hero.get("alignment", [0, 0])
-	PartyDraw.text(self, Vector2(gx, 141), "STARTS AT", Pal.INK7, PartyDraw.BOLD, 11, false)
-	PartyDraw.text(self, Vector2(gx, 153), _align_words(a), Pal.INK10, PartyDraw.BOLD)
-	PartyDraw.text(self, Vector2(gx, 164), "fixed for every %s" % cls, Pal.INK7)
-	# stats
+	var narrow := w < 170
+	PartyDraw.text(self, Vector2(8, 140), "ALIGNMENT", Pal.INK7, PartyDraw.BOLD, 11, false)
+	var ey := 151
+	if narrow:
+		PartyDraw.text(self, Vector2(8, 151), _align_words(a), Pal.INK10, PartyDraw.BOLD)
+		ey = 162
+	else:
+		PartyDraw.text(self, Vector2(14 + PartyDraw.text_w("ALIGNMENT", PartyDraw.BOLD), 140), _align_words(a), Pal.INK10, PartyDraw.BOLD)
+	var expl := "Choices shift it; it sets the advanced class." if narrow else "Your choices shift it, and it sets the advanced class."
+	var ay := _para(expl, Vector2(8, ey), w - 16, Pal.INK8)
+	# stats, labelled
 	var st := PartyModel.stats({"class": hero["class"], "level": 1, "items": {}})
-	var sy := 180
+	var sy := ay + 3
 	var cw := floori((w - 16) / 5.0)
 	var sx := 8
 	for s: String in ["hp", "atk", "def", "mag", "spd"]:
-		var well := Rect2(sx, sy, cw - 1, 14)
+		var well := Rect2(sx, sy, cw - 2, 24)
 		PartyDraw.inset(self, well)
-		var pad := 3 if cw >= 32 else 1
-		PartyDraw.tint_tex(self, ICONS[s], Vector2(sx + pad, sy + 3), STAT_COLORS[s])
-		PartyDraw.text(self, Vector2(sx, sy + 1), str(st[s]), Pal.INK10, PartyDraw.BOLD, 11, true, cw - 1 - pad, HORIZONTAL_ALIGNMENT_RIGHT)
+		draw_rect(Rect2(well.position.x + 1, well.position.y, well.size.x - 2, 1), STAT_COLORS[s])
+		PartyDraw.text(self, Vector2(sx, sy + 1), PartyModel.STAT_LABELS[s], STAT_COLORS[s], PartyDraw.SANS, 11, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
+		PartyDraw.text(self, Vector2(sx, sy + 12), str(st[s]), Pal.INK10, PartyDraw.BOLD, 11, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
 		sx += cw
 	# basic + ability
 	var basic := GameData.get_action(String(cdef.get("basic", "")))
 	var ab := PartyModel.ability_of(String(hero["class"]))
-	var y := 200
+	var y := sy + 30
 	y = _action(y, "Basic", basic, Pal.INK8, false)
 	y = _action(y + 3, "Ability", ab, cc, true)
 
@@ -192,6 +186,10 @@ func _action(y: int, label: String, a: Dictionary, color: Color, is_ability: boo
 		draw_rect(Rect2(w - 9 - tw, y, tw + 1, 11), Pal.INK2 if not dimmed else Pal.INK1)
 		PartyDraw.text(self, Vector2(0, y), tag, Pal.INK6, PartyDraw.SANS, 11, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
 	y += 12
+	if not is_ability:
+		if w < 170:
+			return y - 1
+		return _para(PartyModel.ability_desc(a), Vector2(8, y), w - 16, Pal.INK8 if not dimmed else Pal.INK7)
 	return _para(PartyModel.ability_desc(a), Vector2(8, y), w - 16, Pal.INK9 if not dimmed else Pal.INK7,
 		PartyDraw.BOLD if w >= 170 else PartyDraw.SANS)
 

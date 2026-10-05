@@ -139,6 +139,7 @@ func _refresh() -> void:
 	var bases: Array = []
 	for h: Dictionary in board.heroes:
 		bases.append(PartyModel.base_class(h))
+	panel.placing = board.held_or_dragged() >= 0
 	panel.show_cells(cells, board.unlocked, n_placed, board.heroes.size(), pc is Array, bases)
 	_confirm.disabled = not board.all_placed() or _done
 	queue_redraw()
@@ -296,6 +297,8 @@ func demo_script() -> Array:
 		{"t": 7.4, "kind": "tap", "at": c.call(1, 1)},
 		{"t": 8.2, "kind": "tap", "at": c.call(1, 0)},
 		{"t": 9.4, "kind": "drag", "keys": [[0.0, c.call(0, 2)], [0.7, c.call(1, 3)]]},
+		{"t": 11.4, "kind": "details"},
+		{"t": 12.1, "kind": "details"},
 		{"t": 12.2, "kind": "drag", "keys": [[0.0, c.call(1, 3)], [0.6, c.call(0, 2)]]},
 		{"t": 13.4, "kind": "drag", "keys": [[0.0, c.call(1, 0)], [0.5, c.call(1, 1)]]},
 		{"t": 14.8, "kind": "confirm"},
@@ -349,6 +352,8 @@ func _run_demo(delta: float) -> void:
 				board.demo_hand = 2
 				_act = i
 				_act_t = 0.0
+			"details":
+				panel.toggle_details()
 			"confirm":
 				_confirm.button_pressed = true
 				get_tree().create_timer(0.15).timeout.connect(func() -> void:

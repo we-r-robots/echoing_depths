@@ -14,6 +14,12 @@ const OUTLINE: Array[Vector2] = [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), 
 const STAT_NAMES := {"hp_pct": "HP", "atk_pct": "ATK", "def_pct": "DEF", "mag_pct": "MAG", "spd_pct": "SPD",
 	"crit_add": "CRIT", "charge_pct": "CHARGE", "heal_pct": "HEAL", "dmg_taken_pct": "DMG TAKEN"}
 const PANEL_W := 182
+## Short cost labels for the banner (the full sentence is on the intro card).
+const COST_SHORT := {"kindred": "Back unguarded", "vigil": "No front line", "lamplight": "Front takes extra hit",
+	"tidebreak": "Spd -5%", "choir": "No front line", "keystone": "Gap draws melee", "hearth": "One wall",
+	"seawall": "Spd -3%, no back row", "lumari_chorus": "No front line", "vault_door": "No standout",
+	"crescent": "Open end draws melee", "lighthouse": "Post falls fast", "keepers_ring": "Front +5% dmg taken",
+	"shardpoint": "Tip draws melee", "echo_step": "Def -5%", "strays": "No shape behaviour"}
 const PANEL_Y := 284
 const ROW_H := 14
 
@@ -214,7 +220,7 @@ func _mod_text(m: Dictionary) -> String:
 
 func badge_rect(side: int) -> Rect2:
 	var w := badge_width(side)
-	return Rect2(3 if side == 0 else 640 - 3 - w, 2, w, 26)
+	return Rect2(3 if side == 0 else 640 - 3 - w, 2, w, 45)
 
 
 ## [title, bonus, behaviour, cost] for the banner. A locked shape fights as Strays.
@@ -226,7 +232,9 @@ func _badge_parts(side: int) -> Array:
 	if bl.size() > 1:
 		up += " " + _stat_short(bl[1])
 	var beh := String((form.get("behaviour", {}) as Dictionary).get("name", ""))
-	var cost := _stat_short(dl[0]) if not dl.is_empty() else String(form.get("cost", ""))
+	var cost := String(COST_SHORT.get(String(form.get("shape", form.get("id", ""))), ""))
+	if cost == "":
+		cost = _stat_short(dl[0]) if not dl.is_empty() else String(form.get("cost", ""))
 	var title := String(form.get("name", "")).to_upper()
 	if bool(form.get("locked", false)):
 		title = String(form.get("shape_name", title)).to_upper()
@@ -251,28 +259,25 @@ func _w1(t: String) -> float:
 ## Two-line banner: NAME + bonus (2x), then behaviour and cost (1x bold). Max half the screen.
 ## One 2x line: NAME, then a field that rotates every 3 s between the bonus (green ▲), the
 ## behaviour (side colour ◆) and the cost (red ▼). A pulse shows the field that just fired.
+## Line 1 (2x): NAME and its bonus (green ▲). Line 2 (2x): rotates every 3 s between the
+## behaviour (side colour ◆) and the cost (red ▼); a pulse shows the one that just fired.
 func badge_width(side: int) -> float:
 	var p := _badge_parts(side)
-	var widest := 0.0
-	for k in [1, 2, 3]:
-		widest = maxf(widest, _w2(p[k]))
-	return minf(314.0, 6.0 + _w2(p[0]) + 8.0 + 13.0 + widest + 6.0)
+	var l1 := 6.0 + _w2(p[0]) + 8.0 + (13.0 + _w2(p[1]) if p[1] != "" else 0.0) + 6.0
+	var l2 := 6.0 + 13.0 + maxf(_w2(p[2]), _w2(p[3])) + 6.0
+	return minf(314.0, maxf(l1, l2))
 
 
 func _badge_field(side: int) -> int:
 	var pulse: float = badge_pulse[side]
-	if pulse > 0.0:
-		match badge_line[side]:
-			0: return 1
-			1: return 3
-			9: return 2
+	if pulse > 0.0 and badge_line[side] == 1:
+		return 3
+	if pulse > 0.0 and badge_line[side] == 9:
+		return 2
 	var p := _badge_parts(side)
-	var k := 1 + int(t / 3.0) % 3
-	for i in 3:
-		if p[k] != "":
-			return k
-		k = 1 + k % 3
-	return 1
+	if p[3] == "":
+		return 2
+	return 2 if int(t / 3.0) % 2 == 0 else 3
 
 
 func _draw_badge(side: int, alpha: float) -> void:
@@ -285,22 +290,26 @@ func _draw_badge(side: int, alpha: float) -> void:
 	var y := r.position.y + 3.0
 	_text_scaled_left(font_bold, p[0], Vector2(x, y), Color(sc.lerp(Pal.INK10, pulse * 0.7), alpha), 2)
 	x += _w2(p[0]) + 8.0
+	if p[1] != "":
+		if pulse > 0.0 and badge_line[side] == 0:
+			draw_rect(Rect2(x - 3, y - 1, _w2(p[1]) + 18, 22), Color(Pal.LIFE4, 0.3 * pulse))
+		_triangle2(Vector2(x, y + 7), true, Color(Pal.LIFE4, alpha))
+		_text_scaled_left(font_bold, _fit2(p[1], r.end.x - x - 19.0), Vector2(x + 13, y), Color(Pal.LIFE4, alpha), 2)
 	var f := _badge_field(side)
-	var col: Color = [Pal.LIFE4, Pal.LIFE4, sc.lerp(Pal.INK10, 0.45), Pal.BLOOD4][f]
-	var room := r.end.x - x - 19.0
-	var txt := _fit2(p[f], room)
-	if pulse > 0.0:
-		draw_rect(Rect2(x - 3, r.position.y + 2, _w2(txt) + 18, 22), Color(col, 0.3 * pulse))
-	if f == 1:
-		_triangle2(Vector2(x, y + 7), true, Color(col, alpha))
-	elif f == 3:
-		_triangle2(Vector2(x, y + 7), false, Color(col, alpha))
+	var col: Color = sc.lerp(Pal.INK10, 0.45) if f == 2 else Pal.BLOOD4
+	var x2 := r.position.x + 6.0
+	var y2 := r.position.y + 23.0
+	var txt := _fit2(p[f], r.size.x - 25.0)
+	if pulse > 0.0 and (badge_line[side] == 9 or badge_line[side] == 1):
+		draw_rect(Rect2(x2 - 3, y2 - 1, _w2(txt) + 18, 22), Color(col, 0.3 * pulse))
+	if f == 3:
+		_triangle2(Vector2(x2, y2 + 7), false, Color(col, alpha))
 	else:
-		_tri[0] = Vector2(x + 5, y + 2); _tri[1] = Vector2(x + 10, y + 8); _tri[2] = Vector2(x + 5, y + 14)
+		_tri[0] = Vector2(x2 + 5, y2 + 2); _tri[1] = Vector2(x2 + 10, y2 + 8); _tri[2] = Vector2(x2 + 5, y2 + 14)
 		draw_colored_polygon(_tri, Color(col, alpha))
-		_tri[1] = Vector2(x, y + 8)
+		_tri[1] = Vector2(x2, y2 + 8)
 		draw_colored_polygon(_tri, Color(col, alpha))
-	_text_scaled_left(font_bold, txt, Vector2(x + 13, y), Color(col, alpha), 2)
+	_text_scaled_left(font_bold, txt, Vector2(x2 + 13, y2), Color(col, alpha), 2)
 
 
 func _fit2(t: String, w: float) -> String:
@@ -637,11 +646,11 @@ func _draw_sd_banner() -> void:
 func _draw_fading() -> void:
 	if sd_banner_t < 3.2:
 		var a := clampf(sd_banner_t / 0.3, 0.0, 1.0) * (1.0 - clampf((sd_banner_t - 2.8) / 0.4, 0.0, 1.0))
-		_text_scaled(font_serif, "The memory of this battle is fading...", Vector2(320, 52), Color(Pal.INK10, a), 2)
+		_text_scaled(font_serif, "The memory of this battle is fading...", Vector2(320, 70), Color(Pal.INK10, a), 2)
 	# readout: a fading-eye glyph and the multiplier, under the badges once the line has gone
 	if sd_banner_t < 3.2:
 		return
-	_text_scaled(font_serif, "Fading  x%.2f" % b.sd_mult, Vector2(320, 52), Pal.INK10, 2)
+	_text_scaled(font_serif, "Fading  x%.2f" % b.sd_mult, Vector2(320, 70), Pal.INK10, 2)
 
 
 # --- finish -----------------------------------------------------------------------------------------

@@ -100,6 +100,8 @@ var _sw_col := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WH
 var _sw_next := 0
 var _pp_link := PackedVector2Array()
 var _last_pop := 0
+var _pp_uid := PackedInt32Array()
+var next_uid := -1   # target uid of the next popup (same-target hits stack)
 var _sh_pos := PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 var _sh_seg := PackedInt32Array([0, 0, 0, 0])
 var _sh_col := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
@@ -144,6 +146,7 @@ func setup() -> void:
 	_pp_head.resize(MAX_POP); _pp_head_col.resize(MAX_POP); _pp_tag.resize(MAX_POP); _pp_tag_col.resize(MAX_POP)
 	_digit_buf.resize(8)
 	_pp_link.resize(MAX_POP)
+	_pp_uid.resize(MAX_POP)
 	_shield_pts.resize(6)
 	var add := CanvasItemMaterial.new()
 	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
@@ -260,6 +263,19 @@ func pillar(x: float, y: float, w: float, dur: float, col: Color) -> void:
 
 
 ## A number popup. `delay` staggers popups that land together; `scale` is a whole number.
+## Height above a popup's baseline (number + head word) and below it (tag line).
+func _pop_top(j: int) -> float:
+	return (13.0 if _pp_val[j] >= 0 else 0.0) + (10.0 if _pp_head[j] != "" else 0.0)
+
+
+func _pop_bot(tag: String) -> float:
+	return 10.0 if tag != "" else 0.0
+
+
+func _pop_hw_j(j: int) -> float:
+	return maxf(_pop_half_w(_pp_val[j], _pp_head[j]), _pop_half_w(-1, _pp_tag[j]))
+
+
 func _pop_half_w(value: int, head: String) -> float:
 	var digits := 1 if value < 10 else (2 if value < 100 else 3)
 	var nw := (digits * ADV + 2) * 0.5 if value >= 0 else 0.0
@@ -292,19 +308,32 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 			oldest = _pp_t[i]
 			best = i
 	pos = Vector2(clampf(roundf(pos.x), 186.0, 454.0), maxf(roundf(pos.y), 146.0))
-	# keep same-instant numbers (and their tags) apart sideways, never stacked into one another
-	var hw := _pop_half_w(value, head)
-	for attempt in 4:
+	# Same target: stack vertically (newest above, 3 px gap). Different targets: push apart sideways.
+	var hw := maxf(_pop_half_w(value, head), _pop_half_w(-1, tag))
+	var my_top := (13.0 if value >= 0 else 0.0) + (10.0 if head != "" else 0.0)
+	for attempt in 8:
 		var hit := -1
 		for j in MAX_POP:
-			if j != best and _pp_on[j] and absf(_pp_y[j] - pos.y) < 14.0 and absf(_pp_x[j] - pos.x) < hw + _pop_half_w(_pp_val[j], _pp_head[j]) + 2.0:
+			if j == best or not _pp_on[j]:
+				continue
+			var same := _pp_uid[j] == next_uid and next_uid >= 0
+			if same and absf(_pp_y[j] - pos.y) < _pop_top(j) + _pop_bot(tag) + 3.0:
+				hit = j
+				break
+			var ov_y := pos.y - my_top < _pp_y[j] + _pop_bot(_pp_tag[j]) + 1.0 and _pp_y[j] - _pop_top(j) < pos.y + _pop_bot(tag) + 1.0
+			if not same and ov_y and absf(_pp_x[j] - pos.x) < hw + _pop_hw_j(j) + 2.0:
 				hit = j
 				break
 		if hit < 0:
 			break
-		var need := hw + _pop_half_w(_pp_val[hit], _pp_head[hit]) + 2.0
-		pos.x = _pp_x[hit] + (need if pos.x >= _pp_x[hit] else -need)
-		pos.x = clampf(pos.x, 186.0, 454.0)
+		if _pp_uid[hit] == next_uid and next_uid >= 0:
+			pos.y = _pp_y[hit] - _pop_top(hit) - 3.0 - _pop_bot(tag)
+		else:
+			var need := hw + _pop_hw_j(hit) + 2.0
+			pos.x = clampf(_pp_x[hit] + (need if pos.x >= _pp_x[hit] else -need), 186.0, 454.0)
+	pos.y = maxf(pos.y, 120.0)   # never into the banner band
+	_pp_uid[best] = next_uid
+	next_uid = -1
 	_pp_link[best] = Vector2.ZERO
 	_pp_on[best] = true
 	_pp_small[best] = false
@@ -529,7 +558,7 @@ func _draw() -> void:
 			var n := int(a.distance_to(b) / 4.0)
 			for k in n:
 				if k % 2 == 0:
-					draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), Pal.AMBER6, 1.0)
+					draw_line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), Pal.AMBER6, 2.0)
 	for i in MAX_POP:
 		if _pp_on[i] and _pp_t[i] >= 0.0:
 			_draw_popup(i)
@@ -584,7 +613,7 @@ func _draw_popup(i: int) -> void:
 			cx += ADV * sc
 		var tag := _pp_tag[i]
 		if tag != "":
-			_text_outlined(font_small, tag, Vector2(x, y + 9), _pp_tag_col[i], true)
+			_text_outlined(font_bold, tag, Vector2(x, y + 9), _pp_tag_col[i], true)
 	var head := _pp_head[i]
 	if head != "":
 		var hy := top_y - 1.0 if val >= 0 else y

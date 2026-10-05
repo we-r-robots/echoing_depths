@@ -45,3 +45,5 @@ User requirement: fights use the spec's 2-column x 4-row grid per side with visi
 - 2026-10-05: the user upgraded to the Max plan; ~3-4 parallel agents OK. Running: formation critic r1, run-loop critic r1, party-formation builder (draft + formation setup screens), battle-scene update for the new formations.
 - 2026-10-05 user decisions for the run: floor guardians end each floor, plus rest/recovery encounters; PvP matched by floor; ~1 in 4 encounters give a hero two steering choices. Future idea: a meta-progression mechanic to influence alignment further.
 - Reference frames: for SAP team/shop comparisons use references/super_auto_pets/frames/015.png, 016.png or 024.png (clean shop screens). Never 010 or 020 (busy or transition frames).
+- 2026-10-05: the user asked for REGULAR COMMITS (commit at each milestone on branch gauntlet-build; the user pushes). Checkpoint committed after run-loop round 2 fixes (97 tests).
+- User idea queued: team name plus customisable crest (Lanternrest unlock, fits the Banner Hall in 04-meta-progression.md) and a splash screen before PvP showing both teams' names and crests. Echo snapshots will need to carry name and crest.

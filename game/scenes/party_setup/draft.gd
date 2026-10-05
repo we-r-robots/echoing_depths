@@ -81,7 +81,7 @@ func _build() -> void:
 		c.set_base_y(38)
 		c.setup({"name": o["name"], "class": o["class"], "alignment": o["alignment"]}, cw, 290, i * 4)
 		c.tapped.connect(toggle.bind(i))
-		_portraits.append(load(String(EncounterDB.class_info(String(o["class"]))["portrait"])))
+		_portraits.append(SpritePortrait.for_class(String(o["class"]), 20))
 		_cards.append(c)
 	_go = Button.new()
 	_go.text = "Set out"
@@ -188,7 +188,8 @@ func _draw() -> void:
 		px -= 25
 		PartyDraw.inset(self, r)
 		if k < picks.size():
-			draw_texture(_portraits[picks[k]], r.position + Vector2(-1, -1))
+			if _portraits[picks[k]] != null:
+				draw_texture(_portraits[picks[k]], r.position + Vector2(1, 1))
 			PartyDraw.soft_outline(self, r, Pal.AMBER5)
 		else:
 			PartyDraw.dashed_outline(self, r, Pal.INK5)

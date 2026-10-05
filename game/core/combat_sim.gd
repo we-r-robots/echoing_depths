@@ -954,7 +954,8 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 		var gain := int(round(float(dealt) * 100.0 / float(dst.max_hp) * dst.charge_on_hit * dst.charge_mult))
 		_gain_charge(dst, gain, "hit", t)
 	for sh: Array in shares:
-		_side_hit(src, sh[0], int(sh[1]), "magic" if magic else "physical", String(sh[2]), float(sh[3]), t, aid)
+		_side_hit(src, sh[0], int(sh[1]), "magic" if magic else "physical", String(sh[2]), float(sh[3]), t, aid,
+			not magic and src.col == 1)
 	# Kindred shoulder to shoulder / Vigil covering fire react to melee hits
 	if _cur_melee and src.side != dst.side:
 		var bid := bd
@@ -972,15 +973,19 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 
 
 ## Damage passed on by Brace / Share the blow: a plain number on the neighbour, tagged with its cause.
-func _side_hit(src: Unit, dst: Unit, amount: int, kind: String, id: String, share: float, t: int, aid: String) -> void:
+func _side_hit(src: Unit, dst: Unit, amount: int, kind: String, id: String, share: float, t: int, aid: String,
+		back_attacker: bool) -> void:
 	if not dst.alive:
 		return
 	var dealt := mini(amount, dst.hp)
 	dst.hp -= dealt
 	if _log:
 		var m := {"id": id, "mult": share}
+		var mods: Array = [m]
+		if back_attacker:   # the share comes out of a hit that was already halved at the source
+			mods.append({"id": "back_row_attacker", "mult": _k_brm})
 		_emit(t, {"type": "damage", "src": src.uid, "dst": dst.uid, "amount": amount, "kind": kind, "crit": false,
-			"mods": [m], "primary": m.duplicate(), "hp": dst.hp, "action": aid})
+			"mods": mods, "primary": m.duplicate(), "hp": dst.hp, "action": aid})
 	if dst.hp <= 0:
 		_ko(dst, src.uid, t)
 	elif dealt > 0:
