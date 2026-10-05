@@ -32,6 +32,15 @@ func setup(a: Dictionary) -> void:
 	bg.texture = load(dir + a.get("bg", "bg.png"))
 	bg.position = _offset
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# wide screens (19.5:9): the backdrop continues past the painting's left edge as its own mirror
+	# image, a little darker, so the wall and floor reach the screen edge with no hard cut
+	var wing := TextureRect.new()
+	wing.texture = bg.texture
+	wing.flip_h = true
+	wing.position = _offset - Vector2(bg.texture.get_width(), 0)
+	wing.modulate = Color(0.72, 0.72, 0.8)
+	wing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(wing)
 	add_child(bg)
 	for l in a.get("layers", []):
 		var node := TextureRect.new()

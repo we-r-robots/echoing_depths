@@ -102,8 +102,9 @@ func open(c: Control, pin: bool) -> void:
 		x = a.position.x - w - 6 if place == "left" else a.end.x + 6
 		x = clampf(x, x0, x1 - w)
 	if use_zone:
+		# top of the free zone when it fits, else grown upward from its foot
 		x = roundf(Tip.zone.position.x + (Tip.zone.size.x - w) / 2.0)
-		y = Tip.zone.end.y - h
+		y = Tip.zone.position.y if h <= Tip.zone.size.y else maxf(4.0, Tip.zone.end.y - h)
 	_rect = Rect2(x, y, w, h)
 	_shown = true
 	queue_redraw()

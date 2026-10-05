@@ -209,6 +209,53 @@ static func ability_of(class_id: String) -> Dictionary:
 	return a
 
 
+## A label of 20 characters or fewer for an ability (BUILD.md: effects are icons; the full sentence
+## from ability_desc lives in the shared tooltip).
+const SHORT_TARGET := {
+	"melee": "front foe", "lowest_hp_enemy": "weakest foe", "lowest_hp_ally": "weakest ally",
+	"all_enemies": "every foe", "all_allies": "every ally", "random_enemy": "random foe",
+	"back_first": "back row", "self": "self", "primary_adjacent": "sides", "front_random": "front foes",
+	"other_enemies": "all foes", "all_enemies_rest": "all foes", "melee_enemy": "front foe",
+	"primary_column_rest": "column",
+}
+
+
+static func ability_short(a: Dictionary) -> String:
+	var effs: Array = a.get("effects", [])
+	if effs.is_empty():
+		return String(a.get("name", ""))
+	var tgt := String(SHORT_TARGET.get(String(a.get("target", "")), "a foe"))
+	var e0: Dictionary = effs[0]
+	var s := ""
+	if String(e0.get("op", "")) == "heal":
+		s = "Heals " + tgt
+	elif e0.has("drain"):
+		s = "Drains " + tgt
+	else:
+		s = "Hits " + tgt
+	if int(e0.get("hits", 1)) > 1:
+		s += " x%d" % int(e0["hits"])
+	if effs.size() > 1 and String((effs[1] as Dictionary).get("op", "")) in ["damage", "heal"]:
+		var e1: Dictionary = effs[1]
+		var to := String(e1.get("to", "primary"))
+		var extra := String(SHORT_TARGET.get(to, ""))
+		var verb := "heal" if String(e1.get("op", "")) == "heal" else "hit"
+		var first_heal := String(e0.get("op", "")) == "heal"
+		if first_heal and verb == "hit":
+			s = "Heal %s + hit foe" % ("all" if String(a.get("target", "")) == "all_allies" else "ally")
+		elif not first_heal and verb == "heal" and String(e1.get("op", "")) == "heal":
+			s = "Hit foe + heal ally"
+		elif verb == "hit" and extra != "" and (tgt + " + " + extra).length() <= 20:
+			s = tgt.substr(0, 1).to_upper() + tgt.substr(1) + " + " + extra
+		elif extra != "" and (s + " + " + extra).length() <= 20:
+			s += " + " + extra
+		elif (s + ", then " + verb).length() <= 20:
+			s += ", then " + verb
+	if s.length() > 20:
+		s = s.substr(0, 19) + "\u2026"
+	return s
+
+
 ## One-line description generated from an action's effects.
 static func ability_desc(a: Dictionary) -> String:
 	var tgt := String(TARGET_WORDS.get(String(a.get("target", "")), "a foe"))

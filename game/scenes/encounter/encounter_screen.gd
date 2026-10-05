@@ -55,8 +55,12 @@ func _ready() -> void:
 		encounter_id = meta.get("encounter", "weeping_colossus")
 		_auto_choice = meta.get("demo_auto_choice", "")
 		_auto_frame = int(meta.get("demo_auto_frame", 240))
-		# capture override: ENCOUNTER_DEMO=<encounter_id>[:<choice_id>]
+		# capture override: --encounter=<encounter_id>[:<choice_id>] (a scene arg, which reaches the
+		# game however it is launched), or the env var ENCOUNTER_DEMO with the same value
 		var env := OS.get_environment("ENCOUNTER_DEMO")
+		for arg in OS.get_cmdline_user_args():
+			if arg.begins_with("--encounter="):
+				env = arg.trim_prefix("--encounter=")
 		if env != "":
 			var parts := env.split(":")
 			encounter_id = parts[0]
@@ -196,26 +200,38 @@ func _text_height(bb: String) -> int:
 	return ceili(lines * UIText.line_h(font, UIText.BODY))
 
 
-## "Alignment: [solid] now  [ring] after", so the grid markers on every row read without a tutorial.
+## "[solid] now  [ring] after  [glyph] Awakens", so the grid markers and the awaken glyph on every
+## row read without a tutorial (said once here, not on each row).
+const AWAKEN_ICON := preload("res://ui/icons/arrow2_up.png")
+
+
 func _make_legend() -> Control:
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	c.custom_minimum_size = Vector2(118, 10)
 	var font: Font = UIText.BOLD
+	var any_awaken := false
+	for btn: EncounterChoiceButton in _buttons:
+		any_awaken = any_awaken or btn.awakens
+	var w := 8.0 + UIText.width("now", font, UIText.LABEL) + 6.0 + 10.0 + UIText.width("after", font, UIText.LABEL)
+	if any_awaken:
+		w += 10.0 + 9.0 + UIText.width("ready to Awaken", font, UIText.LABEL)
+	c.custom_minimum_size = Vector2(ceilf(w), 10)
 	c.draw.connect(func() -> void:
 		var x := 0.0
-		UIText.draw_base(c, Vector2(x, 8), "Grid:", Pal.INK8, font, UIText.LABEL, false)
-		x += UIText.width("Grid:", font, UIText.LABEL) + 5
 		c.draw_rect(Rect2(x, 2, 5, 5), Pal.INK9)
 		x += 8
-		UIText.draw_base(c, Vector2(x, 8), "now", Pal.INK10, font, UIText.LABEL, false)
+		UIText.draw_base(c, Vector2(x, 8), "now", Pal.INK9, font, UIText.LABEL, false)
 		x += UIText.width("now", font, UIText.LABEL) + 6
 		var r := Rect2(x, 1, 7, 7)
 		for e in [Rect2(r.position, Vector2(7, 1)), Rect2(r.position + Vector2(0, 6), Vector2(7, 1)), Rect2(r.position, Vector2(1, 7)), Rect2(r.position + Vector2(6, 0), Vector2(1, 7))]:
 			c.draw_rect(e, Pal.INK10)
 		x += 10
-		UIText.draw_base(c, Vector2(x, 8), "after this choice", Pal.INK10, font, UIText.LABEL, false))
-	c.custom_minimum_size.x = 30 + 8 + 22 + 10 + 96
+		UIText.draw_base(c, Vector2(x, 8), "after", Pal.INK9, font, UIText.LABEL, false)
+		if any_awaken:
+			x += UIText.width("after", font, UIText.LABEL) + 10
+			c.draw_texture(AWAKEN_ICON, Vector2(x, 0), Pal.AMBER6)
+			x += 9
+			UIText.draw_base(c, Vector2(x, 8), "ready to Awaken", Pal.INK9, font, UIText.LABEL, false))
 	return c
 
 

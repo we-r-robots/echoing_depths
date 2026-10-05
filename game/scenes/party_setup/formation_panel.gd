@@ -45,12 +45,14 @@ func _ready() -> void:
 
 
 ## Details (BUILD.md: the one exemption from effects-as-icons): every effect's full sentence with
-## its icon, plus the growth path, in the shared tooltip box beside the card. The card's rows stay.
+## its icon, plus the growth path, in the shared tooltip box in the card's own empty lower half (it
+## grows up over the card's rows if it must), so it never covers the board's heroes or name plates.
 func toggle_details() -> void:
 	details = not details
 	Tip.close()
 	if details:
-		Tip.attach(_details_btn, _details_title(), "", Pal.AMBER5, "left", {"entries": _details_entries(), "width": 300, "wire": false})
+		Tip.set_zone(free_zone())
+		Tip.attach(_details_btn, _details_title(), "", Pal.AMBER5, "zone", {"entries": _details_entries(), "wire": false})
 		Tip.show_for(_details_btn)
 	_details_btn.text = "Close" if details else "Details"
 	queue_redraw()
@@ -194,7 +196,10 @@ func _rebuild_chips() -> void:
 			var chip := EffectChip.new()
 			add_child(chip)
 			chip.position = Vector2(10, y)
-			chip.setup(e, "left", W - 40)   # the tooltip opens beside its row, pointing at it
+			# the tooltip opens beside its row, pointing at it; the locked row's long list opens in
+			# the card's free lower half instead, clear of the board's name plates
+			chip.label_size = UIText.HEADING
+			chip.setup(e, "zone" if bool(e.get("_locked", false)) else "left", W - 40)
 			chip.locked = bool(e.get("_locked", false))
 			_chips.append(chip)
 			y += ROW
@@ -212,7 +217,7 @@ func _locked_row() -> Dictionary:
 		n += 1
 		lines.append(String(e["text"]))
 	return {"icon": preload("res://ui/effect_icons/lock.png"), "sign": 0, "kind": "note", "_locked": true,
-		"title": "%s: %d locked" % [shape["name"], n], "name": "%s (locked)" % shape["name"],
+		"title": "%d locked effects" % n, "name": "%s (locked)" % shape["name"],
 		"text": "Once unlocked at the Training Grounds: " + " ".join(lines)}
 
 
@@ -222,7 +227,18 @@ func open_tip(k: int) -> void:
 		Tip.show_for(_chips[k])
 
 
+## The card's empty lower half (global rect): under the rows and the growth block, above the buttons.
+func free_zone() -> Rect2:
+	var top := float(_growth_y)
+	if String(_ev.get("state", "")) == "active" and top > 0.0 and H - 34 - top >= 40:
+		top += 44.0   # the growth block
+	top = clampf(top, 66.0, H - 34.0 - 40.0)
+	var r := Rect2(4, top, W - 8, H - 34 - 4 - top)
+	return get_global_transform() * r
+
+
 func _process(delta: float) -> void:
+	Tip.set_zone(free_zone())
 	if details and not Tip.is_open_for(_details_btn):
 		details = false
 		_details_btn.text = "Details"

@@ -82,7 +82,9 @@ fi
 if want encounter; then
   echo "encounter"
   group encounter res://scenes/encounter/encounter.tscn "colossus_choices:150 colossus_resolved:480"
-  ENC=hollow_hound group encounter res://scenes/encounter/encounter.tscn "hound_choices:150 hound_resolved:480"
+  # (a scene arg, not the ENCOUNTER_DEMO env var: on Hyprland godot_run.sh launches through hyprctl,
+  # which doesn't pass the environment, so round 2's hound captures were the colossus)
+  group encounter res://scenes/encounter/encounter.tscn "hound_choices:150 hound_resolved:480" --encounter=hollow_hound:name_it
 fi
 
 if want hero_detail; then

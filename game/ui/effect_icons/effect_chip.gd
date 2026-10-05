@@ -12,6 +12,7 @@ const LOCK := preload("res://ui/effect_icons/lock.png")
 
 var effect: Dictionary = {}
 var label_w := 0
+var label_size := UIText.LABEL   # one step up (UIText.HEADING) where the row is the screen's main read
 var locked := false:
 	set(v): locked = v; queue_redraw()
 
@@ -49,9 +50,12 @@ func _draw() -> void:
 		# one body size (bold), neutral text: colour lives in the icon and its arrow
 		var c := Pal.INK10 if not locked else Pal.FADE4
 		var t := String(effect.get("title", ""))
-		var ty := UIText.centered_y(0, EffectIcons.CHIP, UIText.BOLD, UIText.LABEL)
-		UIText.draw(self, Vector2(EffectIcons.CHIP + 6, ty), t, c, UIText.BOLD, UIText.LABEL)
+		var ls := label_size
+		if UIText.width(t, UIText.BOLD, ls) > label_w - 10:
+			ls = UIText.LABEL
+		var ty := UIText.centered_y(0, EffectIcons.CHIP, UIText.BOLD, ls)
+		UIText.draw(self, Vector2(EffectIcons.CHIP + 6, ty), t, c, UIText.BOLD, ls)
 		if locked and effect.get("icon") != LOCK:
-			var x := EffectIcons.CHIP + 10 + UIText.width(t, UIText.BOLD, UIText.LABEL)
+			var x := EffectIcons.CHIP + 10 + UIText.width(t, UIText.BOLD, ls)
 			draw_texture(LOCK, Vector2(x, 7) + Vector2(1, 1), Pal.INK1)
 			draw_texture(LOCK, Vector2(x, 7), Pal.FADE3)

@@ -1,13 +1,13 @@
 class_name EncounterChoiceButton
 extends Button
-## One encounter choice, readable without hover:
-##   line 1  [Hero] action
-##   line 2  memory gem +1 Memory  Lv 2>3   [Awakens] [+ Tamsin joins]
+## One encounter choice, readable without hover (one focus per row, then two quiet lines):
+##   line 1  the action (serif, one size up)
+##   line 2  Hero  memory gem Lv 2>3 [awaken glyph] [+ Tamsin joins]
 ##   line 3  arrow  Cruelty +1, Freedom +1   * Strong shift
 ## Right: the hero's alignment grid, solid cell = now, white ring = after this choice.
 ## Strong-shift rows use the same plate (so they never look selected) with gold studs and a glint.
 
-const H := 46
+const H := 50
 
 var choice: Dictionary
 var hero: Dictionary
@@ -54,30 +54,40 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	badge.position = Vector2(27, py + 21)
 	_ignore(badge)
 
-	# line 1: the hero's name in their class colour, then the action
-	var l1 := _row(Vector2(42, 4), 6)
-	var who := Label.new()
-	who.theme_type_variation = &"GoldLabel"
-	who.text = String(h["name"])
-	who.add_theme_color_override("font_color", UIText.legible(cc))
-	l1.add_child(who)
+	# line 1, the focus: the action itself, one size step up (serif), in one colour
 	var what := Label.new()
-	what.theme_type_variation = &"GoldLabel"
 	what.text = c.get("label", "")
+	# (a label too long for the room beside the grid drops to the bold body face, never clipped)
+	var room := width - 42 - (7 * 5 + 6 + 4) - 14
+	if UIText.width(what.text, UIText.SERIF, UIText.HEADING) <= room:
+		what.add_theme_font_override("font", UIText.SERIF)
+		what.add_theme_font_size_override("font_size", UIText.HEADING)
+	else:
+		what.theme_type_variation = &"GoldLabel"
+		what.position.y = 6
 	what.add_theme_color_override("font_color", Pal.INK10)
-	l1.add_child(what)
+	if what.position.y == 0:
+		what.position.y = 3
+	what.position.x = 42
+	_ignore(what)
 
-	# line 2: memory and what it does to the hero (bold, bright: these are the stakes)
-	var l2 := _row(Vector2(42, 17), 3)
+	# line 2, quiet: who grows (class colour) and the memory it gives; "ready to Awaken" is one
+	# amber glyph on the new level (the legend above the rows says it once)
+	var l2 := _row(Vector2(42, 24), 3)
+	var who := _label(String(h["name"]), cc, true)
+	l2.add_child(who)
+	l2.add_child(_spacer(2))
 	l2.add_child(_icon("res://ui/icons/memory_gem.png", Color.WHITE, 1))
-	l2.add_child(_label("+1 Memory", Pal.CRYSTAL5, true))
-	l2.add_child(_label("Lv %d \u2192 %d" % [lv, lv + 1], Pal.INK10, true))
+	l2.add_child(_label("Lv %d \u2192 %d" % [lv, lv + 1], Pal.INK9, true))
 	if awakens:
-		l2.add_child(_spacer(4))   # lead space before the tag (critic r1: it jammed into the "3")
-		l2.add_child(_pill("Ready to Awaken", Pal.AMBER6, Pal.AMBER3))
+		l2.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
+	if c.has("recruit"):
+		l2.add_child(_spacer(4))
+		l2.add_child(_label("+ %s joins" % c["recruit"]["name"], Pal.LIFE4, true))
 
-	# line 3: the move the hero actually makes (edge-clamped), always with a number
-	var l3 := _row(Vector2(42, 29), 3)
+	# line 3, quiet: the move the hero actually makes (edge-clamped), always with a number; colour
+	# only in the arrow glyph (and the gold star of a strong shift)
+	var l3 := _row(Vector2(42, 36), 3)
 	var eff := EncounterDB.effective_shift(h["pos"], c)
 	if eff == Vector2i.ZERO:
 		l3.add_child(_label("No move: at the grid's edge", Pal.INK8, true))
@@ -85,21 +95,19 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 		var words := EncounterDB.shift_words(eff)
 		var arrow_col := Pal.c(words[0]["color"]) if words.size() == 1 else Pal.INK10
 		l3.add_child(_icon(EncounterDB.arrow_icon(eff), arrow_col, 2))
-		for i in words.size():
-			var w: Dictionary = words[i]
-			var t := "%s +%d" % [w["word"], w["amount"]]
-			l3.add_child(_label(t, Pal.c(w["color"]), true))
+		var parts: PackedStringArray = []
+		for w: Dictionary in words:
+			parts.append("%s +%d" % [w["word"], w["amount"]])
+		l3.add_child(_label(", ".join(parts), Pal.INK9, true))
 	if eff != s:
 		l3.add_child(_label("(capped at edge)", Pal.INK8))
 	elif strong:
+		l3.add_child(_spacer(3))
 		l3.add_child(_icon("res://ui/icons/star.png", Pal.AMBER6, 2))
 		l3.add_child(_label("Strong shift", Pal.AMBER6, true))
-	if c.has("recruit"):
-		l3.add_child(_spacer(2))
-		l3.add_child(_pill("+ %s joins" % c["recruit"]["name"], Pal.LIFE4, Pal.LIFE2))
 
 	grid = AlignGrid.new()
-	grid.cell = 5
+	grid.cell = 7
 	grid.gap = 1
 	grid.dot_color = cc
 	grid.from_pos = h["pos"]

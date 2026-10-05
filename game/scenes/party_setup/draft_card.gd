@@ -28,7 +28,14 @@ var _flash := 0.0
 var _motes: Array = []
 var _rows: Array = []
 
-const ACTION_Y := [226, 257]
+const NAME_Y := 150
+const NAME_SIZE := 20               # serif, one size step above the card's other text
+const CLASS_Y := 179
+const STATS_Y := 197
+## Tooltip rows: [basic, ability] (the ability reads first, the basic attack is one quiet line).
+const ROW_RECT := [Rect2(4, 268, 0, 16), Rect2(4, 228, 0, 36)]
+var _class_tip: Control
+var _tag_tip: Control
 ## One short plain line per base action, and the full plain sentence for its tooltip.
 const ACTION_SHORT := {
 	"strike": "Hits the front foe", "stab": "A quick hit, front foe", "smite": "Holy hit, front foe",
@@ -93,11 +100,28 @@ func setup(hd: Dictionary, width: int, height: int, phase := 0) -> void:
 		# feet (origin 32,60 at 1x) on the stage floor, centred, at 3x
 		_sprite.position = Vector2(roundi(_clip.size.x / 2.0) - 96, _clip.size.y - 8 - 180)
 	var cdef := GameData.get_class_def(base)
+	# the class line and the class glyph on the stage: where the class fights and its starting
+	# alignment (hit areas at least 16 design px = 48 screen px at 1080p)
+	var pref := "the front row" if int(cdef.get("preferred_col", 0)) == 0 else "the back row"
+	var ctext := "Fights best from %s. Starts at %s on the alignment grid; your choices move it." % [
+		pref, _align_words(hd.get("alignment", [0, 0]))]
+	var ccol := Pal.c(info["color"])
+	_class_tip = Control.new()
+	_class_tip.position = Vector2(4, CLASS_Y - 2)
+	_class_tip.size = Vector2(w - 8, 16)
+	add_child(_class_tip)
+	Tip.attach(_class_tip, PartyModel.class_name_of(base), ctext, ccol)
+	_tag_tip = Control.new()
+	_tag_tip.position = Vector2(_stage().position.x + 1, _stage().position.y + 1)
+	_tag_tip.size = Vector2(18, 18)
+	add_child(_tag_tip)
+	Tip.attach(_tag_tip, PartyModel.class_name_of(base), ctext, ccol)
 	for k in 2:
 		var aid := String(cdef.get("basic" if k == 0 else "ability", ""))
 		var row := Control.new()
-		row.position = Vector2(4, ACTION_Y[k] - 1)
-		row.size = Vector2(w - 8, 29)
+		var rr: Rect2 = ROW_RECT[k]
+		row.position = rr.position
+		row.size = Vector2(w - 8, rr.size.y)
 		add_child(row)
 		_rows.append(row)
 		Tip.attach(row, String(GameData.get_action(aid).get("name", aid)), action_full(aid), Pal.c(info["color"]) if k == 1 else Pal.INK9)
@@ -109,7 +133,7 @@ func set_pick(p: int, dim: bool) -> void:
 		_flash = 1.0
 	pick = p
 	dimmed = dim
-	var m := Color(0.5, 0.5, 0.6) if dim else Color.WHITE
+	var m := Color(0.62, 0.62, 0.72) if dim else Color.WHITE   # only the portrait dims; the text stays readable
 	_clip.modulate = m
 	queue_redraw()
 
@@ -149,54 +173,54 @@ func _draw() -> void:
 		return
 	var cc := Pal.c(info["color"])
 	var r := Rect2(0, 0, w, h)
-	PartyDraw.panel(self, r, 0, &"PanelContainer" if not dimmed else &"DimPanel")
+	PartyDraw.panel(self, r, 0, &"PanelContainer")
 	_draw_stage(cc)
 	var cls := PartyModel.class_name_of(String(hero["class"]))
 	var cdef := GameData.get_class_def(String(hero["class"]))
-	# the hero: name, class, where they fight
-	BigText.draw(self, Vector2(8, 150), String(hero.get("name", "?")), Pal.AMBER6 if not dimmed else Pal.INK8)
-	PartyDraw.tint_tex(self, PartyDraw.icon(info["icon"]), Vector2(8, 170), cc)
-	PartyDraw.text(self, Vector2(18, 168), cls, cc, PartyDraw.BOLD)
-	var pref := "front" if int(cdef.get("preferred_col", 0)) == 0 else "back"
-	PartyDraw.text(self, Vector2(0, 168), pref, Pal.INK8, PartyDraw.BOLD, UIText.BODY, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
-	# fixed starting alignment, one line (explained once, in the bar below)
+	# one focus: the hero's name, one size step above everything else on the card
+	PartyDraw.text(self, Vector2(8, NAME_Y), String(hero.get("name", "?")), Pal.AMBER6 if not dimmed else Pal.INK9, PartyDraw.SERIF, NAME_SIZE)
+	# class (its colour) and starting alignment (neutral) on one quiet line; where the class fights
+	# and what the alignment means live in this line's tooltip
+	var ly := CLASS_Y
+	if _class_tip != null and Tip.is_open_for(_class_tip):
+		draw_rect(Rect2(4, ly - 2, w - 8, 15), Pal.INK3)
+	PartyDraw.tint_tex(self, PartyDraw.icon(info["icon"]), Vector2(8, ly + 2), cc)
+	PartyDraw.text(self, Vector2(18, ly), cls, cc, PartyDraw.BOLD)
 	var a: Array = hero.get("alignment", [0, 0])
-	# start marker (same ring as the alignment grid's start) + the position in words
-	PartyDraw.tint_tex(self, START, Vector2(8, 183), Pal.AMBER5)
-	PartyDraw.text(self, Vector2(19, 181), _align_words(a), Pal.INK10 if not dimmed else Pal.INK8, PartyDraw.BOLD)
-	# stats, labelled
+	var aw := _align_words(a)
+	var ax := w - 8 - PartyDraw.text_w(aw, PartyDraw.BOLD)
+	PartyDraw.tint_tex(self, START, Vector2(ax - 11, ly + 2), Pal.INK8)
+	PartyDraw.text(self, Vector2(ax, ly), aw, Pal.INK9, PartyDraw.BOLD)
+	# stats: muted labels, bright values
 	var st := PartyModel.stats({"class": hero["class"], "level": 1, "items": {}})
-	var sy := 195
+	var sy := STATS_Y
 	var cw := floori((w - 16) / 5.0)
 	var sx := 8
-	for s: String in ["hp", "atk", "def", "mag", "spd"]:
+	for sname: String in ["hp", "atk", "def", "mag", "spd"]:
 		var well := Rect2(sx, sy, cw - 2, 24)
 		PartyDraw.inset(self, well)
-		draw_rect(Rect2(well.position.x + 1, well.position.y, well.size.x - 2, 1), STAT_COLORS[s])
-		# neutral label; the stat's colour lives in the well's top rule (fewer colours per card)
-		PartyDraw.text(self, Vector2(sx, sy + 1), PartyModel.STAT_LABELS[s], Pal.INK8, PartyDraw.BOLD, UIText.BODY, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
-		PartyDraw.text(self, Vector2(sx, sy + 12), str(st[s]), Pal.INK10, PartyDraw.BOLD, UIText.BODY, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
+		draw_rect(Rect2(well.position.x + 1, well.position.y, well.size.x - 2, 1), STAT_COLORS[sname])
+		PartyDraw.text(self, Vector2(sx, sy + 1), PartyModel.STAT_LABELS[sname], Pal.INK8, PartyDraw.BOLD, UIText.BODY, false, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
+		PartyDraw.text(self, Vector2(sx, sy + 12), str(st[sname]), Pal.INK10, PartyDraw.BOLD, UIText.BODY, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
 		sx += cw
-	# one line each: basic, ability
+	# the ability (its name and one short line), then the basic attack as one quiet line; the full
+	# sentences are in each row's tooltip
 	for k in 2:
 		var aid := String(cdef.get("basic" if k == 0 else "ability", ""))
 		var act := GameData.get_action(aid)
-		var y: int = ACTION_Y[k]
+		var rr: Rect2 = ROW_RECT[k]
+		rr.size.x = w - 8
 		var lit := k < _rows.size() and Tip.is_open_for(_rows[k])
 		if lit:
-			draw_rect(Rect2(4, y - 1, w - 8, 29), Pal.INK3)
-		var lab := "BASIC" if k == 0 else "ABILITY"
-		PartyDraw.text(self, Vector2(0, y + 3), lab, Pal.INK8, PartyDraw.BOLD, UIText.BODY, false, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
-		var nx := 8
+			draw_rect(rr, Pal.INK3)
+		var y := rr.position.y + 2
 		if k == 1:
 			PartyDraw.tint_tex(self, ABILITY, Vector2(8, y + 5), cc)
-			nx = 18
-		BigText.draw(self, Vector2(nx, y), String(act.get("name", aid)), Pal.INK10 if not dimmed else Pal.INK8)
-		PartyDraw.text(self, Vector2(8, y + 16), action_short(aid), Pal.INK9 if not dimmed else Pal.INK8, PartyDraw.BOLD)
-	if dimmed:
-		var d := Pal.INK1
-		d.a = 0.12   # dim, but its text stays above 4.5:1
-		draw_rect(r.grow(-2), d)
+			BigText.draw(self, Vector2(18, y), String(act.get("name", aid)), Pal.INK10)
+			PartyDraw.text(self, Vector2(8, y + 17), action_short(aid), Pal.INK9, PartyDraw.BOLD)
+		else:
+			draw_rect(Rect2(8, rr.position.y - 3, w - 16, 1), Pal.INK3)
+			PartyDraw.text(self, Vector2(8, y), "Basic: %s" % String(act.get("name", aid)), Pal.INK9, PartyDraw.BOLD)
 	if pick > 0:
 		PartyDraw.soft_outline(self, r, Pal.AMBER5)
 		PartyDraw.soft_outline(self, r.grow(-1), Pal.AMBER3)

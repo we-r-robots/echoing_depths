@@ -43,17 +43,17 @@ func _draw() -> void:
 		var x := gx + (gs - w) / 2
 		PartyDraw.tint_tex(self, pair[2], Vector2(x, pair[1] + 1), col)
 		PartyDraw.text(self, Vector2(x + 10, pair[1]), word, col, f)
-	# Order (left) / Freedom (right): set on their side, rotated a quarter turn (reading up on the
-	# left, down on the right), arrow first, centred on the grid
-	for pair in [[1, -PI / 2.0], [-1, PI / 2.0]]:
-		var word := PartyModel.axis_word("law", pair[0]).to_upper()
-		var col := PartyModel.axis_color("law", pair[0])
-		var w := PartyDraw.text_w(word, f) + 10
-		var rot: float = pair[1]
-		var cy := gy + gs / 2.0
-		var org := Vector2(gx - 13, roundf(cy + w / 2.0)) if rot < 0.0 else Vector2(gx + gs + 13, roundf(cy - w / 2.0))
-		draw_set_transform(org, rot)
-		# an up arrow turns to point left on the left side and right on the right side
-		PartyDraw.tint_tex(self, up, Vector2(0, 1), col, false)
-		PartyDraw.text(self, Vector2(10, 0), word, col, f, PartyDraw.SANS_SIZE, false)
-		draw_set_transform(Vector2.ZERO)
+	# Order (left) / Freedom (right): horizontal, under the grid's left and right edges with an
+	# arrow pointing out to their side (critic r2: rotated words were slow to read on a phone)
+	var lf: Texture2D = preload("res://ui/icons/arrow_left.png")
+	var rt: Texture2D = preload("res://ui/icons/arrow_right.png")
+	var by := gy + gs + 3
+	var wl := PartyModel.axis_word("law", 1).to_upper()
+	var cl := PartyModel.axis_color("law", 1)
+	PartyDraw.tint_tex(self, lf, Vector2(gx, by + 1), cl)
+	PartyDraw.text(self, Vector2(gx + 10, by), wl, cl, f)
+	var wr := PartyModel.axis_word("law", -1).to_upper()
+	var cr := PartyModel.axis_color("law", -1)
+	var rx := gx + gs - 10 - PartyDraw.text_w(wr, f)
+	PartyDraw.text(self, Vector2(rx, by), wr, cr, f)
+	PartyDraw.tint_tex(self, rt, Vector2(gx + gs - 8, by + 1), cr)

@@ -147,7 +147,7 @@ func _draw_advance(r: Rect2) -> void:
 	var x := r.position.x + 5
 	var y := r.position.y
 	PartyDraw.text(self, Vector2(x, y + 2), "ADVANCE", Pal.AMBER6 if lit else Pal.AMBER5, PartyDraw.BOLD)
-	var lv := "Lv %d \u2192 1" % int(hero.get("level", 1))
+	var lv := "new class from Lv 1"   # (critic r2: "Lv 4 → 1" read like a loss)
 	PartyDraw.text(self, Vector2(r.position.x, y + 2), lv, Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, r.size.x - 6, HORIZONTAL_ALIGNMENT_RIGHT)
 	var adv := PartyModel.advanced_copy(hero)
 	var id := String(adv["class"])
