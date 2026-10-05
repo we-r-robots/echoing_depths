@@ -54,3 +54,8 @@ Finer text takes less screen space at the same readability, which attacks all of
   - **Critic:** a separate harsh critic with fresh context judges it blind against Sea of Stars' menus (references/sea_of_stars/frames_footage2/, via `tools/fetch_references.sh`) and Super Auto Pets' shop frames 015/016, using `tools/blind_pair.py`. The critic must not read captures/.keys/.
   - **Pass condition:** ours wins most pairs, including at least one Sea of Stars pair, readability holds on phone-sized frames, and no rule regresses. Loop builder and critic until the critic picks ours.
 - **Commits and push:** commit at each milestone (tests green) with the repo's usual co-author trailer, and push to `gauntlet-build` on GitHub. Append a short status line to docs/RESUME.md and to progress/state.json's log (`python3 progress/log.py "<msg>"`).
+
+## Reference update (2026-10-05, user-approved, from critic round 5)
+The three Sea of Stars frames used in rounds 1–4 were a shop list, a sell pop-up and an equipment list, so the pairs measured density more than quality. From round 5 the blind pairs use references/menus/picked/ (on the `refs` branch; sources in references/menus/README.md), matched to what each screen must carry:
+draft vs Sea of Stars party menu and Final Fantasy VI party menu; hero detail vs Sea of Stars equipment (Valere) and Octopath Traveler status; encounter vs Slay the Spire's "Big Fish" event (the user's StS bar for encounter screens); setup vs Super Auto Pets 015/016 (2340x1080 framing).
+**Pass:** ours wins a majority of the 7 pairs, including at least one Sea of Stars pair, plus an open-review PASS.

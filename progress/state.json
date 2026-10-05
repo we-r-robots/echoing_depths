@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 18:14",
+  "updated": "2026-10-05 18:40",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -737,6 +737,10 @@
     {
       "t": "18:39",
       "msg": "hires-ui round-5 build: Lanternrest tiles, splash hint contrast, fragment banner own slot, pane/pips/encounter/results/wrap/draft/crit fixes; captures r5 ready for critic round 5"
+    },
+    {
+      "t": "18:40",
+      "msg": "hires-ui round 5 built (51bd7b2, 152 tests). New fairer references (SoS party/equip, FF6 party, Octopath status, StS event). Critic round 5 started: 7 pairs."
     }
   ],
   "questions": [
