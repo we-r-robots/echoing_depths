@@ -290,10 +290,10 @@ func move_hero(i: int, c: Variant) -> void:
 		if k != i and placement[k] is Array and not (before[k] is Array):
 			_pos[k] = _bench_rect(maxi(0, int(bench_before[k]))).get_center()
 	var ev := FormationWords.evaluate(placed_cells(), unlocked)
-	var sid := String(ev["shape"].get("id", ""))
-	if sid != _last_shape and sid != "" and sid != "strays":
+	var sid := String(ev["effective"].get("id", ""))
+	if sid != _last_shape and not (ev["sub_cells"] as Array).is_empty():
 		_flash = 1.0
-		_flash_cells = placed_cells()
+		_flash_cells = (ev["sub_cells"] as Array).duplicate(true)
 	toast = _toast_for(ev)
 	toast_t = 2.2
 	_last_shape = sid
@@ -301,18 +301,18 @@ func move_hero(i: int, c: Variant) -> void:
 
 
 static func _toast_for(ev: Dictionary) -> String:
-	var shape: Dictionary = ev["shape"]
-	if shape.is_empty():
-		return ""
-	if String(shape["id"]) == "strays":
-		return "Strays"
-	if ev["locked"]:
-		return ""   # the persistent unlock line below says it
-	return "%s formed" % shape["name"]
+	match String(ev["state"]):
+		"active":
+			return "%s formed" % ev["shape"]["name"]
+		"strays":
+			return "Strays: nobody side by side"
+		"unformed":
+			return "No formation: no bonus, no cost"
+	return ""   # locked states: the persistent line below says it
 
 
 func _shape_id() -> String:
-	return String(FormationWords.detect(placed_cells()).get("id", ""))
+	return String(FormationWords.evaluate(placed_cells(), unlocked)["effective"].get("id", ""))
 
 
 ## Placement the card should describe: the drag preview over a target, else null (current).
@@ -567,16 +567,17 @@ func _draw_field() -> void:
 	var ev := FormationWords.evaluate(placed_cells(), unlocked)
 	var shape: Dictionary = ev["shape"]
 	var sid := String(shape.get("id", ""))
+	var state := String(ev["state"])
 	var locked: bool = ev["locked"]
+	var sub: Array = ev["sub_cells"]
 	var cells := placed_cells()
 	var hl := held_or_dragged()
 	var growth := {}
-	if hl < 0 and sid != "" and sid != "strays" and cells.size() < 4:
+	if hl < 0 and state == "active" and cells.size() < 4:
 		for gc: Array in FormationWords.growth_cells(cells):
 			var gs := FormationWords.detect(cells + [gc])
 			if String(gs.get("id", "strays")) != "strays":
 				growth[_key(gc)] = gs
-	var in_shape := sid != "" and sid != "strays"
 	# floor tiles, back to front
 	for row in 4:
 		for col in [1, 0]:
@@ -585,13 +586,14 @@ func _draw_field() -> void:
 			if occ == _dragging and occ >= 0:
 				occ = -1
 			var sill := Pal.AMBER2 if col == 0 else Pal.CRYSTAL1
-			if occ >= 0 and in_shape and not locked:
+			if occ >= 0 and FormationWords._cell_in(sub, c):
+				# the heroes that form the active (sub-)shape
 				_fill_tile(c, Pal.CRYSTAL1, Pal.CRYSTAL3, Pal.CRYSTAL2)
 			elif occ >= 0:
 				_fill_tile(c, Pal.INK3, Pal.INK5, Pal.INK4)
 			else:
 				_fill_tile(c, Pal.INK2, Pal.INK4, sill)
-	_draw_bonds(sid, locked)
+	_draw_bonds(sub)
 	# empty-slot labels: growth (nothing held) or the drop result (held / dragged)
 	for row in 4:
 		for col in 2:
@@ -624,7 +626,9 @@ func _draw_field() -> void:
 		var col := Pal.AMBER6 if toast.ends_with("formed") else Pal.FADE4
 		PartyDraw.text(self, Vector2(field.position.x, field.end.y - 18), toast, col, PartyDraw.BOLD, 11, true, field.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 	elif locked and hl < 0:
-		var msg := "%s is locked: unlock it at the Training Grounds" % shape["name"]
+		var msg := "%s is locked: fighting as %s" % [shape["name"], ev["effective"]["name"]]
+		if state == "locked_unformed":
+			msg = "%s is locked: no formation" % shape["name"]
 		var mw := PartyDraw.text_w(msg, PartyDraw.BOLD) + 12
 		var mx := field.position.x + roundi((field.size.x - mw) / 2.0)
 		draw_texture(LOCK, Vector2(mx, field.end.y - 16), Pal.FADE4)
@@ -668,23 +672,25 @@ func _drop_label(c: Array, i: int, occ: int) -> void:
 		return
 	var res := FormationWords.evaluate(placed_cells(moved(i, c)), unlocked)
 	var shape: Dictionary = res["shape"]
-	var good: bool = not shape.is_empty() and String(shape["id"]) != "strays" and not res["locked"]
+	var good: bool = String(res["state"]) == "active"
 	_dashed_tile(c, Pal.CRYSTAL3 if good else Pal.INK5, int(_t * 8.0) % 4)
 	var hovered: bool = _dragging < 0 and _hover is Array and int(_hover[0]) == int(c[0]) and int(_hover[1]) == int(c[1])
 	if hovered and not shape.is_empty():
-		_label_plate(c, String(shape["name"]), Pal.CRYSTAL5 if good else Pal.FADE4,
+		_label_plate(c, String(res["effective"].get("name", shape["name"])), Pal.CRYSTAL5 if good else Pal.FADE4,
 			Pal.CRYSTAL3 if good else Pal.INK4, bool(res["locked"]))
 
 
 ## Crystal links across the floor gaps between edge-adjacent heroes of the shape (none for
 ## Strays). Drawn on the floor in the gap between two tiles, never under a hero's feet.
-func _draw_bonds(sid: String, locked: bool) -> void:
-	if sid == "" or sid == "strays":
+func _draw_bonds(sub: Array) -> void:
+	if sub.size() < 2:
 		return
+	var locked := false
 	var dc: Array = []
-	for i in placement.size():
-		if i != _dragging and placement[i] is Array:
-			dc.append(placement[i])
+	for c: Array in sub:
+		var i := hero_at_cell(c)
+		if i >= 0 and i != _dragging:
+			dc.append(c)
 	var c1 := Pal.CRYSTAL4 if not locked else Pal.FADE3
 	var c2 := Pal.CRYSTAL2 if not locked else Pal.FADE1
 	var lit := int(_t * 2.0) % 2 == 0
@@ -711,11 +717,10 @@ func _draw_bonds(sid: String, locked: bool) -> void:
 ## Above the sprites: name plates under the feet; role tags (hidden while dragging a preview).
 func _draw_overlay() -> void:
 	var ev := FormationWords.evaluate(placed_cells(), unlocked)
-	var shape: Dictionary = ev["shape"]
-	var sid := String(shape.get("id", ""))
-	var cells := placed_cells()
+	var cells: Array = ev["sub_cells"]   # roles belong to the shape that actually fights
+	var sid := String(ev["effective"].get("id", ""))
 	var roles: Array = []
-	if sid != "" and sid != "strays" and not ev["locked"] and _dragging < 0:
+	if cells.size() >= 2 and _dragging < 0:
 		roles = FormationWords.Formation.roles(sid, cells)
 	for i in heroes.size():
 		if not (placement[i] is Array) or i == _dragging:
@@ -746,8 +751,14 @@ func _draw_top() -> void:
 		var pl: Array = moved(_dragging, _target if _target is Array else null)
 		var res := FormationWords.evaluate(placed_cells(pl), unlocked)
 		var shape: Dictionary = res["shape"]
-		var nm := "Back to the bench" if not (_target is Array) else ("No shape" if shape.is_empty() else String(shape["name"]))
-		var good: bool = not shape.is_empty() and String(shape["id"]) != "strays" and not res["locked"] and _target is Array
+		var nm := "Back to the bench"
+		if _target is Array:
+			nm = "No shape" if shape.is_empty() else String(res["effective"]["name"])
+			if String(res["state"]) == "locked_fallback":
+				nm = "%s: as %s" % [shape["name"], res["effective"]["name"]]
+			elif String(res["state"]) == "locked_unformed":
+				nm = "%s: no formation" % shape["name"]
+		var good: bool = String(res["state"]) == "active" and _target is Array
 		var lock: bool = res["locked"]
 		var p: Vector2 = (_pos[_dragging] as Vector2).round()
 		var w := PartyDraw.text_w(nm, PartyDraw.BOLD) + 8 + (8 if lock else 0)

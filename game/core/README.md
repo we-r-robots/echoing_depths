@@ -24,6 +24,7 @@ All numbers are placeholders and live in `core/data/*.gd` (plain const Dictionar
 | `data/abilities.gd` | Basic attacks and abilities (one schema, data-driven effects) |
 | `data/items.gd` | Weapons, armor (flat stats), relics (stats + alignment offset) |
 | `data/formations.gd` | Formation shapes (buff + debuff each) and composition buffs |
+| `data/memories.gd` | Crystal of Remembrance: the Crystal's tuning and the authored memories (chapter, lore, behaviour) |
 
 Load scripts with `preload` (no `class_name` globals are registered):
 
@@ -73,16 +74,36 @@ of at most 24 characters if present; `unlocked_formations`, if present, must be 
 shape ids. Any bad input returns `{"error": [String...], "winner": -1, "events": []}`; it never
 raises a script error.
 
+## The Crystal of Remembrance
+
+```gdscript
+var r := CombatSim.simulate_crystal(seed, party, {"integrity": 360, "memories": ["ferryman", "lamplighters_child", "miller", "weaver"]})
+```
+
+The enemy side is the **Crystal** (an inert unit, `tier: "crystal"`, `span: 2`, filling back
+column rows 1–2; it never acts, gains no charge, isn't healed, isn't eroded by the Fading and never
+counts as standing) plus the **memories** it releases (`data/memories.gd`, `tier: "memory"`). The
+Crystal is targeted under the normal grid rules: memories in the front column shield it from melee;
+back-first, lowest-HP and other ranged/magic targeting can reach it; physical hits on it are halved
+like any back-column target. Memories surface into free enemy slots (front column rows 1, 2, 0, 3,
+then back rows 0, 3; if none is free, the memory waits and surfaces when one falls) at the start and
+at fragments 1–3. Every 25 % of integrity lost emits `crystal_fragment`; the 4th ends the fight in
+victory, `reason: "shard"`, `winner: 0`. If the party falls, `winner: 1`, `reason: "wipe"` (or
+`"fading"`/`"timeout"`), and `fragments` says how many were chipped (the run turns them into
+Glimmers). The enemy side has no formation (banner id `"crystal_chamber"`). Integrity 360 by
+default (`Memories.CRYSTAL`); a late-run party breaks it about half the time.
+
 ## Output: result dictionary
 
 | Key | Type | Meaning |
 |---|---|---|
 | `winner` | int | `0` side A, `1` side B, `-1` draw |
-| `reason` | String | `"wipe"`, `"fading"` (ended during a sudden-death tick: the Fading), `"timeout"` (hard cap; should never happen) |
+| `reason` | String | `"wipe"`, `"fading"` (ended during a sudden-death tick: the Fading), `"timeout"` (hard cap; should never happen), `"shard"` (Crystal fight: the 4th fragment) |
 | `duration` / `duration_ms` | float / int | fight length in simulated seconds / ms |
 | `sudden_death_ticks` | int | ticks that occurred |
 | `survivors` | Array[int] | uids standing at the end |
 | `seed`, `data_version` | int | inputs echoed back |
+| `fragments` | int | Crystal fragments chipped (0–4; always 0 outside the Crystal fight) |
 | `events` | Array[Dictionary] | the event log below (empty if `options.log == false`) |
 
 Options: `{"log": false}` skips building events (same outcome, faster);
@@ -94,6 +115,13 @@ Options: `{"log": false}` skips building events (same outcome, faster);
 this section: exact field set, types and enumerated values. If the two ever disagree, that test fails.
 
 **Schema changelog** (for consumers):
+- *Latest: the Crystal of Remembrance (06-crystal-of-remembrance.md).* New entry point
+  `CombatSim.simulate_crystal(seed, party, {"integrity", "memories"}, options)`. New events
+  **`spawn`** and **`crystal_fragment`**; new end `reason` **`"shard"`**; `fight_end` (and the
+  result) gain **`fragments`**; unit snapshots gain **`span`** (1, or 2 for the Crystal) and tiers
+  `"memory"` / `"crystal"`; charge `reason` `"drain"`; damage mod ids `harvest`, `mirror`; memory
+  behaviour cues are `formation_proc` with `source: "memory:<id>"`. Uids of spawned memories
+  continue after the existing units.
 - *Latest:* Scattered only spares Strays not standing next to the struck unit (a locked, connected
   shape takes normal splash); Guardian ignores area/splash hits; covering fire respects Keeper's
   Ring; Brace/Share numbers from a back-row attacker also carry `back_row_attacker`.
@@ -191,8 +219,9 @@ Unit snapshots:
 | `uid`, `side` | int | |
 | `name` | String | hero name as given |
 | `label` | String | unique-per-side display name; use this in UI |
-| `class`, `class_name` | String | class id and display name |
-| `base_class`, `tier` | String | e.g. `"fighter"`, `"advanced"`; monsters have `tier = "monster"` |
+| `class`, `class_name` | String | class id and display name (memory id / name for memories; `"crystal"` for the Crystal) |
+| `span` | int | rows occupied from `row` down: 1, or 2 for the Crystal |
+| `base_class`, `tier` | String | e.g. `"fighter"`, `"advanced"`; monsters `"monster"`; Crystal memories `"memory"`; the Crystal `"crystal"` |
 | `level` | int | |
 | `col`, `row` | int | slot (col 0 front, 1 back; row 0..3) |
 | `hp`, `max_hp`, `atk`, `def`, `mag`, `spd` | int | final combat stats (class + level + items + formation + composition) |
@@ -262,6 +291,33 @@ cues varies by effect; every bonus, behaviour and cost is always in the banner.
 | `trigger` | String | when it first applied: `start` (t = 0, max HP), `turn` (Spd, at the unit's `action_start`), `attack` (Atk/Mag as it deals damage), `defend` (Def/Mag as it takes damage), `crit` (crit bonus on a crit), `charge` (charge bonus as it gains charge), `heal` (healing bonus) |
 
 Emitted at the same `t` as its cause, right after the causing event.
+
+### `spawn` (Crystal fight)
+
+A memory surfaces from the Crystal. Fields: `side` (1), `uid` (new, after all existing uids),
+`slot` `[col, row]`, `unit` (a full unit snapshot, as in `fight_start`), `memory` (id), `chapter`
+(story chapter), `lore` (its line, to show as it appears), `reason` (`"start"` or `"fragment"`).
+From then on it acts like any unit.
+
+### `crystal_fragment` (Crystal fight)
+
+The Crystal cracks. Fields: `index` (1–4), `integrity` (after the hit), `max_integrity`. Emitted
+right after the damage that crossed the threshold; fragments 1–3 are followed by a `spawn`, the 4th
+by `fight_end` with `reason: "shard"`.
+
+**Memory behaviour cues** are `formation_proc` events with `source: "memory:<id>"`, `name` = the
+memory's name, `stat: ""`, `effect` = its behaviour, same truth rule:
+
+| Memory (chapter) | `effect` | Behaviour | Cue on / trigger |
+|---|---|---|---|
+| The Lamplighter's Child (1) | `kindle` | her basic action also heals the most hurt memory | her, as she heals / `heal` |
+| The Ferryman Who Waited (1) | `shield_crystal` | every 2nd single-target hit aimed at the Crystal lands on him | him, as he takes it / `defend` (`related` = Crystal) |
+| The Miller's Last Harvest (1) | `harvest` | +25 % damage per fallen memory (mod `harvest`) | him, as he hits / `attack` |
+| The Weaver of Names (1) | `mirror` | copies the heroes' formation: vs a guarding shape −25 % damage taken, vs an attacking shape +25 % dealt (mod `mirror`) | her, as she hits or is hit |
+| A Lumari Knight's Last Stand (2) | `last_stand` | the first felling blow leaves her at 1 HP, fully charged | her / `defend` |
+| The Draw (3) | `draw_memory` | each basic attack moves 20 charge from the most charged hero to itself (`charge` reason `"drain"`) | it, as it hits / `attack` (`related` = hero) |
+| The Sealing (3) | `hasten_fading` | each of its turns brings the Fading 1 s closer | it / `turn` |
+| The Keeper (4) | `dim_lantern` | while he stands, the heroes' formation behaviours (and the Lighthouse taunt) go dark; stat bonuses and costs remain | him / `turn` |
 
 ### `formation_move`
 
@@ -335,7 +391,7 @@ Life-drain heals are `heal` events with `src == dst`.
 Fields: `uid`, `charge` (new value 0..100), `delta` (signed change), `ready` (bool, `charge == 100`),
 `queue` (int: when `ready`, how many fully charged units act before it; 0 = it acts next; always 0
 when not ready), `reason`:
-`"act"` (after a basic action), `"hit"` (took damage), `"effect"` (an ability granted charge),
+`"act"` (after a basic action), `"hit"` (took damage), `"effect"` (an ability granted charge), `"drain"` (The Draw took charge away),
 `"spent"` (reset to 0 when the ability fires). **When `ready` becomes true the unit jumps the turn
 queue:** its gauge snaps to full and it acts as soon as the current action ends (fully charged units
 go first, in queue order), and a sudden-death tick waits until it has acted. Show "acts next" only
@@ -359,7 +415,7 @@ sides lands both sides' numbers together, so the screen matches the HP-fraction 
 
 ### `fight_end`
 
-Fields: `winner` (0, 1, -1), `reason` (as in the result), `survivors` (uids). Its `t` is the
+Fields: `winner` (0, 1, -1), `reason` (as in the result), `survivors` (uids; never the Crystal), `fragments` (int). Its `t` is the
 end of the last action, i.e. the fight length.
 
 ## Rules implemented

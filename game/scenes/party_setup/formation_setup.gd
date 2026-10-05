@@ -99,6 +99,11 @@ func _ready() -> void:
 	if not _opened:
 		demo = true
 		_pending = demo_data()
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--unlocked="):
+				# e.g. --unlocked=none: no shape unlocked, to show a locked shape that makes no formation
+				var ids := a.substr(11)
+				_pending["unlocked"] = [] if ids == "none" else Array(ids.split(","))
 		_script = demo_script()
 	info = _pending.get("info", {})
 	if mode == "review":
@@ -255,9 +260,11 @@ func demo_script() -> Array:
 		{"t": 9.4, "kind": "drag", "keys": [[0.0, ["c", 0, 2]], [0.7, ["c", 1, 3]]]},
 		{"t": 11.4, "kind": "details"},
 		{"t": 12.1, "kind": "details"},
-		{"t": 12.2, "kind": "drag", "keys": [[0.0, ["c", 1, 3]], [0.6, ["c", 0, 2]]]},
-		{"t": 13.4, "kind": "drag", "keys": [[0.0, ["c", 1, 0]], [0.5, ["c", 1, 1]]]},
-		{"t": 14.8, "kind": "confirm"},
+		{"t": 12.2, "kind": "drag", "keys": [[0.0, ["c", 0, 1]], [0.6, ["c", 0, 2]]]},
+		{"t": 13.0, "kind": "drag", "keys": [[0.0, ["c", 1, 0]], [0.5, ["c", 1, 1]]]},
+		{"t": 14.6, "kind": "drag", "keys": [[0.0, ["c", 0, 2]], [0.5, ["c", 0, 1]]]},
+		{"t": 15.4, "kind": "drag", "keys": [[0.0, ["c", 1, 3]], [0.5, ["c", 0, 2]]]},
+		{"t": 16.6, "kind": "confirm"},
 	]
 
 

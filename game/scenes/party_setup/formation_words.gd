@@ -48,13 +48,75 @@ static func is_unlocked(id: String, unlocked: Array) -> bool:
 	return id == "strays" or unlocked.has(id)
 
 
-## {"shape", "effective", "locked"} for these cells and unlocks ({} shape when < 2 cells).
+## UI stand-in for "no formation" (partly joined, not a shape): no bonus, no cost.
+const UNFORMED := {"id": "unformed", "name": "No formation", "size": 0, "cells": [], "bonus": [],
+	"behaviour": {}, "cost": {"text": "", "mods": []}}
+
+
+## The formation state of these cells (user decision 2026-10-05, core implements it later):
+##   active          a shape, unlocked: it fights as itself
+##   strays          no two heroes stand side by side: the Strays formation (always unlocked)
+##   unformed        partly joined but not a shape: no bonus, no cost
+##   locked_fallback a locked shape: it fights as its largest unlocked smaller shape inside it
+##   locked_unformed a locked shape with no unlocked part inside: no formation
+## Returns {"shape": geometric shape (or STRAYS / UNFORMED), "effective": what fights,
+##          "sub_cells": cells of the effective shape ([] for strays / unformed), "state": ...,
+##          "locked": bool (the geometric shape is a locked shape)}; {} shape for < 2 cells.
+## LOCAL STUB of the coming core Formation.effective(party) with the same return value.
 static func evaluate(cells: Array, unlocked: Array) -> Dictionary:
-	var shape := detect(cells)
-	if shape.is_empty():
-		return {"shape": {}, "effective": {}, "locked": false}
-	var locked := not is_unlocked(String(shape["id"]), unlocked)
-	return {"shape": shape, "effective": GameData.Formations.STRAYS if locked else shape, "locked": locked}
+	if cells.size() < 2:
+		return {"shape": {}, "effective": {}, "sub_cells": [], "state": "none", "locked": false}
+	var strays: Dictionary = GameData.Formations.STRAYS
+	if not _any_adjacent(cells):
+		return {"shape": strays, "effective": strays, "sub_cells": [], "state": "strays", "locked": false}
+	var shape := Formation.detect(cells)
+	if String(shape["id"]) == "strays":
+		return {"shape": UNFORMED, "effective": UNFORMED, "sub_cells": [], "state": "unformed", "locked": false}
+	if is_unlocked(String(shape["id"]), unlocked):
+		return {"shape": shape, "effective": shape, "sub_cells": cells.duplicate(true), "state": "active", "locked": false}
+	var best := {}
+	var best_cells: Array = []
+	for sub: Array in _subsets(cells):
+		if sub.size() < 2 or sub.size() >= cells.size():
+			continue
+		var s := Formation.detect(sub)
+		var sid := String(s["id"])
+		if sid == "strays" or not is_unlocked(sid, unlocked):
+			continue
+		if best.is_empty() or int(s["size"]) > int(best["size"]) or \
+				(int(s["size"]) == int(best["size"]) and _data_index(sid) < _data_index(String(best["id"]))):
+			best = s
+			best_cells = sub
+	if best.is_empty():
+		return {"shape": shape, "effective": UNFORMED, "sub_cells": [], "state": "locked_unformed", "locked": true}
+	return {"shape": shape, "effective": best, "sub_cells": best_cells, "state": "locked_fallback", "locked": true}
+
+
+static func _any_adjacent(cells: Array) -> bool:
+	for a: Array in cells:
+		for b: Array in cells:
+			if absi(int(a[0]) - int(b[0])) + absi(int(a[1]) - int(b[1])) == 1:
+				return true
+	return false
+
+
+static func _subsets(cells: Array) -> Array:
+	var out: Array = []
+	for m in range(1, 1 << cells.size()):
+		var sub: Array = []
+		for k in cells.size():
+			if m & (1 << k):
+				sub.append(cells[k])
+		out.append(sub)
+	return out
+
+
+static func _data_index(id: String) -> int:
+	var shapes: Array = GameData.Formations.SHAPES
+	for i in shapes.size():
+		if String(shapes[i]["id"]) == id:
+			return i
+	return 999
 
 
 ## Bonus mods as plain-word lines: "Front heroes: Def +45%". Same scope and value are merged:

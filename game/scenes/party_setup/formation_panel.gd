@@ -63,10 +63,27 @@ func show_cells(c: Array, unlocked_ids: Array, n_placed: int, n_party: int, is_p
 	preview = is_preview
 	_ev = FormationWords.evaluate(cells, unlocked)
 	var shape: Dictionary = _ev["shape"]
+	var eff: Dictionary = _ev["effective"]
 	var sid := String(shape.get("id", ""))
-	var who := EffectIcons.who_of(sid, cells, names) if sid != "" else {}
-	_effects = EffectIcons.formation_effects(shape, who, FormationWords.Formation.compositions(bases)) if not shape.is_empty() else []
-	var sig := "%s|%s|%s|%s" % [sid, str(_ev["locked"]), str(who), str(bases)]
+	var state := String(_ev["state"])
+	var bonds: Array = FormationWords.Formation.compositions(bases)
+	# effects that apply: the effective shape's (named by the heroes forming it), plus class bonds
+	var sub: Array = _ev["sub_cells"]
+	var sub_names: Array = []
+	for sc: Array in sub:
+		for k in cells.size():
+			if int(cells[k][0]) == int(sc[0]) and int(cells[k][1]) == int(sc[1]) and k < names.size():
+				sub_names.append(names[k])
+	var who := EffectIcons.who_of(String(eff.get("id", "")), sub, sub_names) if sub.size() == sub_names.size() else {}
+	_effects = []
+	_locked_effects = []
+	if state in ["unformed", "locked_unformed"]:
+		_effects = [NO_FORMATION] + EffectIcons.formation_effects({}, {}, bonds)
+	elif not eff.is_empty():
+		_effects = EffectIcons.formation_effects(eff, who, bonds)
+	if bool(_ev["locked"]):
+		_locked_effects = EffectIcons.formation_effects(shape, EffectIcons.who_of(sid, cells, names), [])
+	var sig := "%s|%s|%s|%s|%s" % [sid, state, str(eff.get("id", "")), str(who), str(bases)]
 	if sig != _sig:
 		if sid != _sig.get_slice("|", 0):
 			_flash = 1.0
@@ -75,8 +92,12 @@ func show_cells(c: Array, unlocked_ids: Array, n_placed: int, n_party: int, is_p
 	queue_redraw()
 
 
-const GROUPS := [["stat+", "GAINS", Pal.LIFE4], ["behaviour", "BEHAVIOUR", Pal.CRYSTAL4],
+const GROUPS := [["note", "NO FORMATION", Pal.INK9], ["stat+", "GAINS", Pal.LIFE4], ["behaviour", "BEHAVIOUR", Pal.CRYSTAL4],
 	["cost", "COSTS", Pal.BLOOD4], ["bond", "CLASS BOND", Pal.AMBER5]]
+const NO_FORMATION := {"icon": preload("res://ui/effect_icons/cost_capped.png"), "sign": 0, "kind": "note",
+	"title": "No bonus, no cost", "name": "No formation",
+	"text": "These heroes are partly joined but don't make a shape, so no formation applies: no bonus and no cost. Join everyone into one shape, or spread everyone apart as Strays."}
+var _locked_effects: Array = []
 const ROW := 21
 var _sections: Array = []       # [y, label, color] section headers drawn on the card
 var _growth_y := 0
@@ -86,8 +107,6 @@ static func _group_of(e: Dictionary) -> String:
 	var k := String(e["kind"])
 	if k == "stat":
 		return "stat+" if int(e["sign"]) > 0 else "cost"
-	if k == "note":
-		return "cost"
 	return k
 
 
@@ -102,14 +121,12 @@ func _rebuild_chips() -> void:
 	if details or _ev.is_empty() or (_ev["shape"] as Dictionary).is_empty():
 		return
 	var locked: bool = _ev["locked"]
+	var state := String(_ev["state"])
 	var y := 64
 	var active: Array = _effects
-	if locked:
-		# a locked shape fights as Strays: Strays' effects (core data) are what applies
-		var strays: Dictionary = FormationWords.shape_by_id("strays")
-		active = EffectIcons.formation_effects(strays, {}, FormationWords.Formation.compositions(bases))
-		_sections.append([y, "FIGHTS AS STRAYS", Pal.INK9])
-		y += 12
+	if state == "locked_fallback":
+		_sections.append([y, "FIGHTING AS " + String(_ev["effective"]["name"]).to_upper(), Pal.CRYSTAL5])
+		y += 14
 	for g: Array in GROUPS:
 		var items: Array = []
 		for e: Dictionary in active:
@@ -136,10 +153,11 @@ func _rebuild_chips() -> void:
 		_lock_tip.visible = true
 		_lock_tip.position = Vector2(8, y - 12)
 		_lock_tip.size = Vector2(W - 16, 11)
-		Tip.attach(_lock_tip, "Locked", "%s fights as Strays until unlocked. %s" % [_ev["shape"]["name"],
+		var as_text := "fights as %s" % _ev["effective"]["name"] if state == "locked_fallback" else "makes no formation"
+		Tip.attach(_lock_tip, "Locked", "%s %s until unlocked. %s" % [_ev["shape"]["name"], as_text,
 			FormationWords.unlock_hint(String(_ev["shape"]["id"]), unlocked)], Pal.FADE4, "left")
 		var x := 10
-		for e: Dictionary in _effects:
+		for e: Dictionary in _locked_effects:
 			if String(e["kind"]) == "bond" or x + EffectIcons.CHIP > W - 8:
 				continue
 			var ee := e.duplicate()
@@ -177,7 +195,7 @@ func _draw() -> void:
 		_draw_empty()
 		return
 	var locked: bool = _ev["locked"]
-	var strays := String(shape["id"]) == "strays"
+	var strays := String(_ev["state"]) in ["strays", "unformed"]
 	_draw_title(shape, locked, strays)
 	if details:
 		_draw_details(shape, locked, strays)
@@ -197,7 +215,7 @@ func _draw_growth_block(shape: Dictionary, strays: bool) -> void:
 	var list: Array = []
 	var title := ""
 	if strays:
-		title = "JOIN THEM TO FORM A SHAPE"
+		title = "MAKE A SHAPE"
 	elif int(shape["size"]) >= 4 or placed < 2:
 		title = "GREW FROM"
 		list = FormationWords.parents(cells)
@@ -208,7 +226,7 @@ func _draw_growth_block(shape: Dictionary, strays: bool) -> void:
 	PartyDraw.header(self, Vector2(8, y), W - 16, title, Pal.INK8)
 	y += 13
 	if strays:
-		_para("Heroes edge to edge form a shape and earn its bonus.", Vector2(10, y), W - 20, Pal.INK9, PartyDraw.BOLD)
+		_para("Join every hero edge to edge to form a shape and earn its bonus.", Vector2(10, y), W - 20, Pal.INK9, PartyDraw.BOLD)
 		return
 	if list.is_empty():
 		PartyDraw.text(self, Vector2(10, y + 3), "No free slot to grow", Pal.INK8, PartyDraw.BOLD)
@@ -234,50 +252,69 @@ func _draw_empty() -> void:
 		y = _para(l, Vector2(22, y), W - 32, Pal.INK9, PartyDraw.BOLD) + 4
 
 
+## Title: the whole 2x4 placement as a glyph (the heroes forming the active shape lit), the
+## shape's name, a status pill and one plain line saying what fights.
 func _draw_title(shape: Dictionary, locked: bool, strays: bool) -> void:
+	var state := String(_ev["state"])
 	var gw := Rect2(8, 8, 40, 46)
 	PartyDraw.inset(self, gw)
-	var fill := Pal.CRYSTAL4
-	if strays or locked:
-		fill = Pal.FADE3
-	var minr := 99
-	var maxr := 0
-	for c: Array in cells:
-		minr = mini(minr, int(c[1]))
-		maxr = maxi(maxr, int(c[1]))
-	var hrows := 4 if strays else maxr - minr + 1
-	var gs := Vector2(17, hrows * 8 + hrows - 1)
-	var gp := (gw.position + (gw.size - gs) / 2.0).floor()
-	FormationWords.draw_glyph(self, gp, cells, 8, fill, Pal.INK2, 4 if strays else 0, false,
-		Pal.CRYSTAL5 if not strays and not locked else Color(0, 0, 0, 0))
-	var ncol := Pal.AMBER6 if not (strays or locked) else Pal.FADE4
+	var gp := (gw.position + (gw.size - Vector2(17, 35)) / 2.0).floor()
+	FormationWords.draw_glyph(self, gp, cells, 8, Pal.FADE2 if state != "strays" else Pal.INK7, Pal.INK2, 4, false)
+	var sub_cells: Array = _ev["sub_cells"]
+	if not sub_cells.is_empty():
+		FormationWords.draw_glyph(self, gp, sub_cells, 8, Pal.CRYSTAL4, Color(0, 0, 0, 0), 4, false, Pal.CRYSTAL5)
+	var ncol := Pal.AMBER6
+	match state:
+		"strays", "unformed":
+			ncol = Pal.INK9
+		"locked_fallback", "locked_unformed":
+			ncol = Pal.FADE4
 	if _flash > 0.5:
-		ncol = Pal.AMBER7 if not strays else Pal.INK10
-	PartyDraw.text(self, Vector2(56, 10), String(shape["name"]), ncol, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
+		ncol = Pal.AMBER7 if state == "active" else Pal.INK10
+	var nm := String(shape["name"])
+	PartyDraw.text(self, Vector2(56, 8), nm, ncol, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
+	if locked:
+		var lx := 60 + PartyDraw.text_w(nm, PartyDraw.SERIF, PartyDraw.SERIF_SIZE)
+		draw_texture(LOCK, Vector2(lx, 12), Pal.FADE4)
 	var label := "ACTIVE"
 	var fg := Pal.CRYSTAL5
 	var bg := Pal.CRYSTAL1
 	var edge := Pal.CRYSTAL3
+	var line := FormationWords.size_word(shape)
+	var line_col := Pal.INK9
+	match state:
+		"strays":
+			label = "ACTIVE"
+			line = "nobody side by side"
+		"unformed":
+			label = "NONE"
+			fg = Pal.INK9
+			bg = Pal.INK2
+			edge = Pal.INK5
+			line = "not a shape"
+		"locked_fallback":
+			label = "LOCKED"
+			fg = Pal.FADE4
+			bg = Pal.FADE1
+			edge = Pal.FADE3
+			line = "fighting as " + String(_ev["effective"]["name"])
+			line_col = Pal.CRYSTAL5
+		"locked_unformed":
+			label = "LOCKED"
+			fg = Pal.FADE4
+			bg = Pal.FADE1
+			edge = Pal.FADE3
+			line = "no formation"
 	if preview:
 		label = "IF PLACED"
 		fg = Pal.AMBER6
 		bg = Pal.AMBER1
 		edge = Pal.AMBER4
-	elif strays:
-		label = "STRAYS"
-		fg = Pal.FADE4
-		bg = Pal.FADE1
-		edge = Pal.FADE2
-	elif locked:
-		label = "LOCKED"
-		fg = Pal.FADE4
-		bg = Pal.FADE1
-		edge = Pal.FADE3
-	var pw := PartyDraw.pill(self, Vector2(56, 33), label, fg, bg, edge)
-	var sub := "not joined" if strays else FormationWords.size_word(shape)
+	PartyDraw.pill(self, Vector2(56, 27), label, fg, bg, edge)
 	if placed < party_size:
-		sub = "%d of %d placed" % [placed, party_size]
-	PartyDraw.text(self, Vector2(60 + pw, 33), sub, Pal.INK9)
+		line = "%d of %d placed" % [placed, party_size]
+		line_col = Pal.INK9
+	PartyDraw.text(self, Vector2(56, 40), line, line_col, PartyDraw.BOLD)
 
 
 ## Same sentences and icons as the chips, in the same order, plus the growth path.
@@ -285,7 +322,8 @@ func _draw_details(shape: Dictionary, locked: bool, strays: bool) -> void:
 	var y := 66
 	if locked:
 		draw_texture(LOCK, Vector2(12, y + 2), Pal.FADE4)
-		y = _para("Locked: fights as Strays. " + FormationWords.unlock_hint(String(shape["id"]), unlocked),
+		var as_text := "fighting as %s." % _ev["effective"]["name"] if String(_ev["state"]) == "locked_fallback" else "no formation."
+		y = _para("%s (locked): %s %s" % [shape["name"], as_text, FormationWords.unlock_hint(String(shape["id"]), unlocked)],
 			Vector2(22, y), W - 30, Pal.FADE4, PartyDraw.BOLD) + 6
 	for e: Dictionary in _effects:
 		EffectIcons.draw_effect(self, Vector2(8, y), e)

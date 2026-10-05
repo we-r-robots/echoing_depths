@@ -24,7 +24,9 @@ func _init() -> void:
 		b = PartyGen.monster_group(Rng.new(seed_value), int(args["monsters"]))
 	var r := CombatSim.simulate(seed_value, a, b)
 	if args.has("crystal"):
-		var mems: Array = String(args["crystal"]).split(",") if String(args["crystal"]) != "true" else []
+		var mems: Array = []
+		if String(args["crystal"]) != "true":
+			mems = Array(String(args["crystal"]).split(","))
 		var copt := {} if mems.is_empty() else {"memories": mems}
 		r = CombatSim.simulate_crystal(seed_value, PartyGen.random_party(Rng.new(seed_value), {"advanced_chance": 0.6}), copt)
 	if r.has("error"):
