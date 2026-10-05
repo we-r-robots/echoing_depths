@@ -3,7 +3,19 @@
 # then extract the frames and contact sheets the critic prompts refer to.
 # usage: tools/fetch_references.sh
 set -euo pipefail
-cd "$(dirname "$0")/../references" 2>/dev/null || { mkdir -p "$(dirname "$0")/../references"; cd "$(dirname "$0")/../references"; }
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# 1) Preferred: the private orphan branch `refs` on the GitHub mirror (works in cloud sessions,
+#    which can't reach YouTube). It is never merged into the game.
+for remote in $(git -C "$ROOT" remote); do
+  if git -C "$ROOT" ls-remote --exit-code "$remote" refs/heads/refs >/dev/null 2>&1; then
+    git -C "$ROOT" fetch -q "$remote" refs
+    git -C "$ROOT" archive FETCH_HEAD references | tar -x -C "$ROOT"
+    echo "references ready (from $remote/refs)"
+    exit 0
+  fi
+done
+# 2) Fallback: re-download from YouTube with yt-dlp.
+mkdir -p "$ROOT/references"; cd "$ROOT/references"
 get() { # dir name section url-or-search
   mkdir -p "$1"; [[ -s "$1/$2.mp4" ]] && return 0
   yt-dlp -q --no-warnings -f "bv*[height<=1080][ext=mp4]/bv*[height<=1080]" --download-sections "*$3" -o "$1/$2.%(ext)s" "$4"

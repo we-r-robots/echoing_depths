@@ -72,3 +72,4 @@ Committed through the Crystal battle presentation. NEXT SESSION, in order:
 Open design needs for the user: the advanced/Legendary class roster (only 8 of 36 advanced, 1 Legendary); the art direction for characters.
 - 2026-10-05: cloud setup ready: tools/cloud_setup.sh (env setup script), tools/smoke.sh (passes locally), tools/godot_run.sh (Xvfb fallback), tools/fetch_references.sh, docs/CLOUD.md. Remotes: origin = Gitea (SSH), github = we-r-robots/echoing_depths (SSH key ~/.ssh/github). Both pushed.
 - 2026-10-05: merged the cloud smoke-test fixes (claude/elegant-hypatia-et7t19). NEXT TASK (user-approved): docs/tasks/hires-ui-text.md (high-resolution UI text layer, aspect expand, full-resolution captures), running in a cloud session.
+- 2026-10-05: private orphan branch `refs` on GitHub holds the reference stills/contact sheets/clips; tools/fetch_references.sh pulls it (tested on a fresh clone). Coordination rules for local and cloud sessions are in docs/CLOUD.md.
