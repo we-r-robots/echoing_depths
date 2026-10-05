@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 11:16",
+  "updated": "2026-10-05 11:17",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -595,6 +595,10 @@
     {
       "t": "11:16",
       "msg": "Setup screens show the new Strays, Unformed and locked-fallback states (a locked Crescent fights as Tidebreak, with the active heroes lit). Core implementation queued after the Crystal."
+    },
+    {
+      "t": "11:17",
+      "msg": "Battle banner switched to your icons: each effect a chip with a tooltip, and the chip pulses when its behaviour fires. Tooltip duplicate-title bug sent to the shared component's owner."
     }
   ],
   "questions": [

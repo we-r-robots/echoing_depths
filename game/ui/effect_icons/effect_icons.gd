@@ -102,7 +102,7 @@ static func formation_effects(shape: Dictionary, who := {}, bonds: Array = []) -
 	if not b.is_empty():
 		out.append({"icon": behaviour_icon(String(b.get("id", ""))), "sign": 0, "kind": "behaviour",
 			"title": behaviour_title(shape, who), "name": String(b.get("name", "")),
-			"text": "%s: %s" % [String(b.get("name", "")), behaviour_sentence(shape, who)]})
+			"text": behaviour_sentence(shape, who)})   # the lore name is the tooltip title ("name")
 	for m: Dictionary in shape.get("cost", {}).get("mods", []):
 		out.append(_stat_effect(m, who, -1))
 	var geo := _geo_cost(shape, who)
