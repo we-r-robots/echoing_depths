@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 11:18",
+  "updated": "2026-10-05 11:23",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -108,7 +108,7 @@
       "name": "Battle scene presentation",
       "bar": "Sea of Stars + Super Auto Pets",
       "wave": 2,
-      "status": "judging",
+      "status": "building",
       "rounds": [
         {
           "winner": "bar",
@@ -149,6 +149,11 @@
           "winner": "bar",
           "gap": "Won 3 of 5 blind pairs (beat Sea of Stars once, both Super Auto Pets frames) but lost 2 of 3 against Sea of Stars. 10 of 16 formation behaviours read clearly; 6 are only text tags. The healed ally is still dimmed in Mend.",
           "image": "captures/battle-scene/r11/f00600.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Won 3 of 5 blind pairs; 12 of 16 shapes read. Lost 2 of 3 Sea of Stars pairs because area-ability moments turn into white soup or near-black darkness, with numbers piling up.",
+          "image": "captures/battle-scene/r13/f00600.png"
         }
       ],
       "preview": "captures/battle-scene/r13/f00600.png",
@@ -175,7 +180,7 @@
       "name": "Hero draft and formation setup screens",
       "bar": "Super Auto Pets team screen + Sea of Stars menus",
       "wave": 2,
-      "status": "judging",
+      "status": "building",
       "rounds": [
         {
           "winner": "bar",
@@ -191,6 +196,11 @@
           "winner": "bar",
           "gap": "Won 1 of 4 blind pairs: the draft screen beat Super Auto Pets. The formation card still loses to Sea of Stars on polish: dead space, faint locked rows, a tooltip covering the next line, and ghost labels cluttering the board.",
           "image": "captures/party-formation/r7/f00420.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Won 2 of 4 blind pairs, both against Super Auto Pets; lost both Sea of Stars pairs. The Strays card has labels over 20 characters and contradicts itself, the locked fallback headlines the wrong shape, and the card's rhythm is too busy.",
+          "image": "captures/party-formation/r9/f00540.png"
         }
       ],
       "preview": "captures/party-formation/r9/f00540.png",
@@ -272,7 +282,7 @@
       "wave": 3,
       "status": "building",
       "rounds": [],
-      "note": "User design: chip the Crystal in 4 fragments to free a Shard while it releases story memories; no retreat; fragments become Glimmers on defeat; the story progresses instead of difficulty tiers."
+      "note": "Combat core done: the Crystal breaks for late-run parties 48-55% of the time in ~40 s fights; 8 memories with distinct behaviours (Ferryman intercepts, Weaver copies your formation, the Keeper dims behaviours). Run integration and battle presentation in progress."
     }
   ],
   "log": [
@@ -603,6 +613,22 @@
     {
       "t": "11:18",
       "msg": "Tooltip fixed. Battle critic round 9 and setup screens critic round 4 running in parallel."
+    },
+    {
+      "t": "11:19",
+      "msg": "Crystal of Remembrance built in the combat core and committed. Now in parallel: run layer makes it the final node, battle scene presents it, core adds the Strays/Unformed/locked-fallback rule."
+    },
+    {
+      "t": "11:20",
+      "msg": "Setup screens round 4: 2 of 4 blind wins (both vs Super Auto Pets). Round 5: Strays wording, fighting shape as headline, calmer card rhythm."
+    },
+    {
+      "t": "11:22",
+      "msg": "Battle round 9: 3 of 5 blind wins, 12 of 16 shapes read. Next: no white-out or full-screen colour, a brightness floor on dimming, one number per target. Queued after the Crystal presentation."
+    },
+    {
+      "t": "11:23",
+      "msg": "Session at 60% of the plan limit: running builders finish, no new builders this session, limited critics, wrap up cleanly by 85%."
     }
   ],
   "questions": [

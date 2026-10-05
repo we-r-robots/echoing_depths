@@ -63,7 +63,10 @@ func open(c: Control, pin: bool) -> void:
 	_pinned = pin
 	_title = String(d.get("title", ""))
 	_accent = d.get("accent", Pal.CRYSTAL4)
-	_lines = _wrap(String(d.get("body", "")), MAX_W - PAD * 2)
+	var place := String(d.get("place", "auto"))
+	var use_zone := place == "zone" and Tip.zone.size.x > 40
+	var max_w := MAX_W if not use_zone else int(Tip.zone.size.x) - 8
+	_lines = _wrap(String(d.get("body", "")), max_w - PAD * 2)
 	var w := BOLD.get_string_size(_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + PAD * 2
 	for l: String in _lines:
 		w = maxf(w, BOLD.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + PAD * 2)
@@ -72,7 +75,8 @@ func open(c: Control, pin: bool) -> void:
 	var a := c.get_global_rect()
 	var x := clampf(roundf(a.position.x + a.size.x / 2.0 - w / 2.0), 4, 636 - w)
 	var y := a.position.y - h - 4
-	var place := String(d.get("place", "auto"))
+	if place == "zone" and not use_zone:
+		place = "left"
 	if place == "below" and a.end.y + 4 + h <= 356:
 		y = a.end.y + 4
 	if y < 4:
@@ -81,6 +85,9 @@ func open(c: Control, pin: bool) -> void:
 		y = clampf(roundf(a.position.y + a.size.y / 2.0 - h / 2.0), 4, 356 - h)
 		x = a.position.x - w - 6 if place == "left" else a.end.x + 6
 		x = clampf(x, 4, 636 - w)
+	if use_zone:
+		x = roundf(Tip.zone.position.x + (Tip.zone.size.x - w) / 2.0)
+		y = Tip.zone.end.y - h
 	_rect = Rect2(x, y, w, h)
 	_shown = true
 	queue_redraw()

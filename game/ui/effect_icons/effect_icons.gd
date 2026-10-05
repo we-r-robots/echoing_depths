@@ -5,7 +5,8 @@ extends RefCounted
 ##
 ## An "effect" is a Dictionary:
 ##   {"icon": Texture2D, "sign": 1 buff / -1 cost / 0 neutral, "kind": "stat"|"behaviour"|"cost"|"bond",
-##    "title": a short label, at most ~20 chars ("Front Def +10%", "Ilse draws melee"),
+##    "title": a short label, at most 20 chars ("Front Def +10%", "Ilse draws melee"),
+##    "name": the tooltip title: the effect's category or lore name ("Defence", "Keeper's ring"),
 ##    "text": the full sentence for the tooltip}
 ##
 ##   EffectIcons.formation_effects(shape, who, bonds) -> Array of effects in the order
@@ -108,14 +109,16 @@ static func formation_effects(shape: Dictionary, who := {}, bonds: Array = []) -
 	var geo := _geo_cost(shape, who)
 	if geo != "":
 		out.append({"icon": icon(String(COST_ICON.get(String(shape.get("id", "")), "cost_exposed"))), "sign": -1,
-			"kind": "cost", "title": _geo_title(shape, who), "text": geo})
+			"kind": "cost", "title": _geo_title(shape, who),
+			"name": "Strays" if String(shape.get("id", "")) == "strays" else "%s's weakness" % String(shape.get("name", "Shape")),
+			"text": geo})
 	for comp: Dictionary in bonds:
 		var lines: Array = []
 		for m: Dictionary in comp.get("mods", []):
 			var sub := "Everyone" if String(m["scope"]) == "all" else _class_plural(comp)
 			lines.append(_mod_sentence(sub, true, String(m["stat"]), float(m["value"])))
-		out.append({"icon": icon("bond"), "sign": 1, "kind": "bond", "title": String(comp.get("name", "")),
-			"text": "Class bond: " + " ".join(lines)})
+		out.append({"icon": icon("bond"), "sign": 1, "kind": "bond", "title": String(comp.get("name", "")), "name": "Class bond",
+			"text": " ".join(lines)})
 	return out
 
 
@@ -149,7 +152,7 @@ static func _geo_title(shape: Dictionary, who: Dictionary) -> String:
 		"vault_door":
 			return "Nothing above +5%"
 		"strays":
-			return "Shape behaviours don't fire"
+			return "No shape behaviour"
 	return "Cost"
 
 
@@ -181,7 +184,7 @@ static func behaviour_title(shape: Dictionary, who := {}) -> String:
 		"echo_step":
 			return "Splash halved"
 		"scattered":
-			return "Splash skips spread-out heroes"
+			return "Scattered: no splash"
 	return String(shape.get("behaviour", {}).get("name", ""))
 
 
@@ -203,7 +206,13 @@ static func _stat_effect(m: Dictionary, who: Dictionary, sign: int) -> Dictionar
 		stat_word = "dmg taken"
 	var title := "%s %s %+d%%" % [_scope_short(String(m["scope"]), who), stat_word, pct]
 	return {"icon": stat_icon(stat), "sign": sign, "kind": "stat", "title": title,
-		"text": _mod_sentence(subj[0], subj[1], stat, v)}
+		"name": String(STAT_CATEGORY.get(stat, "Effect")), "text": _mod_sentence(subj[0], subj[1], stat, v)}
+
+
+const STAT_CATEGORY := {
+	"def_pct": "Defence", "atk_pct": "Attack", "mag_pct": "Magic", "spd_pct": "Speed", "hp_pct": "Health",
+	"heal_pct": "Healing", "charge_pct": "Charge", "crit_add": "Critical hits", "dmg_taken_pct": "Damage taken",
+}
 
 
 const SUBJECT := {
@@ -360,7 +369,7 @@ static func _geo_cost(shape: Dictionary, who := {}) -> String:
 		"seawall":
 			out.append("No back row: every hero takes full physical damage.")
 		"strays":
-			out.append("Shape behaviours don't fire while heroes stand apart: Strays keep only the gains above.")
+			out.append("Strays has its own behaviour, Scattered; shape behaviours don't apply.")
 	return "" if out.is_empty() else String(out[0])
 
 

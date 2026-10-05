@@ -354,7 +354,7 @@ func test_rest_and_guardians() -> void:
 
 func test_guardians_escalate_and_identity() -> void:
 	var defs: Array = Run._guardians()
-	eq(defs.size(), T.RUN["floors"].size(), "one guardian per floor (the last is the Vault Heart)")
+	eq(defs.size(), T.RUN["floors"].size() - 1, "one guardian per floor before the Crystal")
 	var prev_cost := 0
 	var prev_level := 0
 	for g: Dictionary in defs:
@@ -404,6 +404,43 @@ func test_rivals_and_team_names() -> void:
 				check(not "power" in line, "no power shown before the fight: " + line)
 
 
+func test_crystal_final_node() -> void:
+	var pool := _fresh_pool()
+	var defeats := 0
+	var reached := 0
+	for s in 40:
+		var run: RefCounted = Run.new()
+		run.start_run(1400 + s, {"pool": pool, "save_echo": false, "log": false, "story_chapter": 2})
+		var rng := Rng.new(s)
+		for _i in 500:
+			if run.is_over():
+				break
+			var v: Dictionary = run.current_node()
+			if v["step"] == "fight" and v["type"] == "crystal":
+				reached += 1
+				check(not v["opponent"].has("memories") and String(v["opponent"]["intro"]) != "", "Crystal: intro shown, memories hidden")
+				var r: Dictionary = run.resolve_fight()
+				var seq: Array = r["opponent"]["memories"]
+				eq(seq.size(), int(T.RUN["crystal_memories"]), "four memories queued")
+				check(seq.has("lumari_knight"), "the chapter's memory is in the sequence")
+				for id: String in seq:
+					check(int(GameData.Memories.MEMORIES[id]["chapter"]) <= 2, "no memory beyond the story chapter")
+				check(run.is_over(), "no retry: the Crystal fight ends the run either way")
+				var sm: Dictionary = run.summary()
+				if not r["run"]["won"]:
+					defeats += 1
+					eq(int(sm["glimmer_breakdown"]["fragments"]), int(r["fragments"]) * int(T.RUN["glimmers_per_fragment"]), "fragments become Glimmers")
+					eq(int(sm["health"]), 0, "the party fell")
+				else:
+					eq(String(sm["remembrance"]["id"]), String(T.REMEMBRANCES[2]["id"]), "chapter 2 Remembrance")
+				break
+			RunBot.step(run, rng, "greedy", 0.2)
+	check(reached > 5, "reached the Crystal %d times" % reached)
+	var a := _new_run(77)
+	var b := _new_run(77)
+	eq(a._crystal_sequence(), b._crystal_sequence(), "memory sequence is deterministic per seed")
+
+
 func test_echo_pool_persistence() -> void:
 	var path := "user://test_echo_pool.json"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
@@ -441,7 +478,8 @@ func test_victory_rewards() -> void:
 		var sm: Dictionary = run.summary()
 		if sm["outcome"] == "victory":
 			eq(int(sm["shards"]), int(T.RUN["victory_shards"]), "victory grants a Shard")
-			check(sm.has("monument") and sm.has("vault_heart_memory"), "victory grants Monument + Vault Heart memory")
+			check(sm.has("monument") and sm.has("remembrance"), "victory grants a Monument and a Remembrance")
+			eq(int(sm["glimmer_breakdown"]["fragments"]), 0, "no fragment Glimmers on a victory (the Shard is the reward)")
 			check(int(sm["glimmers"]) > 0, "Glimmers granted")
 			return
 	check(false, "no victory in 40 bot runs")

@@ -1,7 +1,7 @@
 class_name EffectChip
 extends Control
 ## One interactive effect: the 20x20 icon chip (EffectIcons.draw_effect), optionally followed by its
-## short label in the large reading face (BigText), opening the shared Tip with the full sentence on
+## short label in the bold body face, opening the shared Tip with the full sentence on
 ## hover (PC), tap or press-and-hold (touch). The whole chip + label is the hit target.
 ##   var chip := EffectChip.new(); parent.add_child(chip)
 ##   chip.setup(effect)                          # icon only (20x20), tooltip above
@@ -9,6 +9,7 @@ extends Control
 ##   chip.locked = true                          # grey outline + lock: the effect isn't active yet
 
 const LOCK := preload("res://ui/effect_icons/lock.png")
+const BOLD := preload("res://assets/fonts/depths_sans_bold.fnt")
 
 var effect: Dictionary = {}
 var label_w := 0
@@ -46,18 +47,13 @@ func _draw() -> void:
 		draw_rect(Rect2(EffectIcons.CHIP - 1, 1, label_w, EffectIcons.CHIP - 2), Pal.INK3)
 	EffectIcons.draw_effect(self, Vector2.ZERO, effect, lit, locked)
 	if label_w > 0:
-		var c := EffectIcons.color_of(effect)
-		if locked:
-			c = Pal.FADE4
+		# one body size (bold), neutral text: colour lives in the icon and its arrow
+		var c := Pal.INK10 if not locked else Pal.FADE4
 		var t := String(effect.get("title", ""))
-		var tw := BigText.width(t)
-		if tw <= label_w - 8 - (10 if locked else 0):
-			BigText.draw(self, Vector2(EffectIcons.CHIP + 6, 2), t, c)
-		else:
-			# too long for the large face: the bold face, same line
-			tw = PartyDraw.text_w(t, PartyDraw.BOLD)
-			PartyDraw.text(self, Vector2(EffectIcons.CHIP + 6, 5), t, c, PartyDraw.BOLD)
-		if locked:
-			var x := EffectIcons.CHIP + 10 + tw
-			draw_texture(LOCK, Vector2(x, 6) + Vector2(1, 1), Pal.INK1)
-			draw_texture(LOCK, Vector2(x, 6), Pal.FADE3)
+		var base := Vector2(EffectIcons.CHIP + 6, 5 + BOLD.get_ascent(11)).round()
+		draw_string(BOLD, base + Vector2(1, 1), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Pal.INK1)
+		draw_string(BOLD, base, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, c)
+		if locked and effect.get("icon") != LOCK:
+			var x := EffectIcons.CHIP + 10 + BOLD.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			draw_texture(LOCK, Vector2(x, 7) + Vector2(1, 1), Pal.INK1)
+			draw_texture(LOCK, Vector2(x, 7), Pal.FADE3)

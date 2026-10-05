@@ -8,8 +8,8 @@ extends RefCounted
 const RUN := {
 	# --- run arc (hidden map; never player-facing) ---
 	# One string per Vault floor, one letter per node: E encounter, P PvP, G floor guardian
-	# (tougher than the floor's PvP), H the Vault Heart (the last guardian).
-	"floors": ["EEEPEG", "EPEPEG", "EPEPEG", "EPEPEG", "EPEPEH"],
+	# (tougher than the floor's PvP), C the Crystal of Remembrance (final chamber, no retreat).
+	"floors": ["EEEPEG", "EPEPEG", "EPEPEG", "EPEPEG", "EPEPEC"],
 	"phase_by_floor": ["gathering", "gathering", "advancement", "advancement", "legend"],
 	"layer_width_min": 2,        # parallel encounter nodes per map layer
 	"layer_width_max": 3,
@@ -34,7 +34,11 @@ const RUN := {
 	"monster_level_per_layers": 4,
 	"monster_count_min": 2,      # monster count = party size, clamped to [min, max]
 	"monster_count_max": 4,
-	# floor guardians and the Vault Heart (name, intro, monsters, level, loss_health): guardians.json
+	# floor guardians (name, intro, monsters, level, loss_health) and the Crystal's name/intro: guardians.json
+	# --- the Crystal of Remembrance (06): the fight is core's simulate_crystal; win or the run ends ---
+	"crystal_integrity": 360,    # passed to simulate_crystal (core default 360): the Crystal's toughness
+	"crystal_memories": 4,       # memories released: one at the start, one at each of fragments 1-3
+	"glimmers_per_fragment": 6,  # on defeat, each chipped fragment becomes Glimmers
 	"item_drop_chance": 0.5,     # chance a won monster fight drops an item
 	# PvP matching by floor: an opponent is an Echo recorded on the same floor (nearest if thin)
 	"echo_recent_per_floor": 20, # pick among the most recent real Echoes of that floor
@@ -53,8 +57,18 @@ const RUN := {
 const LORE_ITEMS := ["cracked_lumari_tablet", "keepers_wick", "faded_songbook", "vault_census_page",
 	"crystal_seed", "ribbon_of_names", "first_fading_ledger", "lamplighters_note"]
 
-const VAULT_HEART_MEMORIES := ["heart_of_the_drowned_archive", "heart_of_the_first_draw",
-	"heart_of_the_sealing", "heart_of_the_lantern"]
+## Remembrance per story chapter: the story memory the final fragment frees on victory (the reward;
+## the sim never spawns it). Chapters follow 01-world-and-lore.md "True History".
+const REMEMBRANCES := {
+	1: {"id": "the_harbor_at_dawn", "name": "The Harbor at Dawn",
+		"lore": "A whole town waking at once, before anyone knew the word Fading."},
+	2: {"id": "the_knights_oath", "name": "The Knight's Oath",
+		"lore": "What the Lumari knight swore at the door, in her own voice, at last."},
+	3: {"id": "the_first_crystal", "name": "The First Crystal",
+		"lore": "A world thinning like breath on glass, and the hands that drew it in."},
+	4: {"id": "the_keepers_name", "name": "The Keeper's Name",
+		"lore": "The name the lamplighter spent on the light, given back."},
+}
 
 const VAULTS := ["The Drowned Archive", "The Hollow Choir", "The Glass Ossuary", "The Sunken Lantern"]
 

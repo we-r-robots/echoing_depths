@@ -5,8 +5,10 @@ extends RefCounted
 ## reaches it. Tapping anywhere else closes it. One tooltip is open at a time.
 ##
 ##   Tip.attach(control, "Def +10%", "Front heroes get Def +10%.", Pal.LIFE4[, place])
-##     place: "auto" (above, else below), "below", "left" (beside, e.g. a side card's list so the
-##     list stays readable), "right"
+##     place: "auto" (above, else below), "below", "left" / "right" (beside the control), or
+##     "zone": inside the screen's free zone set with Tip.set_zone(rect) (e.g. empty floor on a
+##     board, so the tip covers neither the list nor the heroes); falls back to "left".
+##   Tip.set_zone(Rect2)     # global rect for "zone" tips (Rect2() clears it)
 ##   Tip.detach(control)
 ##   Tip.show_for(control)   # open programmatically (demos, tutorials); Tip.close() closes
 ##   Tip.is_open_for(control)
@@ -31,6 +33,13 @@ static func attach(c: Control, title: String, body: String, accent := Pal.CRYSTA
 	c.tree_exiting.connect(func() -> void:
 		if _node != null and is_instance_valid(_node):
 			_node.forget(c))
+
+
+static var zone := Rect2()
+
+
+static func set_zone(r: Rect2) -> void:
+	zone = r
 
 
 static func detach(c: Control) -> void:

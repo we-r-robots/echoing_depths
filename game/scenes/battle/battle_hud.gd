@@ -57,6 +57,12 @@ var row_flash := PackedFloat32Array()
 var doom := 0.0
 var vignette := 0.0
 var fading_tick := 0
+var lore_t := 9.0
+var lore_name := ""
+var lore_text := ""
+var frag_t := 9.0
+var frag_n := 0
+var lantern_dim := -1     # uid of the Keeper while he dims the heroes' behaviours
 var _dig := PackedInt32Array()
 var _tri := PackedVector2Array()
 
@@ -99,6 +105,8 @@ func tick(vdt: float) -> void:
 	flash_a = maxf(0.0, flash_a - vdt * 5.0)
 	fade_in = maxf(0.0, fade_in - vdt * 3.0)
 	caption_t += vdt
+	lore_t += vdt
+	frag_t += vdt
 	cutin_t += vdt
 	sd_banner_t += vdt
 	if end_t >= 0.0:
@@ -111,6 +119,17 @@ func tick(vdt: float) -> void:
 		row_flash[i] = maxf(0.0, row_flash[i] - vdt * 3.0)
 	vignette = maxf(0.0, vignette - vdt * 1.5)
 	queue_redraw()
+
+
+func show_lore(name: String, text: String) -> void:
+	lore_name = name
+	lore_text = text
+	lore_t = 0.0
+
+
+func show_fragment(n: int) -> void:
+	frag_n = n
+	frag_t = 0.0
 
 
 func screen_flash(c: Color, a: float) -> void:
@@ -158,6 +177,8 @@ func _draw() -> void:
 	if intro_t >= 0.0 and intro_t <= intro_len + 0.4:
 		_draw_intro()
 	_draw_cutin()
+	_draw_lore()
+	_draw_fragment()
 	_draw_sd_banner()
 	_draw_end()
 	if flash_a > 0.0:
@@ -311,6 +332,8 @@ func _banner_effects(side: int) -> Array:
 	for s: Dictionary in GameData.Formations.SHAPES:
 		if s["id"] == sid:
 			shape = s
+	if sid == "crystal_chamber":
+		return []
 	var locked := bool(form.get("locked", false))
 	var cells: Array = []
 	var names: Array = []
@@ -356,6 +379,14 @@ func _chip_hit(side: int, k: int) -> bool:
 
 
 func _draw_chip_pulses() -> void:
+	if lantern_dim >= 0:
+		for k in (_chips[0] as Array).size():
+			var e: Dictionary = _chips[0][k][1]
+			var ch: Control = _chips[0][k][0]
+			if String(e.get("kind", "")) == "behaviour" and ch.visible:
+				var rr := Rect2(ch.position, Vector2(EffectIcons.CHIP, EffectIcons.CHIP))
+				_pulse_layer.draw_rect(rr, Color(Pal.INK1, 0.7))
+				_pulse_layer.draw_line(rr.position + Vector2(2, 2), rr.end - Vector2(2, 2), Pal.FADE3, 1.0)
 	for side in 2:
 		var pulse: float = badge_pulse[side]
 		if pulse <= 0.0:
@@ -380,6 +411,14 @@ func _draw_badge(side: int, alpha: float) -> void:
 	_panel_bg(r, sc, alpha, pulse)
 	var p := _badge_parts(side)
 	_text_scaled_left(font_bold, p[0], Vector2(r.position.x + 6.0, r.position.y + 3.0), Color(sc.lerp(Pal.INK10, pulse * 0.7), alpha), 2)
+
+
+func _fit1(t: String, w: float) -> String:
+	if _w1(t) <= w:
+		return t
+	while t.length() > 1 and _w1(t + "...") > w:
+		t = t.substr(0, t.length() - 1)
+	return t.strip_edges() + "..."
 
 
 func _fit2(t: String, w: float) -> String:
@@ -591,7 +630,7 @@ func _draw_row(side: int, u, p: Vector2) -> void:
 	var tx := px + 21.0 if left else px - 4.0
 	var bar_x := tx if left else tx - 112.0
 	var name_col := Pal.INK10 if u.alive else Pal.FADE2
-	_text(font_bold, u.label, Vector2(tx, p.y + 7), name_col if not acting else sc.lerp(Pal.INK10, 0.5), 0 if left else 2)
+	_text(font_bold, _fit1(u.label, 100.0), Vector2(tx, p.y + 7), name_col if not acting else sc.lerp(Pal.INK10, 0.5), 0 if left else 2)
 	# HP number on the far side of the name
 	var num_x := p.x + PANEL_W - 6.0 if left else p.x + 6.0
 	if u.alive:
@@ -672,6 +711,30 @@ func _wrap(t: String, w: float) -> PackedStringArray:
 	if cur != "":
 		out.append(cur)
 	return out
+
+
+# --- Crystal: memory lore caption and fragment banner -----------------------------------------------
+func _draw_lore() -> void:
+	if lore_t > 3.6 or lore_name == "":
+		return
+	var a := clampf(lore_t / 0.25, 0.0, 1.0) * (1.0 - clampf((lore_t - 3.2) / 0.4, 0.0, 1.0))
+	var lines := _wrap(lore_text, 400.0)
+	var h := 30.0 + lines.size() * 11.0
+	var r := Rect2(110, 46, 420, h)
+	draw_rect(r, Color(Pal.INK1, 0.85 * a))
+	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1), Color(Pal.VIOLET3, a))
+	draw_rect(Rect2(r.position.x, r.end.y - 1, r.size.x, 1), Color(Pal.VIOLET3, a))
+	_text_scaled(font_serif, lore_name, Vector2(320, 48), Color(Pal.VIOLET4, a), 1)
+	for i in lines.size():
+		_text(font_bold, lines[i], Vector2(320, 74 + i * 11), Color(Pal.INK9, a), 1, true)
+
+
+func _draw_fragment() -> void:
+	if frag_t > 1.6 or frag_n <= 0:
+		return
+	var a := 1.0 - clampf((frag_t - 1.2) / 0.4, 0.0, 1.0)
+	var s := 3 if frag_t < 0.08 else 2
+	_text_scaled(font_serif, "FRAGMENT %d / 4" % frag_n, Vector2(320 + 150, 120), Color(Pal.CRYSTAL5, a), s)
 
 
 # --- ability cut-in -------------------------------------------------------------------------------

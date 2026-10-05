@@ -66,6 +66,10 @@ var _bob_t := 0.0
 var victory_hop := false
 var focus_rim := false
 var dimmed := false
+var is_crystal := false
+var is_memory := false
+var form_t := -1.0        # memory surfacing: fades in from the Crystal's light
+var cracks := 0
 var lit := false          # part of the focused action: drawn above the dim, with a rim light
 var charge_hold := 0.0
 var charge_pulse := 0.0
@@ -118,6 +122,10 @@ func setup(u: Dictionary, sprite_meta: Dictionary, shadow_tex: Texture2D, echo: 
 	facing = 1 if side == 0 else -1
 	side_color = col_side
 	home = Layout.slot_pos(side, col, row)
+	is_crystal = String(u.get("tier", "")) == "crystal"
+	is_memory = String(u.get("tier", "")) == "memory"
+	if int(u.get("span", 1)) == 2:
+		home = (Layout.slot_pos(side, col, row) + Layout.slot_pos(side, col, row + 1)) * 0.5 + Vector2(0, 10)
 	if int(sprite_meta["size"][1]) > 64:
 		home.x += 10.0 * facing          # large monsters: a wider slot, nudged toward the gutter
 		if row == 0:
@@ -143,7 +151,7 @@ func setup(u: Dictionary, sprite_meta: Dictionary, shadow_tex: Texture2D, echo: 
 	_ghost_mat.shader = SHADER
 	_ghost_mat.set_shader_parameter("flash", 1.0)
 	_ghost_mat.set_shader_parameter("flash_color", col_side)
-	var frames: SpriteFrames = load(String(meta["path"]))
+	var frames: SpriteFrames = meta["frames"] if meta.has("frames") else load(String(meta["path"]))
 	for i in 3:
 		var g := AnimatedSprite2D.new()
 		g.sprite_frames = frames
@@ -367,6 +375,8 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 		mat.set_shader_parameter("outline_color", Color(Pal.CRYSTAL3, 0.55))
 	elif lit and alive and focus_rim:
 		mat.set_shader_parameter("outline_color", Color(side_color.lerp(Pal.INK10, 0.55), 1.0))   # focus rim light
+	elif is_memory and alive:
+		mat.set_shader_parameter("outline_color", Color(Pal.VIOLET3, 0.9))   # placeholder memory look
 	elif height > 50 and alive:
 		mat.set_shader_parameter("outline_color", Color(Pal.INK7, 0.9))   # rim light: dark giants read against the wall
 	else:
@@ -377,6 +387,12 @@ func tick(sim_t: float, vdt: float, speed: float) -> void:
 		mat.set_shader_parameter("gray", g2)
 		modulate.a = 1.0 - 0.45 * g2
 		shadow.visible = ko_t < 0.6
+	if form_t >= 0.0:
+		form_t += vdt
+		var fa := clampf(form_t / 0.7, 0.0, 1.0)
+		modulate = Color(0.85, 0.75, 1.0, 0.8 * fa)
+		if fa >= 1.0:
+			form_t = -1.0
 	# focus: units not in the current action recede
 	_dim = move_toward(_dim, 1.0 if (dimmed and alive) else 0.0, vdt * 6.0)
 	var dv := 1.0 - 0.42 * _dim

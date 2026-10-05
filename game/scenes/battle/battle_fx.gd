@@ -23,6 +23,7 @@ const MAX_PILLAR := 8
 const MAX_POP := 40
 const MAX_LIGHT := 12
 const GLOW = preload("res://assets/battle/glow.png")
+const SHARD = preload("res://assets/battle/shard.png")
 
 var font_small: Font
 var font_bold: Font
@@ -107,6 +108,9 @@ var _sh_seg := PackedInt32Array([0, 0, 0, 0])
 var _sh_col := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
 var _sh_t := PackedFloat32Array([0.0, 0.0, 0.0, 0.0])
 var _sh_next := 0
+var _shard_t := -1.0
+var _shard_from := Vector2.ZERO
+var _shard_to := Vector2.ZERO
 var _shield_pts := PackedVector2Array()
 var _sw_thin: Array[bool] = [false, false, false, false]
 
@@ -386,6 +390,13 @@ func trail(a: Vector2, b: Vector2, col: Color) -> void:
 	_sw_thin[(_sw_next + 3) % 4] = true
 
 
+## Victory in the Crystal fight: the Shard breaks free and flies to the centre of the view.
+func shard_fly(from: Vector2, to: Vector2) -> void:
+	_shard_t = 0.0
+	_shard_from = from
+	_shard_to = to
+
+
 func fade_popups() -> void:
 	for i in MAX_POP:
 		_pp_on[i] = false
@@ -428,6 +439,8 @@ func tick(vdt: float, now_sim: float) -> void:
 			_vy[k] += _grav[k] * vdt
 			_px[k] += _vx[k] * vdt
 			_py[k] += _vy[k] * vdt
+	if _shard_t >= 0.0:
+		_shard_t += vdt
 	for i in 4:
 		_sw_t[i] += vdt
 		_sh_t[i] -= vdt
@@ -474,6 +487,18 @@ func _draw() -> void:
 		var top := -20.0
 		draw_rect(Rect2(_pl_x[i] - w, top, w * 2.0, _pl_y[i] - top), Color(c, 0.35 * (1.0 - u)))
 		draw_rect(Rect2(_pl_x[i] - maxf(1.0, w * 0.4), top, maxf(2.0, w * 0.8), _pl_y[i] - top), Color(Pal.INK10, 0.8 * (1.0 - u)))
+	# the freed Shard
+	if _shard_t >= 0.0:
+		var su := clampf(_shard_t / 1.1, 0.0, 1.0)
+		var e := 1.0 - pow(1.0 - su, 3.0)
+		var sp := _shard_from.lerp(_shard_to, e) + Vector2(0, -sin(su * PI) * 30.0)
+		var sc := 1 + int(e * 2.0)
+		var gl := 10.0 + 14.0 * e + 3.0 * sin(_shard_t * 9.0)
+		draw_circle(sp, gl, Color(Pal.CRYSTAL4, 0.25))
+		draw_circle(sp, gl * 0.6, Color(Pal.CRYSTAL5, 0.35))
+		draw_set_transform(Vector2(roundf(sp.x - 7 * sc), roundf(sp.y - 13 * sc)), 0.0, Vector2(sc, sc))
+		draw_texture(SHARD, Vector2.ZERO)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# hearth shields
 	for i in 4:
 		if _sh_t[i] > 0.0:

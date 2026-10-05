@@ -33,7 +33,7 @@ var _enc_kind := ""
 var _legend_appeared := false   # the legend's memory appears at most once per run
 var _legend_misses := 0
 var _seen: Array = []           # encounter ids met this run (summary)
-var _types: Array = []          # node type per layer: encounter | pvp | guardian | heart
+var _types: Array = []          # node type per layer: encounter | pvp | guardian | crystal
 var _floors: Array = []         # floor (1-based) per layer
 var _snapshots: Dictionary = {} # floor -> party snapshot (Echoes are recorded per floor)
 var _health_lost := {"gathering": 0, "advancement": 0, "legend": 0}
@@ -41,9 +41,11 @@ var _death: Dictionary = {}
 var _fights_by_floor: Dictionary = {}   # floor -> {kind: [wins, fights]}
 var _met_names: Dictionary = {}         # rival Echo names already met this run
 var _rivals: Array = []
+var _fragments := 0
+var _memories_defeated: Array = []
 var _choice_done := false
 var _fight_pending := false
-var _fight_kind := ""           # monster | pvp | heart
+var _fight_kind := ""           # monster | pvp | guardian | crystal
 var _fight_attempt := 0
 var _opponent: Dictionary = {}
 var _next_idx := -1
@@ -212,7 +214,12 @@ func resolve_fight() -> Dictionary:
 	if _step != "fight":
 		return {"error": "no fight in step '%s'" % _step}
 	var fseed := _rng(1000 + _layer * 8 + _fight_attempt).next_u32()
-	var result := CombatSim.simulate(fseed, combat_party(), _opponent, {"log": bool(_opts.get("log", true))})
+	var result: Dictionary
+	if _fight_kind == "crystal":   # always logged: spawn/ko events feed the codex record
+		result = CombatSim.simulate_crystal(fseed, combat_party(), {"memories": _opponent["memories"],
+			"integrity": int(T.RUN["crystal_integrity"])}, {"log": true})
+	else:
+		result = CombatSim.simulate(fseed, combat_party(), _opponent, {"log": bool(_opts.get("log", true))})
 	if result.has("error"):
 		return result
 	var won := int(result["winner"]) == 0
@@ -234,15 +241,20 @@ func resolve_fight() -> Dictionary:
 					info["item"] = _grant_item(hi, String(ids[drop.int_range(0, ids.size() - 1)]))
 			else:
 				_lose(int(T.RUN["monster_loss_health"]))
-		"guardian", "heart":   # losing costs more than PvP, rising per floor; the Heart is lethal
+		"guardian":   # losing costs more than PvP, rising per floor
 			_stats["guardian_wins" if won else "guardian_losses"] += 1
 			if not won:
 				var before := _health
 				_lose(int(_guardian_def().get("loss_health", 2)))
 				info["health_lost"] = before - _health
 				_stats["guardian_health_lost"] += before - _health
-				if _fight_kind == "heart" and _health > 0:
-					_fight_pending = true   # the Heart waits: fight again while health remains
+		"crystal":   # no retreat: the Shard breaks free, or every hero falls and the run ends here
+			_fragments = int(result.get("fragments", 0))
+			info["fragments"] = _fragments
+			_memories_defeated = _defeated_memories(result)
+			info["memories_defeated"] = _memories_defeated.duplicate()
+			if not won:
+				_health = 0
 	var fl: Dictionary = _fights_by_floor.get(_floor(), {})
 	var rec: Array = fl.get(_fight_kind, [0, 0])
 	fl[_fight_kind] = [int(rec[0]) + (1 if won else 0), int(rec[1]) + 1]
@@ -254,7 +266,7 @@ func resolve_fight() -> Dictionary:
 	if _health <= 0:
 		_death = {"depth": _layer + 1, "floor": _floor(), "node": _fight_kind, "phase": _phase(_layer)}
 		_end("fallen")
-	elif _fight_kind == "heart" and won:
+	elif _fight_kind == "crystal" and won:
 		_end("victory")
 	else:
 		_update_step()
@@ -262,6 +274,8 @@ func resolve_fight() -> Dictionary:
 	info["ended"] = _step == "ended"
 	result["run"] = info
 	result["opponent"] = _opponent.duplicate(true)   # revealed now, for playback
+	if _fight_kind == "crystal" and not bool(_opts.get("log", true)):
+		result["events"] = []
 	return result
 
 
@@ -373,7 +387,7 @@ func _lose(n: int) -> void:
 
 func _gen_map() -> void:
 	var rng := _rng(1)
-	var letters := {"E": "encounter", "P": "pvp", "G": "guardian", "H": "heart"}
+	var letters := {"E": "encounter", "P": "pvp", "G": "guardian", "C": "crystal"}
 	_types.clear()
 	_floors.clear()
 	for f in T.RUN["floors"].size():
@@ -492,9 +506,12 @@ func _enter(layer: int, idx: int) -> void:
 			_choice_done = true
 			_start_fight("guardian", _floor_guardian())
 			_say("[%d] Floor %d guardian: %s" % [layer + 1, _floor(), _opponent["name"]])
-		"heart":
+		"crystal":
 			_choice_done = true
-			_start_fight("heart", _floor_guardian())
+			var cd: Dictionary = _guardian_data().get("crystal", {})
+			_start_fight("crystal", {"name": String(cd.get("name", "The Crystal of Remembrance")),
+				"memories": _crystal_sequence(),
+				"meta": {"title": String(cd.get("name", "")), "intro": String(cd.get("intro", ""))}})
 			_say("[%d] %s" % [layer + 1, _opponent["name"]])
 	_update_step()
 
@@ -758,25 +775,64 @@ func _monsters() -> Dictionary:
 	return {"name": "Vault Monsters", "heroes": hs}
 
 
-## Guardian definition for the current floor (guardians.json; the last entry is the Vault Heart).
+## Guardian definition for the current floor (guardians.json).
 func _guardian_def() -> Dictionary:
-	var gs := _guardians()
-	return gs[-1] if _layer_type(_layer) == "heart" else gs[mini(_floor() - 1, gs.size() - 2)]
+	var gs: Array = _guardian_data().get("guardians", [])
+	return gs[mini(_floor() - 1, gs.size() - 1)]
 
 
-static var _guardian_cache: Array = []
+static var _guardian_cache: Dictionary = {}
 
 
-static func _guardians() -> Array:
+static func _guardian_data() -> Dictionary:
 	if _guardian_cache.is_empty():
 		var f := FileAccess.open("res://core/run/guardians.json", FileAccess.READ)
 		var d: Variant = JSON.parse_string(f.get_as_text()) if f != null else null
 		if d is Dictionary:
-			_guardian_cache = d.get("guardians", [])
+			_guardian_cache = d
 	return _guardian_cache
 
 
-## Floor guardian / Vault Heart as a monster side: authored name, intro and composition.
+static func _guardians() -> Array:
+	return _guardian_data().get("guardians", [])
+
+
+## The Crystal's memory sequence from story progress (run option story_chapter, default 1):
+## every memory of the current chapter first, filled up from earlier chapters; seeded order.
+func _crystal_sequence() -> Array:
+	var chapter := maxi(1, int(_opts.get("story_chapter", 1)))
+	var rng := _rng(9)
+	var cur: Array = []
+	var earlier: Array = []
+	var mems: Dictionary = GameData.Memories.MEMORIES
+	for id: String in mems:
+		var c := int(mems[id]["chapter"])
+		if c == chapter:
+			cur.append(id)
+		elif c < chapter:
+			earlier.append(id)
+	if cur.is_empty() and earlier.is_empty():   # chapter beyond what is written: everything
+		cur = mems.keys()
+	_shuffle(cur, rng)
+	_shuffle(earlier, rng)
+	var seq: Array = (cur + earlier).slice(0, int(T.RUN["crystal_memories"]))
+	_shuffle(seq, rng)
+	return seq
+
+
+## Memory ids knocked out in a Crystal fight (a ko whose uid came from a spawn): codex records.
+static func _defeated_memories(result: Dictionary) -> Array:
+	var by_uid := {}
+	var out: Array = []
+	for ev: Dictionary in result.get("events", []):
+		if ev["type"] == "spawn":
+			by_uid[int(ev["uid"])] = String(ev["memory"])
+		elif ev["type"] == "ko" and by_uid.has(int(ev["uid"])):
+			out.append(by_uid[int(ev["uid"])])
+	return out
+
+
+## Floor guardian as a monster side: authored name, intro and composition.
 func _floor_guardian() -> Dictionary:
 	var g := _guardian_def()
 	var hs: Array = []
@@ -822,6 +878,7 @@ func _make_summary() -> Dictionary:
 	var g_depth := depth * int(T.RUN["glimmers_per_layer"])
 	var g_pvp := int(_stats["pvp_wins"]) * int(T.RUN["glimmers_per_pvp_win"])
 	var g_ms := new_floors.size() * int(T.RUN["glimmers_per_new_floor"])
+	var g_frag := _fragments * int(T.RUN["glimmers_per_fragment"]) if _outcome == "fallen" else 0
 	var heroes: Array = []
 	for h: Dictionary in _heroes:
 		var tier := String(GameData.get_class_def(String(h["class"]))["tier"])
@@ -835,7 +892,10 @@ func _make_summary() -> Dictionary:
 		"health": _health, "pvp_wins": _stats["pvp_wins"], "pvp_losses": _stats["pvp_losses"],
 		"monster_wins": _stats["monster_wins"], "monster_losses": _stats["monster_losses"],
 		"memories": _stats["memories"], "wasted_memories": _stats["wasted_memories"],
-		"glimmers": g_depth + g_pvp + g_ms, "glimmer_breakdown": {"depth": g_depth, "pvp": g_pvp, "milestones": g_ms},
+		"glimmers": g_depth + g_pvp + g_ms + g_frag,
+		"glimmer_breakdown": {"depth": g_depth, "pvp": g_pvp, "milestones": g_ms, "fragments": g_frag},
+		"crystal_reached": _fight_kind == "crystal", "fragments": _fragments,
+		"memories_defeated": _memories_defeated.duplicate(), "story_chapter": maxi(1, int(_opts.get("story_chapter", 1))),
 		"new_floors": new_floors, "shards": 0, "lore_items": _lore.duplicate(), "items_found": _items_found.duplicate(),
 		"heroes": heroes, "encounters_seen": _seen.duplicate(), "legend_offered": _legend_appeared,
 		"guardian_wins": _stats["guardian_wins"], "guardian_losses": _stats["guardian_losses"],
@@ -849,5 +909,6 @@ func _make_summary() -> Dictionary:
 		var f: Dictionary = Formation.effective(party)["effective"]   # the shape that actually fought
 		s["monument"] = {"vault": _vault, "seed": seed_value, "party_name": party["name"],
 			"heroes": party["heroes"], "formation": {"id": f["id"], "name": f["name"]}}
-		s["vault_heart_memory"] = T.VAULT_HEART_MEMORIES[_rng(6).int_range(0, T.VAULT_HEART_MEMORIES.size() - 1)]
+		var ch := clampi(int(_opts.get("story_chapter", 1)), 1, T.REMEMBRANCES.size())
+		s["remembrance"] = T.REMEMBRANCES[ch].duplicate()
 	return s

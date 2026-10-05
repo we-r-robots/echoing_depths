@@ -10,6 +10,7 @@ signal tapped
 const STAT_COLORS := HeroCard.STAT_COLORS
 const ABILITY := preload("res://assets/party/ability.png")
 const TICK := preload("res://assets/party/tick.png")
+const START := preload("res://assets/party/start.png")
 const GameData = preload("res://core/game_data.gd")
 
 var hero: Dictionary = {}       # {name, class, alignment}
@@ -160,8 +161,9 @@ func _draw() -> void:
 	PartyDraw.text(self, Vector2(0, 168), pref, Pal.AMBER5 if pref == "front" else Pal.CRYSTAL4, PartyDraw.BOLD, 11, true, w - 9, HORIZONTAL_ALIGNMENT_RIGHT)
 	# fixed starting alignment, one line (explained once, in the bar below)
 	var a: Array = hero.get("alignment", [0, 0])
-	PartyDraw.text(self, Vector2(8, 181), "Starts:", Pal.INK9)
-	PartyDraw.text(self, Vector2(12 + PartyDraw.text_w("Starts:"), 181), _align_words(a), Pal.INK10, PartyDraw.BOLD)
+	# start marker (same ring as the alignment grid's start) + the position in words
+	PartyDraw.tint_tex(self, START, Vector2(8, 183), Pal.AMBER5)
+	PartyDraw.text(self, Vector2(19, 181), _align_words(a), Pal.INK10 if not dimmed else Pal.INK8, PartyDraw.BOLD)
 	# stats, labelled
 	var st := PartyModel.stats({"class": hero["class"], "level": 1, "items": {}})
 	var sy := 195
@@ -188,11 +190,11 @@ func _draw() -> void:
 		if k == 1:
 			PartyDraw.tint_tex(self, ABILITY, Vector2(8, y + 5), cc)
 			nx = 18
-		BigText.draw(self, Vector2(nx, y), String(act.get("name", aid)), Pal.INK10 if not dimmed else Pal.INK7)
-		PartyDraw.text(self, Vector2(8, y + 16), action_short(aid), Pal.INK9 if not dimmed else Pal.INK7, PartyDraw.BOLD)
+		BigText.draw(self, Vector2(nx, y), String(act.get("name", aid)), Pal.INK10 if not dimmed else Pal.INK8)
+		PartyDraw.text(self, Vector2(8, y + 16), action_short(aid), Pal.INK9 if not dimmed else Pal.INK8, PartyDraw.BOLD)
 	if dimmed:
 		var d := Pal.INK1
-		d.a = 0.45
+		d.a = 0.25
 		draw_rect(r.grow(-2), d)
 	if pick > 0:
 		PartyDraw.soft_outline(self, r, Pal.AMBER5)

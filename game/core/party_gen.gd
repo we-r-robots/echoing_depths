@@ -11,7 +11,7 @@ const NAMES := ["Brakka", "Ilse", "Moth", "Corin", "Vael", "Tamsin", "Oren", "Sa
 
 ## A random but valid player party.
 ## opts: "size" (2..4, default 4), "advanced_chance" (0..1, default 0.35),
-##   "shape" (force a shape id or "strays"), "unlocked" (Array of unlocked shape ids; default all,
+##   "shape" (force a shape id, "strays" or "unformed"), "unlocked" (Array of unlocked shape ids; default all,
 ##   so generated parties show their shape; pass [] for "nothing unlocked").
 ## The layout is a random shape of that size (or Strays) at a random height/mirror; classes are
 ## then picked per slot, leaning melee in front and casters behind (75%), as a player would.
@@ -57,6 +57,13 @@ static func random_party(rng: Rng, opts: Dictionary = {}) -> Dictionary:
 	return {"name": "Party", "heroes": heroes, "unlocked_formations": unlocked.duplicate()}
 
 
+static func _as_heroes(cells: Array) -> Array:
+	var out: Array = []
+	for c: Array in cells:
+		out.append({"slot": c})
+	return out
+
+
 ## Every shape id (all unlocked).
 static func all_shapes() -> Array:
 	var out: Array = []
@@ -65,16 +72,17 @@ static func all_shapes() -> Array:
 	return out
 
 
-## Slots for a random shape of `size` heroes (or `shape_id` if given; "strays" = a scattered
-## placement that matches no shape), at a random height and mirror.
+## Slots for a random shape of `size` heroes (or `shape_id` if given), at a random height and
+## mirror. "strays" = no two units edge-adjacent; "unformed" = partly joined but no shape.
 static func random_layout(rng: Rng, size: int, shape_id: String = "") -> Array:
 	var shapes: Array = []
 	for sh: Dictionary in GameData.Formations.SHAPES:
 		if int(sh["size"]) == size and (shape_id == "" or sh["id"] == shape_id):
 			shapes.append(sh)
 	var pick := rng.int_range(0, shapes.size()) if shape_id == "" else (0 if not shapes.is_empty() else shapes.size())
-	if pick >= shapes.size():   # Strays
-		for _attempt in 200:
+	if pick >= shapes.size():   # Strays (or Unformed when asked)
+		var want := "unformed" if shape_id == "unformed" else "strays"
+		for _attempt in 400:
 			var cells: Array = []
 			var used := {}
 			while cells.size() < size:
@@ -82,9 +90,10 @@ static func random_layout(rng: Rng, size: int, shape_id: String = "") -> Array:
 				if not used.has(c[0] * 4 + c[1]):
 					used[c[0] * 4 + c[1]] = true
 					cells.append(c)
-			if String(Formation.detect(cells)["id"]) == "strays":
+			var st := String(Formation.effective({"heroes": _as_heroes(cells), "unlocked_formations": []})["state"])
+			if st == want:
 				return cells
-		return [[0, 0], [1, 2], [0, 3], [1, 0]].slice(0, size)
+		return [[0, 0], [1, 1], [0, 2], [1, 3]].slice(0, size) if want == "strays" else [[0, 0], [0, 1], [1, 3], [0, 3]].slice(0, size)
 	var sh: Dictionary = shapes[pick]
 	var cells2: Array = (sh["cells"] as Array).duplicate(true)
 	if bool(sh["mirror"]) and rng.next_float() < 0.5:

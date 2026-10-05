@@ -115,6 +115,8 @@ func _ready() -> void:
 		_back.pressed.connect(_on_back)
 		panel.add_child(_back)
 	board.setup(_pending["heroes"], _pending["slots"], _pending["unlocked"])
+	# card tooltips open on the board's free floor strip under the last row, never over heroes
+	Tip.set_zone(Rect2(board.position + Vector2(48, 271), Vector2(356, 47)))
 	_refresh()
 
 
@@ -162,6 +164,10 @@ func confirm() -> void:
 	confirmed.emit(res)
 	if not demo:
 		queue_free()
+
+
+func _exit_tree() -> void:
+	Tip.set_zone(Rect2())
 
 
 func _on_back() -> void:

@@ -119,6 +119,8 @@ func _report(runs: Array, ms: int, policy: String) -> void:
 	var by_floor := {}
 	var g_lost := 0
 	var name_repeats := 0
+	var frag_hist := {}
+	var crystal_n := 0
 	for s: Dictionary in runs:
 		acc["nodes"] += s["nodes_visited"]
 		acc["depth"] += s["depth"]
@@ -170,6 +172,10 @@ func _report(runs: Array, ms: int, policy: String) -> void:
 		two_nodes += int(s["two_choice_nodes"])
 		rests += int(s["rests"])
 		g_lost += int(s["guardian_health_lost"])
+		if s["crystal_reached"]:
+			crystal_n += 1
+			if s["outcome"] != "victory":
+				frag_hist[int(s["fragments"])] = int(frag_hist.get(int(s["fragments"]), 0)) + 1
 		var rv := {}
 		for nm: String in s["rivals"]:
 			if rv.has(nm):
@@ -207,17 +213,21 @@ func _report(runs: Array, ms: int, policy: String) -> void:
 	print("Health lost per run by phase: gathering %.2f, advancement %.2f, legend %.2f; rests taken per run %.2f" % [
 		float(lost["gathering"]) / n, float(lost["advancement"]) / n, float(lost["legend"]) / n, float(rests) / n])
 	print("Deaths by floor (share of all runs): ", _fmt_counts(deaths, n), "; killing blow: ", _fmt_counts(death_nodes, n))
-	print("Guardian (incl. Heart) win rate: %d%% (%.1f fights/run)" % [_pct(gw, gw + gl), float(gw + gl) / n])
+	print("Floor guardian win rate: %d%% (%.1f fights/run)" % [_pct(gw, gw + gl), float(gw + gl) / n])
 	var rows: Array = []
 	for f in range(1, 6):
 		var parts: Array = []
-		for kind: String in ["pvp", "guardian", "heart"]:
+		for kind: String in ["pvp", "guardian", "crystal"]:
 			var r: Array = by_floor.get("%d|%s" % [f, kind], [0, 0])
 			if int(r[1]) > 0:
 				parts.append("%s %d%% (n=%d)" % [kind, _pct(int(r[0]), int(r[1])), int(r[1])])
 		rows.append("F%d: %s" % [f, ", ".join(parts)])
 	print("Win rate by floor: ", " | ".join(rows))
 	print("Health lost per guardian loss: %.2f; rival Echo name repeats per run: %.2f" % [float(g_lost) / maxi(1, gl), float(name_repeats) / n])
+	var frag_total := 0
+	for k: Variant in frag_hist:
+		frag_total += int(frag_hist[k])
+	print("Crystal reached in %d%% of runs; fragments chipped on a Crystal defeat: %s" % [_pct(crystal_n, n), _fmt_counts(frag_hist, frag_total)])
 	print("Encounter nodes with a two-choice hero: %d%%" % _pct(two_nodes, enc_nodes))
 	print("Glimmers per run: %.1f; Shards per run: %.2f; lore items per run: %.2f" % [acc["glimmers"] / n,
 		acc["shards"] / n, acc["lore"] / n])

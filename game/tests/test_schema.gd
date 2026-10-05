@@ -41,7 +41,9 @@ const EVENTS := {
 	"fight_end": {"winner": [I, [-1, 0, 1]], "reason": [S, ["wipe", "fading", "timeout", "shard"]], "survivors": A, "fragments": I},
 }
 const SIDE := {"side": I, "name": S, "formation": D, "compositions": A, "units": A}
-const FORMATION := {"id": S, "name": S, "shape": S, "shape_name": S, "locked": B, "buffs": A, "debuffs": A,
+const FORMATION := {"id": S, "name": S, "shape": S, "shape_name": S,
+	"state": [S, ["active", "strays", "unformed", "locked_fallback", "locked_unformed", "none"]], "sub_cells": A,
+	"locked": B, "buffs": A, "debuffs": A,
 	"behaviour": D, "cost": S}
 const MODIFIER := {"scope": [S, ["all", "front", "back", "class", "post", "tip", "keeper", "flanker", "gap", "middle"]], "stat": S, "value": F}
 const COMPOSITION := {"id": S, "name": S, "mods": A}

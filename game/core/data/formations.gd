@@ -105,10 +105,14 @@ const SHAPES := [
 const STRAYS := {"id": "strays", "name": "Strays", "size": 0, "cells": [], "mirror": false,
 	"bonus": [{"scope": "all", "stat": "spd_pct", "value": 0.05}, {"scope": "all", "stat": "crit_add", "value": 0.05}],
 	"behaviour": {"id": "scattered", "name": "Scattered",
-		"text": "Splash from area abilities doesn't spread between Strays who aren't standing next to each other."},
+		"text": "No splash from area abilities spreads between Strays, since nobody stands next to anyone."},
 	"cost": {"text": "No shape behaviour ever fires.", "mods": []}}
 
-## Unlocked from the start (Training Grounds unlocks the rest with Shards).
+## Partly joined but no shape (or a locked shape with no unlocked part): no bonus, no cost, no behaviour.
+const UNFORMED := {"id": "unformed", "name": "No formation", "size": 0, "cells": [], "bonus": [],
+	"behaviour": {}, "cost": {"text": "", "mods": []}}
+
+## Unlocked from the start (Training Grounds unlocks the rest with Shards). Strays is always available.
 const DEFAULT_UNLOCKED := ["kindred", "vigil", "lamplight", "tidebreak", "choir"]
 
 ## Suggested Training Grounds tree (shape -> shapes it leads to). Placeholder for the meta builder.

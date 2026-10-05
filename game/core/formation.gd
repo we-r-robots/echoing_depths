@@ -64,16 +64,71 @@ static func unlocked_of(party: Dictionary) -> Array:
 	return GameData.Formations.DEFAULT_UNLOCKED
 
 
-## {"shape": geometric shape, "effective": shape that fights (Strays if locked), "locked": bool}
+## The formation state of a party (05-formations.md, user decision 2026-10-05):
+##   active          an unlocked shape: it fights as itself (sub_cells = all cells)
+##   strays          no two heroes edge-adjacent: the Strays formation (always unlocked)
+##   unformed        partly joined but no shape: no bonus, no cost, no behaviour
+##   locked_fallback a locked shape: it fights as its LARGEST unlocked connected sub-shape among
+##                   the placed heroes (ties: SHAPES data order, then first subset found), applied
+##                   to those heroes' cells (sub_cells)
+##   locked_unformed a locked shape with no unlocked part: no formation
+## -> {"state", "shape": geometric (a SHAPES entry, STRAYS or UNFORMED), "effective": what fights,
+##     "sub_cells": [[col,row], ...] (all cells when active, the sub-shape's cells when
+##     locked_fallback, [] otherwise), "locked": bool}
+## Cells are taken in slot order (front column top to bottom, then back) so results don't depend
+## on the order heroes are listed. Fewer than 2 units: state "none", No formation.
 static func effective(party: Dictionary) -> Dictionary:
-	var shape: Dictionary = detect_party(party)
-	var sid: String = String(shape["id"])
+	var cells: Array = _cells_of(party)
+	cells.sort_custom(func(a: Array, b: Array) -> bool:
+		return int(a[0]) * 10 + int(a[1]) < int(b[0]) * 10 + int(b[1]))
+	var unformed: Dictionary = GameData.Formations.UNFORMED
+	if cells.size() < 2:
+		return {"state": "none", "shape": unformed, "effective": unformed, "sub_cells": [], "locked": false}
+	var strays: Dictionary = GameData.Formations.STRAYS
+	if not _any_adjacent(cells):
+		return {"state": "strays", "shape": strays, "effective": strays, "sub_cells": [], "locked": false}
+	var shape: Dictionary = detect(cells)
+	if String(shape["id"]) == "strays":
+		return {"state": "unformed", "shape": unformed, "effective": unformed, "sub_cells": [], "locked": false}
 	var unlocked: Array = unlocked_of(party)
-	var locked: bool = sid != "strays" and not unlocked.has(sid)
-	var eff: Dictionary = shape
-	if locked:
-		eff = GameData.Formations.STRAYS
-	return {"shape": shape, "effective": eff, "locked": locked}
+	if unlocked.has(String(shape["id"])):
+		return {"state": "active", "shape": shape, "effective": shape, "sub_cells": cells.duplicate(true), "locked": false}
+	var best: Dictionary = {}
+	var best_cells: Array = []
+	for m in range(1, 1 << cells.size()):
+		var sub: Array = []
+		for k in cells.size():
+			if m & (1 << k):
+				sub.append(cells[k])
+		if sub.size() < 2 or sub.size() >= cells.size():
+			continue
+		var sh: Dictionary = detect(sub)
+		var sid: String = String(sh["id"])
+		if sid == "strays" or not unlocked.has(sid):
+			continue
+		if best.is_empty() or int(sh["size"]) > int(best["size"]) or \
+				(int(sh["size"]) == int(best["size"]) and _data_index(sid) < _data_index(String(best["id"]))):
+			best = sh
+			best_cells = sub
+	if best.is_empty():
+		return {"state": "locked_unformed", "shape": shape, "effective": unformed, "sub_cells": [], "locked": true}
+	return {"state": "locked_fallback", "shape": shape, "effective": best, "sub_cells": best_cells, "locked": true}
+
+
+static func _any_adjacent(cells: Array) -> bool:
+	for a: Array in cells:
+		for b: Array in cells:
+			if absi(int(a[0]) - int(b[0])) + absi(int(a[1]) - int(b[1])) == 1:
+				return true
+	return false
+
+
+static func _data_index(id: String) -> int:
+	var shapes: Array = GameData.Formations.SHAPES
+	for i in shapes.size():
+		if String(shapes[i]["id"]) == id:
+			return i
+	return 999
 
 
 ## Roles of each cell in an (effective) shape, same order as `cells`. Always "front"/"back";

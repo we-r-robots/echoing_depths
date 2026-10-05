@@ -425,7 +425,61 @@ def glow():
     Image.fromarray(out, 'RGBA').save(os.path.join(OUT, 'glow.png'))
 
 
+# ------------------------------------------------------------------------------------ crystal
+def crystal():
+    """The Crystal of Remembrance: a tall faceted crystal on a stone root, 4 frames of inner-glow
+    pulse (crystal cyan shell, memory-violet heart). 56x96 per frame, feet at (28, 93)."""
+    Wc, Hc = 56, 96
+    sheet = Image.new('RGBA', (Wc * 4, Hc), (0, 0, 0, 0))
+    for f in range(4):
+        cv = Canvas(Wc, Hc)
+        X, Y = cv.x, cv.y
+        # main spire + two side spires
+        main = poly_mask(cv, [(28, 2), (41, 22), (39, 78), (28, 88), (17, 78), (15, 22)])
+        left = poly_mask(cv, [(10, 40), (17, 52), (17, 82), (9, 86), (4, 74), (5, 52)])
+        right = poly_mask(cv, [(47, 34), (52, 48), (51, 80), (45, 87), (39, 80), (40, 48)])
+        body = main | left | right
+        # facet shading: light from upper left; facets split by x
+        heart = np.exp(-(((X - 28) / 9.0) ** 2 + ((Y - 50) / 20.0) ** 2))
+        pulse = [0.0, 0.25, 0.45, 0.25][f]
+        l = 0.35 + 0.35 * (X < 28) - 0.15 * (X > 34) + 0.25 * (Y < 30) + (0.5 + pulse) * heart
+        cv.shade(main, l, ramp('crystal1', 'crystal2', 'crystal3', 'crystal4', 'crystal5', 'ink10'), 0.0, 1.4)
+        cv.shade(left, l - 0.15, ramp('crystal1', 'crystal2', 'crystal3', 'crystal4'), 0.0, 1.2)
+        cv.shade(right, l - 0.25, ramp('crystal1', 'crystal2', 'crystal3', 'crystal4'), 0.0, 1.2)
+        # memory-violet heart
+        hm = main & (heart > 0.45 - 0.15 * pulse)
+        cv.shade(hm, heart + pulse, ramp('violet2', 'violet3', 'violet4', 'ink10'), 0.4, 1.5)
+        # facet edges
+        for a, b in [((28, 2), (28, 88)), ((15, 22), (28, 30)), ((41, 22), (28, 30)), ((28, 30), (28, 88))]:
+            m = line_mask(cv, [a, b], 1) & main
+            cv.put(m & (X < 29), IDX['crystal5'])
+        cv.put(line_mask(cv, [(10, 40), (11, 84)], 1) & left, IDX['crystal4'])
+        cv.put(line_mask(cv, [(47, 34), (45, 85)], 1) & right, IDX['crystal3'])
+        cv.put(outer_edge(body), IDX['ink1'])
+        # stone root
+        root = ellipse_mask(cv, 28, 89, 24, 6) & ~body
+        cv.shade(root, 0.5 - 0.02 * (Y - 86) + 0.15 * (X < 28), ramp('ink2', 'ink3', 'ink4', 'ink5'), 0, 0.8)
+        cv.put(outer_edge(root | body) & (Y > 84), IDX['ink1'])
+        # sparkles
+        rng = np.random.default_rng(f + 3)
+        for k in range(3):
+            sx, sy = int(rng.integers(14, 42)), int(rng.integers(8, 70))
+            if main[sy, sx]:
+                cv.put((np.abs(X - sx) + np.abs(Y - sy)) < 1.5, IDX['ink10'])
+        sheet.paste(cv.to_image(), (f * Wc, 0))
+    sheet.save(os.path.join(OUT, 'crystal.png'))
+    # the Shard that breaks free: 14x26
+    cv = Canvas(14, 26)
+    X, Y = cv.x, cv.y
+    m = poly_mask(cv, [(7, 0), (13, 8), (11, 22), (7, 25), (3, 22), (1, 8)])
+    cv.shade(m, 0.4 + 0.4 * (X < 7) + 0.4 * np.exp(-(((X - 7) / 3) ** 2 + ((Y - 12) / 6) ** 2)), ramp('crystal2', 'crystal3', 'crystal4', 'crystal5', 'ink10'), 0, 1.2)
+    cv.put(line_mask(cv, [(7, 1), (7, 24)], 1) & m & (Y > 3), IDX['crystal5'])
+    cv.put(outer_edge(m), IDX['ink1'])
+    cv.save(os.path.join(OUT, 'shard.png'))
+
+
 if __name__ == '__main__':
+    crystal()
     background()
     digits()
     burst()

@@ -40,7 +40,15 @@ const SHADOWS := {"s": preload("res://assets/sprites/env/shadow_s.png"),
 ## Sprite used for each class family (advanced classes use their base class).
 const SPRITE_FOR := {"fighter": "fighter", "rogue": "rogue", "healer": "healer", "mage": "mage",
 	"hollow_rat": "shardback", "stone_sentinel": "warden", "shard_golem": "warden",
-	"fading_wisp": "wisp", "memory_wraith": "wisp"}
+	"fading_wisp": "wisp", "memory_wraith": "wisp",
+	# Crystal memories: placeholder sprites (tinted memory-violet and translucent in battle_unit)
+	"ferryman": "fighter", "lamplighters_child": "healer", "miller": "fighter", "weaver": "mage",
+	"lumari_knight": "fighter", "the_draw": "wisp", "the_sealing": "wisp", "the_keeper": "healer"}
+const CRYSTAL_TEX = preload("res://assets/battle/crystal.png")
+const DEMO_CRYSTAL := {
+	"ch1": [26, ["ferryman", "lamplighters_child", "miller", "weaver"]],
+	"late": [1, ["lumari_knight", "the_draw", "the_sealing", "the_keeper"]],
+}
 ## Monster recolours (palette swaps) so kinds that share a sprite stay distinct.
 const SWAPS := {
 	"memory_wraith": [["crystal3", "violet2"], ["crystal4", "violet3"], ["crystal5", "violet4"], ["crystal2", "violet1"]],
@@ -64,6 +72,8 @@ enum State { IDLE, INTRO, PLAY, END }
 ## EXPERIMENT (awaiting user approval): ability-turn spectacle. 0 = current look, 1 = subtle, 2 = full.
 ## Affects ability turns only: focus dim, camera push, VFX size, hit-stop and shake.
 ## Override from the command line with user arg --spectacle=N.
+## Crystal demo sequence: "ch1" (chapter-1 memories) or "late" (chapters 2-4).
+@export var demo_sequence := "ch1"
 @export_range(0, 2) var spectacle_level := 2
 
 var units: Array = []                  # BattleUnit by uid
@@ -108,6 +118,8 @@ var _display := {}
 var _started_by_api := false
 var _demo_running := false
 var _focus_end := -1.0
+var crystal_uid := -1
+var fragments := 0
 var _seek_to := -1.0
 var _tip_demo := -1
 var _pending_moves: Array = []
@@ -177,6 +189,11 @@ func _start_demo() -> void:
 		else:
 			var rival: Dictionary = Echo.from_dict(Echo.make(PartyGen.demo_rival(), {"player": "Ashen Pact"})).get("echo", {})
 			start_fight(mine, rival, fs, {}, {"echo_side": 1})
+		return
+	if String(args.get("fight", demo_fight)) == "crystal":
+		var cd: Array = DEMO_CRYSTAL.get(String(args.get("sequence", demo_sequence)), DEMO_CRYSTAL["ch1"])
+		_demo_running = true
+		play_result(CombatSim.simulate_crystal(int(cd[0]), Demo.demo_party_unlocked(), {"memories": cd[1]}), {})
 		return
 	if String(args.get("fight", demo_fight)) == "monsters":
 		var mon := PartyGen.monster_group(Rng.new(DEMO_MONSTER_SEED), DEMO_MONSTER_DEPTH)
@@ -483,6 +500,8 @@ func _dispatch(ev: Dictionary) -> void:
 		"fight_end": _on_fight_end(ev)
 		"formation_proc": _on_formation_proc(ev)
 		"formation_move": _on_formation_move(ev)
+		"spawn": _on_spawn(ev)
+		"crystal_fragment": _on_crystal_fragment(ev)
 		_: _on_other(ev)    # unknown / future event types are ignored safely
 
 
@@ -540,6 +559,9 @@ func _on_formation_proc(ev: Dictionary) -> void:
 
 ## Each formation behaviour reads on the board as its own moment.
 func _behaviour_cue(ev: Dictionary, u) -> void:
+	if String(ev.get("source", "")).begins_with("memory:"):
+		_memory_cue(ev, u)
+		return
 	var s: int = u.side
 	var eff := String(ev.get("effect", ""))
 	var r_id := int(ev.get("related", -1))
@@ -638,6 +660,110 @@ func _behaviour_cue(ev: Dictionary, u) -> void:
 					fx.ring(n.position, 3, 10, 0.5, sc, 0.4)
 
 
+# ------------------------------------------------------------------------- Crystal of Remembrance
+## A memory surfaces: light pours out of the Crystal, the unit forms in its slot, and its name and
+## lore line show as a caption. The clock holds while it forms.
+func _on_spawn(ev: Dictionary) -> void:
+	var u: Dictionary = (ev.get("unit", {}) as Dictionary).duplicate()
+	var slot: Array = ev.get("slot", [u.get("col", 0), u.get("row", 0)])
+	u["col"] = int(slot[0])
+	u["row"] = int(slot[1])
+	var node := _make_unit(u)
+	var id: int = node.uid
+	if units.size() <= id:
+		units.resize(id + 1)
+	units[id] = node
+	side_units[node.side].append(id)
+	stage.occupied[node.side][Vector2i(node.col, node.row)] = true
+	stage.alive_cells[node.side][Vector2i(node.col, node.row)] = true
+	hud.row_flash.resize(maxi(hud.row_flash.size(), units.size()))
+	plates.units = units
+	if _instant:
+		return
+	node.form_t = 0.0
+	node.modulate.a = 0.0
+	var c = units[crystal_uid] if crystal_uid >= 0 else null
+	if c != null:
+		fx.sweep(c.chest(), node.chest(), Pal.VIOLET4)
+		fx.light(c.chest(), Pal.VIOLET3, 3, 0.7, 0.9)
+		fx.particles(c.chest(), 30, Pal.VIOLET4, 60.0, 20.0, 0.9, 0.0, 1, 6.0)
+	fx.pillar(node.position.x, node.position.y, 12.0, 0.9, Pal.VIOLET3)
+	fx.ring(node.position, 4, 30, 0.7, Pal.VIOLET4, 0.35)
+	hud.show_lore(node.label, String(ev.get("lore", "")))
+	hitstop(1.4 if String(ev.get("reason", "")) == "fragment" else 1.0, node.uid)
+
+
+## A fragment breaks off: cracks spread, a shard flies off with particles, hit-stop, the pip fills.
+func _on_crystal_fragment(ev: Dictionary) -> void:
+	fragments = int(ev.get("index", fragments + 1))
+	if crystal_uid < 0:
+		return
+	var c = units[crystal_uid]
+	c.cracks = fragments
+	if _instant:
+		return
+	var ch: Vector2 = c.chest()
+	hitstop(0.5)
+	shake(6.0)
+	hud.screen_flash(Pal.VIOLET4, 0.45)
+	hud.show_fragment(fragments)
+	c.flash(Pal.INK10, 1.0)
+	fx.light(ch, Pal.CRYSTAL5, 4, 0.8, 0.8)
+	fx.ring(ch, 6, 70, 0.6, Pal.CRYSTAL5, 0.6)
+	fx.ring(ch, 4, 46, 0.5, Pal.VIOLET4, 0.6)
+	fx.particles(ch, 60, Pal.CRYSTAL5, 140.0, 40.0, 1.0, 160.0, 2, 8.0)
+	fx.particles(ch, 30, Pal.VIOLET4, 90.0, 30.0, 0.8, 120.0, 1, 6.0)
+	var off := Vector2(30.0 + 10.0 * fragments, -40.0 - 8.0 * fragments)
+	fx.projectile(ch + Vector2(-6, -20), ch + off, sim_t, sim_t + 0.45, Pal.CRYSTAL4, Pal.INK10, 0, 40.0)
+
+
+func _memory_cue(ev: Dictionary, u) -> void:
+	var eff := String(ev.get("effect", ""))
+	var r_id := int(ev.get("related", -1))
+	var r = units[r_id] if r_id >= 0 and r_id < units.size() else null
+	var behs := {"shield_crystal": "Stand in the crossing", "kindle": "Kindle", "harvest": "Grief of the harvest",
+		"mirror": "Woven likeness", "last_stand": "Last stand", "draw_memory": "Draw",
+		"hasten_fading": "Close the Vault", "dim_lantern": "Dim the lantern"}
+	var col := Pal.VIOLET4
+	fx.cue(String(behs.get(eff, ev.get("name", ""))), u.position + Vector2(0, 18), col, 0.0)
+	u.buff_glow = 0.7
+	u.buff_color = col
+	match eff:
+		"shield_crystal":   # the hit aimed at the Crystal is pulled onto the Ferryman
+			if r != null:
+				fx.sweep(r.chest(), u.chest(), Pal.VIOLET4)
+			fx.ring(u.chest(), 6, 22, 0.45, Pal.VIOLET4, 1.2)
+		"kindle":           # a heal stream from the child to the most hurt memory
+			if r != null:
+				fx.trail(u.chest(), r.chest(), Pal.AMBER6)
+				fx.projectile(u.chest(), r.chest(), sim_t, sim_t + 0.3, Pal.AMBER5, Pal.AMBER7, 0, 14.0)
+		"harvest":
+			fx.light(u.chest(), Pal.BLOOD3, 1, 0.6, 0.6)
+			fx.ring(u.position, 4, 24, 0.5, Pal.BLOOD4, 0.35)
+		"mirror":           # she copies the heroes' shape: their floor glyph flashes, a thread to her
+			stage.glyph_pulse[0] = 1.0
+			if r != null:
+				fx.sweep(r.chest(), u.chest(), Pal.VIOLET3)
+		"last_stand":
+			fx.light(u.chest(), Pal.INK10, 2, 0.8, 0.6)
+			fx.ring(u.chest(), 20, 4, 0.5, Pal.INK10, 1.0)
+			hitstop(0.25)
+		"draw_memory":      # charge is drawn out of the hero into the Draw
+			if r != null:
+				fx.projectile(r.chest(), u.chest(), sim_t, sim_t + 0.35, Pal.VIOLET3, Pal.VIOLET4, 0, 16.0)
+				r.charge_shown = minf(100.0, r.charge_shown + 20.0)
+		"hasten_fading":    # the Vault closes: the arena greys a step toward the Fading
+			fade_level = maxf(fade_level, 0.35)
+			fx.ring(Vector2(320, 190), 6, 160, 0.7, Pal.FADE3, 0.3)
+			hud.vignette = 0.6
+		"dim_lantern":      # the heroes' formation behaviours go dark while the Keeper stands
+			hud.lantern_dim = u.uid
+			fx.light(u.chest(), Pal.FADE3, 2, 0.5, 0.7)
+			for n in units:
+				if n != null and n.side == 0 and n.alive:
+					n.flash(Pal.FADE2, 0.6)
+
+
 ## Vault Door, Hold the door: the back unit steps forward into the fallen front unit's slot.
 func _on_formation_move(ev: Dictionary) -> void:
 	var uid := int(ev.get("uid", -1))
@@ -709,6 +835,10 @@ func _on_fight_start(ev: Dictionary) -> void:
 		side_units[node.side].append(node.uid)
 		stage.occupied[node.side][Vector2i(node.col, node.row)] = true
 		stage.alive_cells[node.side][Vector2i(node.col, node.row)] = true
+		if int(u.get("span", 1)) == 2:
+			stage.occupied[node.side][Vector2i(node.col, node.row + 1)] = true
+			stage.alive_cells[node.side][Vector2i(node.col, node.row + 1)] = true
+			crystal_uid = node.uid
 	plates.units = units
 	# same-column neighbours of a large monster step outward so it never hides them
 	for big in units:
@@ -728,7 +858,35 @@ func _on_fight_start(ev: Dictionary) -> void:
 	hud.build_banner()
 
 
+func _crystal_meta() -> Dictionary:
+	var frames := SpriteFrames.new()
+	frames.remove_animation(&"default")
+	for an: StringName in [&"idle", &"hit", &"ko", &"attack", &"cast"]:
+		frames.add_animation(an)
+		frames.set_animation_speed(an, 5.0)
+		frames.set_animation_loop(an, an == &"idle")
+		for i in (4 if an == &"idle" else 1):
+			var at := AtlasTexture.new()
+			at.atlas = CRYSTAL_TEX
+			at.region = Rect2(i * 56, 0, 56, 96)
+			frames.add_frame(an, at)
+	var anims := {}
+	for an in ["idle", "hit", "ko", "attack", "cast"]:
+		anims[an] = {"fps": 5, "frames": 4 if an == "idle" else 1, "events": {}}
+	return {"frames": frames, "size": [56, 96], "origin": [28, 93], "anims": anims, "path": ""}
+
+
 func _make_unit(u: Dictionary) -> Node2D:
+	if String(u.get("tier", "")) == "crystal":
+		var cm := _crystal_meta()
+		var cn := Unit.new()
+		units_root.add_child(cn)
+		cn.setup(u, cm, SHADOWS["l"], false, side_colors[int(u["side"])], [])
+		cn.g_rate = 0.0
+		cn.g_base = 0.0
+		cn.focus_rim = spectacle_level >= 1
+		portraits[cn.uid] = _portrait("crystal", "crystal", true, cm)
+		return cn
 	var cls := String(u.get("class", ""))
 	var base := String(u.get("base_class", cls))
 	var key: String = SPRITE_FOR.get(cls, SPRITE_FOR.get(base, "fighter"))
@@ -760,7 +918,7 @@ var _portrait_cache := {}
 func _portrait(key: String, _base: String, _monster: bool, m: Dictionary) -> Texture2D:
 	if _portrait_cache.has(key):
 		return _portrait_cache[key]
-	var frames: SpriteFrames = load(String(m["path"]))
+	var frames: SpriteFrames = m["frames"] if m.has("frames") else load(String(m["path"]))
 	var ft := frames.get_frame_texture(&"idle", 0)
 	var at := AtlasTexture.new()
 	if ft is AtlasTexture:
@@ -1183,6 +1341,8 @@ func _formation_line(side: int, form: Dictionary) -> int:
 func _num_pos(T, uid: int) -> Vector2:
 	var k := int((_stack.get(uid, [0.0, 0]) as Array)[1])
 	var p: Vector2 = T.head() + Vector2(0.0, 10.0)   # same-target hits stack (battle_fx)
+	if T.is_crystal:
+		p = T.position + Vector2(0.0, -50.0)
 	if p.y < 140.0:
 		p = Vector2(T.head().x - 12.0 * T.facing, 140.0)   # tall unit: on its face, below the top band
 	# measured in SCREEN pixels through the live canvas transform (camera zoom + offset):
@@ -1250,6 +1410,8 @@ func _on_ko(ev: Dictionary) -> void:
 		return
 	var u = units[uid]
 	u.knock_out()
+	if hud.lantern_dim == u.uid:
+		hud.lantern_dim = -1
 	_ko_settle = _vclock + 0.6
 	stage.alive_cells[u.side].erase(Vector2i(u.col, u.row))
 	if _instant:
@@ -1303,7 +1465,17 @@ func _on_fight_end(ev: Dictionary) -> void:
 		hud.winner_text = "DEFEAT"
 	var wname := String(sides[w]["name"]) if w >= 0 else "Neither side"
 	var reason := String(ev.get("reason", "wipe"))
-	end_subtitle = "%s wins  -  %.1f s%s" % [wname, float(ev.get("t", sim_t)), "  -  sudden death" if reason == "sudden_death" else ""]
+	if reason == "shard" and crystal_uid >= 0:
+		var c = units[crystal_uid]
+		fx.shard_fly(c.chest() + Vector2(0, -24), Vector2(320, 150))
+		fx.light(Vector2(320, 150), Pal.CRYSTAL5, 4, 0.7, 2.5)
+		hud.screen_flash(Pal.CRYSTAL5, 0.6)
+		shake(4.0)
+	end_subtitle = "%s wins  -  %.1f s%s" % [wname, float(ev.get("t", sim_t)), "  -  the Fading" if reason == "fading" else ""]
+	if reason == "shard":
+		end_subtitle = "A Shard breaks free of the Crystal  -  %.1f s" % float(ev.get("t", sim_t))
+	elif crystal_uid >= 0 and w != player_side:
+		end_subtitle = "%d of 4 fragments chipped  -  they become Glimmers" % fragments
 	if w >= 0:
 		for u in units:
 			if u.side == w and u.alive:

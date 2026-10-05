@@ -76,7 +76,8 @@ func test_unlocks_round_trip() -> void:
 	var wall := {"heroes": [hero("fighter", 0, 0), hero("fighter", 0, 1), hero("rogue", 0, 2), hero("rogue", 0, 3)],
 		"unlocked_formations": ["kindred"]}
 	var we: Dictionary = Echo.from_json(Echo.to_json(Echo.make(wall)))["echo"]
-	eq(CombatSim.simulate(1, we, foe)["events"][0]["sides"][0]["formation"]["id"], "strays", "locked Seawall Echo fights as Strays")
+	var wf: Dictionary = CombatSim.simulate(1, we, foe)["events"][0]["sides"][0]["formation"]
+	check(wf["id"] == "kindred" and wf["state"] == "locked_fallback", "locked Seawall Echo falls back to its unlocked Kindred part")
 
 
 func test_v1_echo_loads_with_default_unlocks() -> void:

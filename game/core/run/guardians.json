@@ -1,5 +1,5 @@
 {
- "_doc": "Floor guardians (floors 1-4) and the Vault Heart, in order. Each: name, intro (shown before the fight), level, loss_health (health lost on defeat; the Heart's is lethal), monsters [{class, slot [col,row], name?}]. Levels and costs are placeholders that escalate floor by floor.",
+ "_doc": "Floor guardians (floors 1-4), in order. Each: name, intro (shown before the fight), level, loss_health (health lost on defeat), monsters [{class, slot [col,row], level_offset?, name?}]. 'crystal': the final chamber (06-crystal-of-remembrance.md): name and intro only; the fight itself is CombatSim.simulate_crystal. Placeholders that escalate floor by floor.",
  "guardians": [
   {
    "id": "sentinel_warden",
@@ -120,7 +120,7 @@
    "name": "The Gate of Seals",
    "level": 5,
    "loss_health": 3,
-   "intro": "The Lumari sealed the Heart behind a gate that judges. Two sentinels hold it, and the wraiths that serve it remember every party that was found wanting.",
+   "intro": "The Lumari sealed the Crystal's chamber behind a gate that judges. Two sentinels hold it, and the wraiths that serve it remember every party that was found wanting.",
    "monsters": [
     {
      "class": "stone_sentinel",
@@ -145,43 +145,6 @@
     },
     {
      "class": "memory_wraith",
-     "slot": [
-      1,
-      2
-     ]
-    }
-   ]
-  },
-  {
-   "id": "vault_heart",
-   "name": "The Heart of the Vault",
-   "level": 6,
-   "loss_health": 3,
-   "intro": "The [crystal]Crystal of Remembrance[/crystal] wakes. What guards it is made of it: a golem of shards, and the last records of the Lumari, who do not want to be read. The Vault yields its Shard to one party per descent. It is deciding now.",
-   "monsters": [
-    {
-     "class": "shard_golem",
-     "slot": [
-      0,
-      1
-     ]
-    },
-    {
-     "class": "stone_sentinel",
-     "slot": [
-      0,
-      2
-     ]
-    },
-    {
-     "class": "memory_wraith",
-     "slot": [
-      1,
-      1
-     ]
-    },
-    {
-     "class": "fading_wisp",
      "slot": [
       1,
       2
@@ -189,5 +152,9 @@
     }
    ]
   }
- ]
+ ],
+ "crystal": {
+  "name": "The Crystal of Remembrance",
+  "intro": "The chamber is the [crystal]Crystal[/crystal] itself, grown through the rock like frost through glass. It does not fight. It only remembers, and as you chip a Shard from it, the memories it holds wake and stand between you and the light. There is no way back up from here."
+ }
 }

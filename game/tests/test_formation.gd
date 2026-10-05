@@ -61,24 +61,81 @@ func test_mirrored_variants_are_the_same_shape() -> void:
 func test_strays() -> void:
 	eq(Formation.detect([[0, 0], [0, 2]])["id"], "strays", "a gap in the column")
 	eq(Formation.detect([[0, 0], [1, 1]])["id"], "strays", "diagonal is not edge-connected")
-	eq(Formation.detect([[0, 0], [0, 1], [1, 3]])["id"], "strays", "a pair plus a loner")
+	eq(Formation.detect([[0, 0], [0, 1], [1, 3]])["id"], "strays", "a pair plus a loner matches no shape (state: unformed)")
 	eq(Formation.detect([[0, 0], [0, 3], [1, 1], [1, 2]])["id"], "strays", "scattered four")
 
 
-func test_locked_shape_fights_as_strays() -> void:
+func test_formation_states() -> void:
+	var u := ["kindred", "vigil", "lamplight", "tidebreak", "choir"]
+	var st := func(cells: Array, unlocked: Array) -> Dictionary:
+		var hs: Array = []
+		for c: Array in cells:
+			hs.append({"slot": c})
+		return Formation.effective({"heroes": hs, "unlocked_formations": unlocked})
+	var fx: Dictionary = st.call([[0, 0], [0, 1]], u)
+	check(fx["state"] == "active" and fx["effective"]["id"] == "kindred" and fx["sub_cells"].size() == 2, "active Kindred")
+	fx = st.call([[0, 0], [1, 1], [0, 2], [1, 3]], u)
+	check(fx["state"] == "strays" and fx["effective"]["id"] == "strays" and fx["sub_cells"].is_empty(), "no two adjacent: Strays")
+	fx = st.call([[0, 0], [0, 1], [1, 3]], u)
+	check(fx["state"] == "unformed" and fx["effective"]["id"] == "unformed" and (fx["effective"]["bonus"] as Array).is_empty(),
+		"a pair plus a loner: Unformed (no bonus, no cost)")
+	fx = st.call([[0, 0], [0, 1], [0, 2], [0, 3]], u)
+	check(fx["state"] == "locked_fallback" and fx["shape"]["id"] == "seawall" and fx["effective"]["id"] == "tidebreak" and fx["locked"],
+		"locked Seawall falls back to its largest unlocked part, Tidebreak")
+	eq(fx["sub_cells"], [[0, 0], [0, 1], [0, 2]], "the fallback's cells (first in slot order)")
+	fx = st.call([[0, 0], [0, 1], [0, 2], [0, 3]], [])
+	check(fx["state"] == "locked_unformed" and fx["effective"]["id"] == "unformed", "no unlocked part: locked_unformed")
+	fx = st.call([[0, 0], [0, 1], [1, 0], [1, 1]], ["kindred", "vigil", "lamplight"])
+	check(fx["state"] == "locked_fallback" and fx["effective"]["id"] == "kindred", "Vault Door ties between dominoes break by data order (Kindred)")
+
+
+func test_fallback_applies_to_sub_shape_heroes_only() -> void:
 	var p := party([hero("fighter", 0, 0), hero("fighter", 0, 1), hero("fighter", 0, 2), hero("fighter", 0, 3)])
-	var fx := Formation.effective(p)
-	eq(fx["shape"]["id"], "seawall", "geometry is Seawall")
-	eq(fx["effective"]["id"], "strays", "Seawall is not unlocked by default: fights as Strays")
-	check(fx["locked"], "reported locked")
 	var r := CombatSim.simulate(1, p, party([hero("hollow_rat", 0, 0)]))
 	var f: Dictionary = r["events"][0]["sides"][0]["formation"]
-	check(f["id"] == "strays" and f["shape"] == "seawall" and f["locked"], "banner shows Seawall, locked, as Strays")
-	p["unlocked_formations"] = ["seawall"]
-	r = CombatSim.simulate(1, p, party([hero("hollow_rat", 0, 0)]))
-	eq(r["events"][0]["sides"][0]["formation"]["id"], "seawall", "unlocked: Seawall fights as Seawall")
-	for id: String in ["kindred", "vigil", "lamplight", "tidebreak", "choir"]:
-		check(GameData.Formations.DEFAULT_UNLOCKED.has(id), "%s unlocked from the start" % id)
+	check(f["state"] == "locked_fallback" and f["id"] == "tidebreak" and f["shape"] == "seawall", "banner: Seawall locked, fights as Tidebreak")
+	eq(f["sub_cells"], [[0, 0], [0, 1], [0, 2]], "banner carries the sub-shape cells")
+	var base := int(GameData.get_class_def("fighter")["stats"]["def"])
+	var in_def := int(unit_stats(r, 0)["def"])
+	var out_def := int(unit_stats(r, 3)["def"])
+	check(in_def > out_def, "Tidebreak's Def bonus only on its three heroes (%d vs %d)" % [in_def, out_def])
+	eq(out_def, floori(base * 1.10), "the hero outside the sub-shape keeps only Shield Brothers")
+
+
+func test_matches_ui_stub() -> void:
+	var path := "res://scenes/party_setup/formation_words.gd"
+	if not ResourceLoader.exists(path):
+		check(true, "UI stub not present")
+		return
+	var stub: GDScript = load(path)
+	var rng := Rng.new(77)
+	var ids: Array = PartyGen.all_shapes()
+	var n := 0
+	for i in 400:
+		var size := rng.int_range(2, 4)
+		var cells: Array = []
+		var used := {}
+		while cells.size() < size:
+			var c := [rng.int_range(0, 1), rng.int_range(0, 3)]
+			if not used.has(c[0] * 4 + c[1]):
+				used[c[0] * 4 + c[1]] = true
+				cells.append(c)
+		cells.sort_custom(func(a: Array, b: Array) -> bool: return a[0] * 10 + a[1] < b[0] * 10 + b[1])
+		var unlocked: Array = []
+		for id: String in ids:
+			if rng.next_float() < 0.4:
+				unlocked.append(id)
+		var hs: Array = []
+		for c: Array in cells:
+			hs.append({"slot": c})
+		var core: Dictionary = Formation.effective({"heroes": hs, "unlocked_formations": unlocked})
+		var ui: Dictionary = stub.evaluate(cells, unlocked)
+		if core["state"] != ui["state"] or core["effective"]["id"] != ui["effective"]["id"] or core["sub_cells"] != ui["sub_cells"] \
+				or core["locked"] != ui["locked"] or core["shape"]["id"] != ui["shape"]["id"]:
+			check(false, "core and UI disagree on %s with %s: %s vs %s" % [cells, unlocked, core["state"], ui["state"]])
+			return
+		n += 1
+	check(n == 400, "core Formation.effective matches the UI stub on 400 placements")
 
 
 func test_banner_lists_bonus_behaviour_cost() -> void:
@@ -189,7 +246,8 @@ func test_locked_shape_has_no_behaviour() -> void:
 		var r := CombatSim.simulate(i, a, PartyGen.random_party(rng))
 		for ev: Dictionary in r["events"]:
 			if ev["type"] == "formation_proc" and int(ev["side"]) == 0 and String(ev["stat"]) == "":
-				check(String(ev["effect"]) == "scattered", "a locked shape only shows Strays' behaviour")
+				check(false, "a locked shape with no unlocked part (Unformed) has no behaviour: %s" % ev)
+				return
 	check(true, "locked shapes checked")
 
 
@@ -257,18 +315,17 @@ func _firestorm_hits(b: Dictionary) -> Dictionary:
 	return hit
 
 
-func test_scattered_spares_only_units_not_standing_together() -> void:
-	# B: two adjacent back units + one isolated front unit = Strays. Firestorm's primary lands on
-	# the back pair: splash reaches the adjacent partner, not the isolated unit.
-	var b := party([hero("fighter", 0, 3), hero("fighter", 1, 0), hero("fighter", 1, 1)])
-	eq(Formation.detect([[0, 3], [1, 0], [1, 1]])["id"], "strays", "placement is Strays")
+func test_scattered_strays_take_no_splash() -> void:
+	# Strays (no two adjacent): Firestorm's splash never spreads from the struck unit.
+	var b := party([hero("fighter", 0, 3), hero("fighter", 1, 0), hero("fighter", 1, 2)])
 	var hit := _firestorm_hits(b)
-	check(hit.has(3) and hit.has(4), "primary and its adjacent partner are hit")
-	check(not hit.has(2), "the isolated unit is spared")
-	# a locked shape fights as Strays but stands together: it takes normal splash
+	eq(hit.size(), 1, "only the struck Stray is hit")
+	# Unformed (partly joined) and locked shapes take normal splash
+	eq(_firestorm_hits(party([hero("fighter", 0, 3), hero("fighter", 1, 0), hero("fighter", 1, 1)])).size(), 3,
+		"an Unformed side takes splash")
 	var wall := party([hero("fighter", 0, 0), hero("fighter", 0, 1), hero("fighter", 0, 2), hero("fighter", 0, 3)])
 	wall["unlocked_formations"] = []
-	eq(_firestorm_hits(wall).size(), 4, "a locked (connected) shape takes splash on all four")
+	eq(_firestorm_hits(wall).size(), 4, "a locked shape with no unlocked part takes splash on all four")
 
 
 func test_guardian_ignores_splash() -> void:

@@ -58,6 +58,7 @@ class Unit:
 	# per stat: every formation/composition contribution [source, name, value] (for formation_proc)
 	var contribs := {}
 	var roles: Array = []      # "front"/"back" + shape roles (post, tip, keeper, flanker, gap, middle)
+	var in_shape := true       # part of the shape that fights (a locked shape's fallback covers only some)
 	var draw := 0              # 1 = draws nearby melee (gap), 2 = taunts all melee (Lighthouse post)
 	var dmg_taken := 1.0       # Keeper's Ring cost
 	var cover_target := -1     # Vigil covering fire: uid this unit's next basic action targets
@@ -192,7 +193,7 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 	var volley: Array = []
 	for u in _units:   # Choir / Lumari Chorus: the back row starts with fuller gauges
 		var b: Dictionary = _beh[u.side]
-		if String(b["id"]) == "opening_volley" and u.col == 1:
+		if String(b["id"]) == "opening_volley" and u.col == 1 and u.in_shape:
 			u.gauge = mini(int(_gauge_max * 0.95), u.gauge + int(_gauge_max * float(b["gauge"])))
 			volley.append(u)
 
@@ -324,7 +325,7 @@ func _build_crystal_side(opts: Dictionary) -> Dictionary:
 	_bid[1] = "none"
 	return {"side": 1, "name": "Crystal of Remembrance",
 		"formation": {"id": "crystal_chamber", "name": "Crystal of Remembrance", "shape": "crystal_chamber",
-			"shape_name": "Crystal of Remembrance", "locked": false, "buffs": [], "debuffs": [],
+			"shape_name": "Crystal of Remembrance", "state": "none", "sub_cells": [], "locked": false, "buffs": [], "debuffs": [],
 			"behaviour": {"id": "none", "name": "Crystal", "text": chamber["behaviour"]["text"]}, "cost": ""},
 		"compositions": []}
 
@@ -478,11 +479,25 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 	var fx := Formation.effective({"heroes": heroes, "unlocked_formations": Formation.unlocked_of(party)})
 	var shape: Dictionary = fx["effective"]
 	var geo: Dictionary = fx["shape"]
-	var roles := Formation.roles(String(shape["id"]), cells)
+	var state := String(fx["state"])
+	# who the fighting shape applies to: everyone (active / strays), the fallback's heroes, or nobody
+	var members: Array = []
+	if state == "active" or state == "strays":
+		members = cells
+	elif state == "locked_fallback":
+		members = fx["sub_cells"]
+	var sub_roles := Formation.roles(String(shape["id"]), members)
+	var roles: Array = []
+	for c: Array in cells:
+		var k := members.find(c)
+		roles.append(sub_roles[k] if k >= 0 else ["front" if int(c[0]) == 0 else "back"])
+	var beh_def: Dictionary = shape["behaviour"]
+	if beh_def.is_empty():
+		beh_def = {"id": "none", "name": "", "text": ""}
 	_shape[side] = shape
-	_beh[side] = shape["behaviour"]
-	_bid[side] = String(shape["behaviour"]["id"])
-	_guard_uses[side] = int((shape["behaviour"] as Dictionary).get("uses", 0))
+	_beh[side] = beh_def
+	_bid[side] = String(beh_def["id"])
+	_guard_uses[side] = int(beh_def.get("uses", 0))
 	var comps := Formation.compositions(bases)
 	var hi := 0
 
@@ -491,6 +506,7 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 		var cdef := GameData.get_class_def(cid)
 		var u := Unit.new()
 		u.roles = roles[hi]
+		u.in_shape = members.has(cells[hi])
 		hi += 1
 		u.uid = _units.size()
 		u.side = side
@@ -512,10 +528,11 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 		var pct := {"hp_pct": 0.0, "atk_pct": 0.0, "def_pct": 0.0, "mag_pct": 0.0, "spd_pct": 0.0,
 			"crit_add": 0.0, "charge_pct": 0.0, "heal_pct": 0.0, "dmg_taken_pct": 0.0}
 		var mods: Array = []
-		for m: Dictionary in shape["bonus"]:
-			mods.append([m, "formation:" + String(shape["id"]), "", String(shape["name"])])
-		for m: Dictionary in shape["cost"]["mods"]:
-			mods.append([m, "formation:" + String(shape["id"]), "", String(shape["name"])])
+		if u.in_shape:   # the shape's bonus and cost apply to the heroes forming it
+			for m: Dictionary in shape["bonus"]:
+				mods.append([m, "formation:" + String(shape["id"]), "", String(shape["name"])])
+			for m: Dictionary in shape["cost"]["mods"]:
+				mods.append([m, "formation:" + String(shape["id"]), "", String(shape["name"])])
 		for comp: Dictionary in comps:
 			for m: Dictionary in comp["mods"]:
 				mods.append([m, "comp:" + String(comp["id"]), String(comp["when"].get("base", "")), String(comp["name"])])
@@ -552,7 +569,7 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 		if String(shape["cost"].get("draw", "")) == "gap" and u.roles.has("gap"):
 			u.draw = 1
 			u.draw_effect = "draws_melee"
-		if bool(shape["behaviour"].get("taunt", false)) and u.roles.has("post"):
+		if bool(beh_def.get("taunt", false)) and u.roles.has("post"):
 			u.draw = 2
 			u.draw_effect = "taunt"
 		if u.roles.has("tip"):   # Shardpoint cost: the tip draws every melee hit
@@ -572,11 +589,11 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 	var comp_ev: Array = []
 	for comp: Dictionary in comps:
 		comp_ev.append({"id": comp["id"], "name": comp["name"], "mods": comp["mods"]})
-	var beh: Dictionary = shape["behaviour"]
 	return {"side": side, "name": String(party.get("name", "Side %d" % side)),
 		"formation": {"id": shape["id"], "name": shape["name"], "shape": geo["id"], "shape_name": geo["name"],
+			"state": state, "sub_cells": (fx["sub_cells"] as Array).duplicate(true),
 			"locked": bool(fx["locked"]), "buffs": shape["bonus"], "debuffs": shape["cost"]["mods"],
-			"behaviour": {"id": beh["id"], "name": beh["name"], "text": beh["text"]},
+			"behaviour": {"id": beh_def["id"], "name": beh_def["name"], "text": beh_def["text"]},
 			"cost": String(shape["cost"]["text"])},
 		"compositions": comp_ev}
 
@@ -756,13 +773,15 @@ func _do_action(u: Unit) -> int:
 	var primary := _select(u, sel)
 	if primary != null and primary.side != u.side:
 		var single_target := String(a.get("area", _area_of(sel))) == "single"
-		if sel == "melee" or _cur_melee or single_target:
-			primary = _apply_draw(u, primary, sel == "melee" or _cur_melee)
+		if _cur_melee or single_target:
+			primary = _apply_draw(u, primary, _cur_melee)   # melee = physical melee-targeted or a dash
 	_cur_splash = info[1]
+	var taunted := not _drawn.is_empty() and String(_drawn[1]) == "taunt"
 	if not use_ability and u.cover_target >= 0:
 		var ct := _units[u.cover_target]
+		# a Lighthouse taunt wins over covering fire: the lit post draws the attack
 		if ct.alive and ct.side != u.side and _target_side(u, sel) != u.side and _area_of(sel) == "single" \
-				and not _ring_protected(ct):
+				and not _ring_protected(ct) and not taunted:
 			if ct != primary:
 				primary = ct
 				_after_start.append([u, "turn", ct.uid, 1.0, "covering_fire"])
@@ -791,7 +810,7 @@ func _do_action(u: Unit) -> int:
 	elif mid == "dim_lantern" and not _dimmed_beh.is_empty():
 		_mem_cue(u, "turn", _now, -1, 1.0)
 	# Shardpoint: the tip gains charge whenever an ally behind it acts
-	if _bid[u.side] == "shardpoint" and u.col == 1:
+	if _bid[u.side] == "shardpoint" and u.col == 1 and u.in_shape:
 		for tip: Unit in _sides[u.side]:
 			if tip.alive and tip.roles.has("tip") and tip.col == 0 and tip.charge < _charge_max:
 				_gain_charge(tip, int(_beh[u.side]["charge"]), "effect", _now)
@@ -931,7 +950,7 @@ func _resolve(u: Unit, a: Dictionary, to: String, primary: Unit) -> Array[Unit]:
 		"random_enemy":
 			var pool2: Array[Unit] = []
 			for o: Unit in foes:
-				if o.alive:
+				if o.alive and not _ring_protected(o):   # Keeper's Ring: the keeper can't be single-targeted
 					pool2.append(o)
 			if not pool2.is_empty():
 				out.append(pool2[_rng.int_range(0, pool2.size() - 1)])
@@ -1045,9 +1064,9 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 	var splash := SPLASH.has(String(eff.get("to", "primary")))
 	var guarded: Unit = null
 	# Lamplight guardian: the front unit intercepts the first ranged/magic hit on its back partner
-	if _guard_uses[dst.side] > 0 and dst.col == 1 and not _cur_splash and (magic or not _cur_melee):
+	if _guard_uses[dst.side] > 0 and dst.col == 1 and dst.in_shape and not _cur_splash and (magic or not _cur_melee):
 		for g: Unit in _sides[dst.side]:
-			if g.alive and g.col == 0 and g.row == dst.row:
+			if g.alive and g.in_shape and g.col == 0 and g.row == dst.row:
 				_guard_uses[dst.side] -= 1
 				guarded = dst
 				dst = g
@@ -1090,18 +1109,18 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 	if bd == "hearthguard" and dst.roles.has("post") and dst.col == 0:
 		var allies := 0
 		for o: Unit in _sides[dst.side]:
-			if o.alive and o.col == 1:
+			if o.alive and o.in_shape and o.col == 1:
 				allies += 1
 		if allies > 0:
 			var hg := maxf(0.0, 1.0 - float(beh_dst["per_ally"]) * allies)
 			base *= hg
 			mods.append({"id": "hearthguard", "mult": snappedf(hg, 0.01)})
 			beh_cues.append([dst, "defend", src.uid, snappedf(1.0 - hg, 0.01), "hearthguard"])
-	if splash and bd == "echo_step":
+	if splash and bd == "echo_step" and dst.in_shape:
 		base *= float(beh_dst["splash"])
 		mods.append({"id": "echo_step", "mult": float(beh_dst["splash"])})
 		beh_cues.append([dst, "defend", src.uid, float(beh_dst["splash"]), "echo_step"])
-	if splash and magic and bs == "opening_volley" and beh_src.has("splash"):
+	if splash and magic and bs == "opening_volley" and beh_src.has("splash") and src.in_shape:
 		base *= 1.0 + float(beh_src["splash"])
 		mods.append({"id": "chorus_splash", "mult": 1.0 + float(beh_src["splash"])})
 		beh_cues.append([src, "attack", dst.uid, float(beh_src["splash"]), "chorus_splash"])
@@ -1151,16 +1170,16 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 		pass   # shares only pass on single-target hits (keeps an area attack to one number per unit)
 	elif dst.col == 0 and bd == "brace" and dst.roles.has("middle"):
 		for o: Unit in _sides[dst.side]:
-			if o.alive and o.col == 0 and absi(o.row - dst.row) == 1:
+			if o.alive and o.in_shape and o.col == 0 and absi(o.row - dst.row) == 1:
 				shares.append([o, maxi(1, int(round(amount * float(beh_dst["share"])))), "brace", float(beh_dst["share"])])
-	elif dst.col == 0 and bd == "share_the_blow":
+	elif dst.col == 0 and bd == "share_the_blow" and dst.in_shape:
 		var nxt: Unit = null
 		for o: Unit in _sides[dst.side]:
-			if o.alive and o.col == 0 and o.row == dst.row + 1:
+			if o.alive and o.in_shape and o.col == 0 and o.row == dst.row + 1:
 				nxt = o
 		if nxt == null:
 			for o: Unit in _sides[dst.side]:
-				if o.alive and o.col == 0 and o.row == dst.row - 1:
+				if o.alive and o.in_shape and o.col == 0 and o.row == dst.row - 1:
 					nxt = o
 		if nxt != null:
 			shares.append([nxt, maxi(1, int(round(amount * float(beh_dst["share"])))), "share_the_blow", float(beh_dst["share"])])
@@ -1225,11 +1244,11 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 		_side_hit(src, sh[0], int(sh[1]), "magic" if magic else "physical", String(sh[2]), float(sh[3]), t, aid,
 			not magic and src.col == 1)
 	# Kindred shoulder to shoulder / Vigil covering fire react to melee hits
-	if _cur_melee and src.side != dst.side:
+	if _cur_melee and src.side != dst.side and dst.in_shape:
 		var bid := bd
 		if bid == "shoulder_to_shoulder" or bid == "covering_fire":
 			for o: Unit in _sides[dst.side]:
-				if o != dst and o.alive:
+				if o != dst and o.alive and o.in_shape:
 					if bid == "shoulder_to_shoulder" and o.charge < _charge_max:
 						_gain_charge(o, int(beh_dst["charge"]), "effect", t)
 						_beh_cue(o, "charge", t, dst.uid, float(beh_dst["charge"]))
@@ -1291,7 +1310,7 @@ func _ring_protected(o: Unit) -> bool:
 		return false   # (single-target selection only: area splash still reaches the keeper)
 	var front := 0
 	for f: Unit in _sides[o.side]:
-		if f.alive and f.col == 0:
+		if f.alive and f.in_shape and f.col == 0:
 			front += 1
 	return front >= 3
 
@@ -1518,9 +1537,9 @@ func _ko(u: Unit, by: int, t: int) -> void:
 			var nxt: Array = _mem_pending.pop_front()
 			_spawn_memory(String(nxt[0]), t, String(nxt[1]))
 	# Vault Door hold the door: the back unit in the fallen front unit's row steps into its slot
-	if u.col == 0 and _bid[u.side] == "hold_the_door":
+	if u.col == 0 and _bid[u.side] == "hold_the_door" and u.in_shape:
 		for o: Unit in _sides[u.side]:
-			if o.alive and o.col == 1 and o.row == u.row:
+			if o.alive and o.in_shape and o.col == 1 and o.row == u.row:
 				o.col = 0
 				if _log:
 					_emit(t, {"type": "formation_move", "side": o.side, "uid": o.uid, "from": [1, o.row], "to": [0, o.row],

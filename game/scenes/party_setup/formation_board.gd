@@ -308,7 +308,11 @@ static func _toast_for(ev: Dictionary) -> String:
 			return "Strays: nobody side by side"
 		"unformed":
 			return "No formation: no bonus, no cost"
-	return ""   # locked states: the persistent line below says it
+		"locked_fallback":
+			return "%s locked: fighting as %s" % [ev["shape"]["name"], ev["effective"]["name"]]
+		"locked_unformed":
+			return "%s locked: no formation" % ev["shape"]["name"]
+	return ""
 
 
 func _shape_id() -> String:
@@ -622,17 +626,10 @@ func _draw_field() -> void:
 			dc.a = 1.0 - a
 			draw_rect(Rect2(p + Vector2(sx * spread, -1 - roundi(a * 4)), Vector2(2, 2)), dc)
 	# a short line for a moment after a change
-	if toast_t > 0.0 and toast != "" and hl < 0 and not locked:
-		var col := Pal.AMBER6 if toast.ends_with("formed") else Pal.FADE4
+	if toast_t > 0.0 and toast != "" and hl < 0:
+		var col := Pal.AMBER6 if toast.ends_with("formed") else Pal.INK9
 		PartyDraw.text(self, Vector2(field.position.x, field.end.y - 18), toast, col, PartyDraw.BOLD, 11, true, field.size.x, HORIZONTAL_ALIGNMENT_CENTER)
-	elif locked and hl < 0:
-		var msg := "%s is locked: fighting as %s" % [shape["name"], ev["effective"]["name"]]
-		if state == "locked_unformed":
-			msg = "%s is locked: no formation" % shape["name"]
-		var mw := PartyDraw.text_w(msg, PartyDraw.BOLD) + 12
-		var mx := field.position.x + roundi((field.size.x - mw) / 2.0)
-		draw_texture(LOCK, Vector2(mx, field.end.y - 16), Pal.FADE4)
-		PartyDraw.text(self, Vector2(mx + 10, field.end.y - 18), msg, Pal.FADE4, PartyDraw.BOLD)
+
 
 
 static func _key(c: Array) -> int:

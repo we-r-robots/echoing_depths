@@ -23,7 +23,10 @@ func _draw() -> void:
 	if visible_alpha <= 0.0:
 		return
 	for u in units:
-		if not u.alive:
+		if u == null or not u.alive:
+			continue
+		if u.is_crystal:
+			_draw_crystal_plate(u)
 			continue
 		var p: Vector2 = u.position
 		var x0 := roundf(p.x - 11.0)
@@ -81,3 +84,39 @@ func _diamond(cx: float, cy: float, r: float, c: Color) -> void:
 	_gem[2] = Vector2(cx + 0.5, cy + 1.0 + r)
 	_gem[3] = Vector2(cx - r, cy + 0.5)
 	draw_colored_polygon(_gem, c)
+
+
+const CRACKS := [
+	[Vector2(0, -60), Vector2(-4, -50), Vector2(2, -42), Vector2(-3, -34)],
+	[Vector2(6, -30), Vector2(10, -40), Vector2(7, -52), Vector2(12, -62)],
+	[Vector2(-6, -24), Vector2(-11, -36), Vector2(-8, -46), Vector2(-14, -58), Vector2(-10, -70)],
+	[Vector2(1, -16), Vector2(5, -26), Vector2(-2, -38), Vector2(4, -50), Vector2(-1, -66), Vector2(3, -80)],
+]
+
+
+## The Crystal: crack lines per fragment, a wide integrity bar and 4 fragment pips.
+func _draw_crystal_plate(u) -> void:
+	var p: Vector2 = u.position
+	for k in mini(u.cracks, 4):
+		var pts: Array = CRACKS[k]
+		for i in pts.size() - 1:
+			draw_line(p + pts[i], p + pts[i + 1], Pal.INK1, 1.0)
+			draw_line(p + pts[i] + Vector2(1, 0), p + pts[i + 1] + Vector2(1, 0), Pal.VIOLET4, 1.0)
+	var w := 52.0
+	var x0 := roundf(p.x - w * 0.5)
+	var y0 := roundf(p.y + 4.0)
+	draw_rect(Rect2(x0 - 1, y0 - 1, w + 2, 6), Pal.INK1)
+	var frac: float = clampf(u.hp_shown / float(u.max_hp), 0.0, 1.0)
+	var chip: float = clampf(u.hp_chip / float(u.max_hp), 0.0, 1.0)
+	draw_rect(Rect2(x0, y0, w, 4), Pal.INK3)
+	if chip > frac:
+		draw_rect(Rect2(x0 + roundf(w * frac), y0, roundf(w * (chip - frac)), 4), Pal.INK10)
+	draw_rect(Rect2(x0, y0, roundf(w * frac), 4), Pal.CRYSTAL4)
+	draw_rect(Rect2(x0, y0, roundf(w * frac), 1), Pal.CRYSTAL5)
+	for k in range(1, 4):
+		draw_rect(Rect2(x0 + roundf(w * k / 4.0), y0, 1, 4), Pal.INK1)
+	for k in 4:
+		var cx := x0 + 7.0 + k * 13.0
+		var cy := y0 + 9.0
+		_diamond(cx, cy, 3.0, Pal.INK1)
+		_diamond(cx, cy, 2.0, Pal.VIOLET4 if k < u.cracks else Pal.INK4)
