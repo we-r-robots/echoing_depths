@@ -165,18 +165,29 @@ static func outlined(ci: CanvasItem, pos: Vector2, s: String, color: Color, f: F
 
 
 ## Word wrap to `w` design px.
+## Words wrapped to `w`. No lone last word: when a paragraph's last line would be one word, the
+## line above gives it a word if that still fits (critic r4: a stranded "grid.").
 static func wrap_lines(s: String, w: float, f: Font = SANS, size := BODY) -> PackedStringArray:
 	var out := PackedStringArray()
 	for para in s.split("\n"):
+		var lines := PackedStringArray()
 		var line := ""
 		for wd in para.split(" "):
 			var trial := wd if line == "" else line + " " + wd
 			if width(trial, f, size) > w and line != "":
-				out.append(line)
+				lines.append(line)
 				line = wd
 			else:
 				line = trial
-		out.append(line)
+		lines.append(line)
+		var n := lines.size()
+		if n >= 2 and not lines[n - 1].contains(" ") and lines[n - 2].count(" ") >= 2:
+			var cut := lines[n - 2].rfind(" ")
+			var moved := lines[n - 2].substr(cut + 1) + " " + lines[n - 1]
+			if width(moved, f, size) <= w:
+				lines[n - 2] = lines[n - 2].substr(0, cut)
+				lines[n - 1] = moved
+		out.append_array(lines)
 	return out
 
 

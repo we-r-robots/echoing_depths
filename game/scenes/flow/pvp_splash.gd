@@ -85,7 +85,10 @@ func _build() -> void:
 	_vs.add_theme_font_size_override("font_size", UIText.DISPLAY)
 	_vs.modulate.a = 0.0
 	add_child(_vs)
-	_hint = FlowUI.label("Tap to begin", &"MutedLabel", null, 200, HORIZONTAL_ALIGNMENT_CENTER)
+	# Shown from the first frame at the number size; it pulses in colour only (INK8 to INK10, both
+	# >= 4.5:1 on the dimmed backdrop), never in alpha, so it is readable at every point.
+	_hint = FlowUI.label("Tap to begin", &"HeaderLabel", Pal.INK8, 200, HORIZONTAL_ALIGNMENT_CENTER)
+	_hint.add_theme_font_size_override("font_size", UIText.NUMBER)
 	add_child(_hint)
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(_vs, "modulate:a", 1.0, 0.4).set_delay(0.35)
@@ -182,10 +185,15 @@ func _process(delta: float) -> void:
 	_t += delta
 	if _t < 0.5:
 		_layout()
-	_hint.modulate.a = 0.55 + 0.45 * absf(sin(_t * 2.0)) if _t > 1.0 else 0.0
+	_hint.add_theme_color_override("font_color", hint_color(_t))
 	if _t >= float(AUTO.get(_mode(), 4.0)):
 		finish()
 	queue_redraw()
+
+
+## The hint's colour at time t: a slow pulse between INK8 and INK10 (alpha stays 1).
+static func hint_color(t: float) -> Color:
+	return Pal.INK8.lerp(Pal.INK10, absf(sin(t * 2.0)))
 
 
 func _gui_input(e: InputEvent) -> void:

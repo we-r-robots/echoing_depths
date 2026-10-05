@@ -58,7 +58,7 @@ func _ready() -> void:
 				outcome = a.substr(10)
 		summary = demo_summary(outcome)
 		rewards = {"glimmers": summary["glimmers"], "shards": summary["shards"], "new_lore": summary["lore_items"],
-			"story_chapter_before": 1, "story_chapter": 2 if outcome == "victory" else 1, "glimmers_now": 87, "shards_now": 1}
+			"story_chapter_before": 1, "story_chapter": 2 if outcome == "victory" else 1, "glimmers_now": 87, "shards_now": 3}
 	_build()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -75,7 +75,7 @@ func _build() -> void:
 	add_child(_head)
 	var how := "A Shard breaks free of the Crystal." if _won() else \
 		("The party fell at the Crystal." if bool(summary.get("crystal_reached", false)) else "The party fell on floor %d." % int(summary.get("floor", 1)))
-	_sub = FlowUI.label("%s  %s" % [String(summary.get("vault", "")), how], &"MutedLabel", null, 520, HORIZONTAL_ALIGNMENT_CENTER)
+	_sub = FlowUI.label("%s  ·  %s" % [String(summary.get("vault", "")), how], &"MutedLabel", null, 520, HORIZONTAL_ALIGNMENT_CENTER)
 	add_child(_sub)
 	_left = _run_panel()
 	add_child(_left)
@@ -157,6 +157,7 @@ func _layout() -> void:
 
 
 func _draw() -> void:
+	# dimmed far enough that the vault's statue and plaque don't read as UI behind the panels
 	var dim := Pal.INK1
-	dim.a = 0.8
+	dim.a = 0.93
 	UIFrame.backdrop(self, BACKDROP, dim)

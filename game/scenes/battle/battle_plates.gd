@@ -102,8 +102,11 @@ func _draw_crystal_plate(u) -> void:
 		for i in pts.size() - 1:
 			draw_line(p + pts[i], p + pts[i + 1], Pal.INK1, 1.0)
 			draw_line(p + pts[i] + Vector2(1, 0), p + pts[i + 1] + Vector2(1, 0), Pal.VIOLET4, 1.0)
+	# the bar and the 4 fragment pips on one line (critic r4: pips under the bar were covered by
+	# the enemy roster when the Fading summons filled it to five rows)
 	var w := 52.0
-	var x0 := roundf(p.x - w * 0.5)
+	var pips_w := 31.0
+	var x0 := roundf(p.x - (w + 4.0 + pips_w) * 0.5)
 	var y0 := roundf(p.y + 4.0)
 	draw_rect(Rect2(x0 - 1, y0 - 1, w + 2, 6), Pal.INK1)
 	var frac: float = clampf(u.hp_shown / float(u.max_hp), 0.0, 1.0)
@@ -116,7 +119,7 @@ func _draw_crystal_plate(u) -> void:
 	for k in range(1, 4):
 		draw_rect(Rect2(x0 + roundf(w * k / 4.0), y0, 1, 4), Pal.INK1)
 	for k in 4:
-		var cx := x0 + 7.0 + k * 13.0
-		var cy := y0 + 9.0
+		var cx := x0 + w + 4.0 + 3.0 + k * 8.0
+		var cy := y0 + 2.0
 		_diamond(cx, cy, 3.0, Pal.INK1)
 		_diamond(cx, cy, 2.0, Pal.VIOLET4 if k < u.cracks else Pal.INK4)

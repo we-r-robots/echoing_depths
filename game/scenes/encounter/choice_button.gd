@@ -62,7 +62,9 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	# then every row on the screen does, so the rows keep one size)
 	var room := width - 42 - (7 * 5 + 4 + 6) - 14
 	_what = what
-	small = UIText.width(what.text, UIText.SERIF, UIText.HEADING) > room
+	# serif at the title size, a step under the screen's own title (critic r4: the choices read
+	# louder than the encounter's name)
+	small = true
 	what.position.x = 42
 	_apply_size()
 	_ignore(what)
@@ -92,11 +94,25 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	var used := l2.get_combined_minimum_size().x
 	var aw := 3.0 + 9.0 + 3.0 + UIText.width("Awakens", UIText.BOLD, UIText.BODY)
 	var star_w := 3.0 + 9.0
-	var show_star := strong and used + star_w + (aw if awakens else 0.0) <= room2
+	# an Awakening always shows glyph + word (critic r4), in one place on every row: the end of
+	# line 1, right-aligned before the grid (the action's title is a size step down, so it fits);
+	# on line 2 only when line 1 has no room
+	var aw_line1 := false
+	if awakens:
+		var tw := 9.0 + 3.0 + UIText.width("Awakens", UIText.BOLD, UIText.BODY)
+		var right := float(width - (7 * 5 + 4) - 8 - 8)
+		var title_end := 42.0 + UIText.width(what.text, UIText.SERIF, UIText.TITLE) + 8.0
+		if right - tw >= title_end:
+			aw_line1 = true
+			var tag := _row(Vector2(roundf(right - tw), 9 + roundf(UIText.ascent(UIText.SERIF, UIText.TITLE) - UIText.ascent(UIText.BOLD, UIText.BODY))), 3)
+			tag.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
+			tag.add_child(_label("Awakens", Pal.AMBER6, true))
+	var aw_line2 := awakens and not aw_line1
+	var show_star := strong and used + star_w + (aw if aw_line2 else 0.0) <= room2
 	if show_star:
 		l2.add_child(_icon("res://ui/icons/star.png", Pal.AMBER6, 2))
 		used += star_w
-	if awakens:
+	if aw_line2:
 		l2.add_child(_spacer(2))
 		l2.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
 		if used + aw <= room2:

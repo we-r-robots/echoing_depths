@@ -155,3 +155,23 @@ func test_crests_draw_for_any_team() -> void:
 	check(Crests.exists(Crests.for_team("", "The Ashen Vow")), "a crestless Echo still gets a crest")
 	eq(Crests.for_team("", "The Ashen Vow"), Crests.for_team("", "The Ashen Vow"), "stable per name")
 	eq(Crests.for_team("moon", "x"), "moon", "an Echo's own crest wins")
+
+
+## Lanternrest's Training Grounds tiles (hires-ui round 5): every shape name fits its tile with
+## at least TILE_PAD design px to the tile's edges, and every shape icon sits inside its tile
+## (centred vertically, clear of the name and the edges).
+func test_lanternrest_tile_labels_and_icons_fit() -> void:
+	var GameData = preload("res://core/game_data.gd")
+	var T := LanternrestScreen.TILE
+	var text_w := T.x - LanternrestScreen.TILE_TEXT_X - LanternrestScreen.TILE_PAD
+	check(LanternrestScreen.TILE_COLS * T.x + (LanternrestScreen.TILE_COLS - 1) * 4 <= LanternrestScreen.GROUNDS_W,
+		"the tile grid fits the Training Grounds width")
+	for s: Dictionary in GameData.Formations.SHAPES:
+		var nm := String(s["name"])
+		var w := UIText.BOLD.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, UIText.LABEL).x
+		check(w <= text_w, "'%s' (%d px) fits its tile's %d px with %d px padding" % [nm, w, text_w, LanternrestScreen.TILE_PAD])
+		var r := LanternrestScreen.shape_icon_rect(s)
+		check(r.position.x >= 4 and r.position.y >= 4 and r.end.y <= T.y - 4,
+			"%s icon %s sits inside its %s tile with 4 px to spare" % [nm, r, T])
+		check(r.end.x + 4 <= LanternrestScreen.TILE_TEXT_X, "%s icon clears the name" % nm)
+		check(absf(r.position.y - (T.y - r.end.y)) <= 1.0, "%s icon is centred vertically" % nm)

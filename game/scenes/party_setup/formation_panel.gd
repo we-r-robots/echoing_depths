@@ -288,8 +288,19 @@ func _draw() -> void:
 	_draw_title(shape, locked, strays)
 	for sec: Array in _sections:
 		draw_rect(Rect2(10, sec[0], W - 20, 1), Pal.INK3)
-	_draw_growth_block(shape, strays)
+	# an open reading pane masks the growth block (critic r4: its chips showed as stubs under it)
+	if not _pane_open():
+		_draw_growth_block(shape, strays)
 	_draw_pane()
+
+
+func _pane_open() -> bool:
+	if Tip.is_open_for(_details_btn):
+		return true
+	for c: Control in _chips:
+		if is_instance_valid(c) and Tip.is_open_for(c):
+			return true
+	return false
 
 
 ## Fills the card's foot: what one more hero would make (or, at four, what it grew from).

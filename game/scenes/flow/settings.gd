@@ -13,7 +13,7 @@ const LEVELS := ["Low", "Medium", "High"]
 const WORDS := [
 	"Calm ability turns: no focus dim, camera push or shake. Easiest on the eyes and on older phones.",
 	"Subtle: a light focus dim and camera push, smaller effects.",
-	"Full spectacle: focus dim, camera push, big effects, hit-stop and shake.",
+	"Full spectacle: focus dim, camera push, big effects, shake and a pause on heavy hits.",
 ]
 
 var persist := true

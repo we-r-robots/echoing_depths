@@ -126,8 +126,6 @@ func tick(vdt: float) -> void:
 	caption_t += vdt
 	lore_t += vdt
 	frag_t += vdt
-	if frag_wait and (caption_uid < 0 or (caption_t > 0.5 and b.fx.live_popups() == 0)):
-		_start_fragment_banner()
 	cutin_t += vdt
 	sd_banner_t += vdt
 	if end_t >= 0.0:
@@ -148,22 +146,32 @@ func show_lore(name: String, text: String) -> void:
 	lore_t = 0.0
 
 
-## The fragment banner waits for the action that broke the fragment: its caption stays up while
-## its numbers show, then the banner takes the slot, and the caption does not come back after it
-## (critic r3: the banner pre-empted "Vael Firestorm", which then reappeared with no hit on screen).
-var frag_wait := false
+## The fragment banner has its own slot at the top centre, between the two formation badges
+## (critic r4: in the caption slot it hid the next action's caption while that action's numbers
+## showed). It shows as the fragment breaks and never touches the action caption.
+const FRAG_SHOW := 2.4
 
 
 func show_fragment(n: int) -> void:
 	frag_n = n
-	frag_wait = true
-	frag_t = 99.0
-
-
-func _start_fragment_banner() -> void:
-	frag_wait = false
 	frag_t = 0.0
-	caption_uid = -1   # that action is over: never restore its caption after the banner
+
+
+## The fragment banner's rect (UI design px): centred in the gap between the badges, the text at
+## the heading size when it fits there, else the label size.
+func fragment_rect() -> Rect2:
+	var sz := fragment_size()
+	var w := UIText.width(_frag_text(), BOLD, sz) + 20.0
+	return Rect2(roundf(_c - w / 2.0), 2, roundf(w), BANNER_H)
+
+
+func fragment_size() -> int:
+	var room := badge_rect(1).position.x - badge_rect(0).end.x - 12.0
+	return UIText.HEADING if UIText.width(_frag_text(), BOLD, UIText.HEADING) + 20.0 <= room else UIText.LABEL
+
+
+func _frag_text() -> String:
+	return "FRAGMENT %d OF 4" % maxi(frag_n, 1)
 
 
 func screen_flash(c: Color, a: float) -> void:
@@ -172,8 +180,6 @@ func screen_flash(c: Color, a: float) -> void:
 
 
 func show_caption(uid: int, text: String, target: int, is_ability: bool, area := "single") -> void:
-	if frag_wait:
-		_start_fragment_banner()   # the next action is starting: the banner first, then this caption
 	caption_area = area
 	caption_uid = uid
 	caption_text = text
@@ -494,7 +500,7 @@ func _draw_timer() -> void:
 
 # --- caption bar ------------------------------------------------------------------------------
 func _draw_caption() -> void:
-	if caption_uid < 0 or end_t >= 0.0 or cutin_t < cutin_hold or frag_t < 1.6:
+	if caption_uid < 0 or end_t >= 0.0 or cutin_t < cutin_hold:
 		return
 	var u = b.units[caption_uid]
 	var sc: Color = b.side_colors[u.side]
@@ -796,16 +802,16 @@ func _draw_intro() -> void:
 func lore_bottom() -> float:
 	if lore_t > 3.6 or lore_name == "":
 		return -1.0
-	var lines := UIText.wrap_lines(lore_text, 380.0, SANS, UIText.BODY)
-	return 40.0 + ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + lines.size() * UIText.line_h(SANS, UIText.BODY) + 6.0)
+	var lines := UIText.wrap_lines(lore_text, 380.0, BOLD, UIText.BODY)
+	return 40.0 + ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + lines.size() * UIText.line_h(BOLD, UIText.BODY) + 6.0)
 
 
 func _draw_lore() -> void:
 	if lore_t > 3.6 or lore_name == "":
 		return
 	var a := clampf(lore_t / 0.25, 0.0, 1.0) * (1.0 - clampf((lore_t - 3.2) / 0.4, 0.0, 1.0))
-	var lines := UIText.wrap_lines(lore_text, 380.0, SANS, UIText.BODY)
-	var lh := UIText.line_h(SANS, UIText.BODY)
+	var lines := UIText.wrap_lines(lore_text, 380.0, BOLD, UIText.BODY)
+	var lh := UIText.line_h(BOLD, UIText.BODY)
 	var h := ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + lines.size() * lh + 6.0)
 	var r := Rect2(_c - 210, 40, 420, h)
 	draw_rect(r, Color(Pal.INK1, 0.85 * a))
@@ -815,19 +821,21 @@ func _draw_lore() -> void:
 	UIText.outlined(self, Vector2(_c, y), lore_name, Color(Pal.VIOLET4, a), SERIF, UIText.TITLE, 1, Pal.INK1, false)
 	y += UIText.ascent(SERIF, UIText.TITLE) + 6.0
 	for i in lines.size():
-		UIText.outlined(self, Vector2(_c, y), lines[i], Color(Pal.INK9, a), SANS, UIText.BODY, 1, Pal.INK1, false)
+		UIText.outlined(self, Vector2(_c, y), lines[i], Color(Pal.INK9, a), BOLD, UIText.BODY, 1, Pal.INK1, false)
 		y += lh
 
 
 func _draw_fragment() -> void:
-	if frag_t > 1.6 or frag_n <= 0:
+	if frag_t > FRAG_SHOW or frag_n <= 0 or end_t >= 0.0:
 		return
-	var a := 1.0 - clampf((frag_t - 1.2) / 0.4, 0.0, 1.0)
-	var sz := UIText.DISPLAY if frag_t < 0.08 else UIText.HEADING
-	var r := Rect2(_c - _cap_w / 2.0, 292, _cap_w, 28)
+	var a := clampf(frag_t / 0.1, 0.0, 1.0) * (1.0 - clampf((frag_t - (FRAG_SHOW - 0.4)) / 0.4, 0.0, 1.0))
+	var sz := fragment_size()
+	var r := fragment_rect()
 	draw_rect(r, Color(Pal.INK1, 0.95 * a))
 	draw_rect(r, Color(Pal.CRYSTAL5, a), false, 1.0)
-	UIText.outlined(self, Vector2(_c, UIText.centered_y(r.position.y, r.size.y, BOLD, sz)), "FRAGMENT %d OF 4" % frag_n,
+	if frag_t < 0.35:   # a second ring as the shard breaks off (the text's ground stays dark)
+		draw_rect(r.grow(2.0), Color(Pal.CRYSTAL5, a), false, 1.0)
+	UIText.outlined(self, Vector2(_c, UIText.centered_y(r.position.y, r.size.y, BOLD, sz)), _frag_text(),
 		Color(Pal.CRYSTAL5, a), BOLD, sz, 1, Pal.INK1, false)
 
 

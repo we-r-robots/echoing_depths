@@ -272,7 +272,7 @@ func pillar(x: float, y: float, w: float, dur: float, col: Color) -> void:
 ## Height above a popup's baseline (number + head word) and below it (tag line).
 ## (World units: UI design px / ZOOM.)
 const NUM_H := 11.0 * NUM_SIZE / 15.0 / ZOOM + 1.5        # cap + outline
-const HEAD_H := 11.0 * HEAD_SIZE / 15.0 / ZOOM + 2.0
+const HEAD_H := 11.0 * HEAD_SIZE / 15.0 / ZOOM + 4.0   # + the gap over the number's ring
 const TAG_H := 11.0 * TAG_SIZE / 15.0 / ZOOM + 2.5
 
 
@@ -758,7 +758,9 @@ func _draw_popup(ci: CanvasItem, i: int) -> void:
 	var head := _pp_head[i]
 	if head != "":
 		var hs := TAG_SIZE if _pp_small[i] else HEAD_SIZE
-		var hy := (top - 3.0 if val >= 0 else p.y) - UIText.ascent(UIText.BOLD, hs)
+		# clear of the number's two-font-pixel ring (critic r4: CRIT! sat on the digits)
+		var gap := 3.0 + UIText.fpx(NUM_SIZE) * 2.0
+		var hy := (top - gap if val >= 0 else p.y) - UIText.ascent(UIText.BOLD, hs)
 		if _pp_small[i]:
 			# world cues (formation behaviours) sit on a dark plate so they read over a busy floor
 			var hw := UIText.width(head, UIText.BOLD, hs) * 0.5 + 4.0

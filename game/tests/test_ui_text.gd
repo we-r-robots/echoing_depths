@@ -114,3 +114,14 @@ func test_text_colours_meet_the_contrast_floor() -> void:
 			check(contrast(Color(out, 1.0), bg) >= 4.5, "%s as text reads >= 4.5:1 on the panel inks (%.2f)" % [k, contrast(out, bg)])
 	eq(UIText.legible(Pal.INK10), Pal.INK10, "bright colours pass through")
 	eq(UIText.legible(Pal.INK1), Pal.INK1, "dark text on light fills passes through")
+
+
+## The PvP splash's "Tap to begin" pulses in colour only and stays >= 4.5:1 on the dimmed
+## backdrop (INK3 is lighter than anything behind it) at every point of the pulse (round 5).
+func test_splash_hint_pulse_keeps_contrast() -> void:
+	var worst := 99.0
+	for i in 200:
+		var c := VersusSplash.hint_color(i * 0.02)
+		check(is_equal_approx(c.a, 1.0), "the hint never fades")
+		worst = minf(worst, contrast(c, Pal.INK3))
+	check(worst >= 4.5, "the hint's dimmest point reads %.2f:1 on INK3" % worst)

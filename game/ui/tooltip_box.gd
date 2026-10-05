@@ -15,6 +15,7 @@ var _lines: Array = []
 var _accent := Pal.CRYSTAL4
 var _shown := false
 var _entries: Array = []        # [[effect or {}, PackedStringArray lines], ...]
+var _in_zone := false           # opened as the reading pane: fills the zone, wired to its row
 const ENTRY_INDENT := 26        # icon chip (20) + gap
 
 
@@ -101,9 +102,13 @@ func open(c: Control, pin: bool) -> void:
 		y = clampf(roundf(a.position.y + a.size.y / 2.0 - h / 2.0), 4, y1 - h)
 		x = a.position.x - w - 6 if place == "left" else a.end.x + 6
 		x = clampf(x, x0, x1 - w)
+	_in_zone = use_zone
 	if use_zone:
-		# top of the free zone when it fits, else grown upward from its foot
-		x = roundf(Tip.zone.position.x + (Tip.zone.size.x - w) / 2.0)
+		# a solid pane over the whole free zone (critic r4: a box narrower than the zone let the
+		# growth row's bars show round it); taller text grows it upward from the zone's foot
+		x = roundf(Tip.zone.position.x)
+		w = roundf(Tip.zone.size.x)
+		h = maxf(h, roundf(Tip.zone.size.y))
 		y = Tip.zone.position.y if h <= Tip.zone.size.y else maxf(4.0, Tip.zone.end.y - h)
 	_rect = Rect2(x, y, w, h)
 	_shown = true
@@ -149,8 +154,18 @@ func _draw() -> void:
 	draw_rect(r, Pal.INK1)
 	draw_rect(r.grow(-1), Pal.INK2)
 	draw_rect(Rect2(r.position.x + 1, r.position.y + 1, r.size.x - 2, 1), _accent)
+	# the reading pane is wired to its row: the row gets an accent frame and a rule runs down the
+	# card's left margin from the row to the pane
+	if _in_zone and owner_control != null and is_instance_valid(owner_control):
+		var a := owner_control.get_global_rect()
+		var lx := r.position.x + 2.0
+		if a.end.y <= r.position.y and a.position.x - 4.0 >= lx:
+			var ay := roundf(a.get_center().y)
+			draw_rect(a.grow(1.0), _accent, false, 1.0)
+			draw_rect(Rect2(lx, ay, a.position.x - 1.0 - lx, 1), _accent)
+			draw_rect(Rect2(lx, ay, 1, r.position.y - ay + 1.0), _accent)
 	# pointer nub toward the owner when placed beside it
-	if owner_control != null and is_instance_valid(owner_control):
+	if owner_control != null and is_instance_valid(owner_control) and not _in_zone:
 		var a := owner_control.get_global_rect()
 		var cy := clampf(roundf(a.get_center().y), r.position.y + 4, r.end.y - 5)
 		if a.position.x >= r.end.x:

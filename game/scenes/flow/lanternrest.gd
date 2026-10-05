@@ -18,7 +18,14 @@ const BACKDROP := preload("res://assets/encounter/campfire/bg.png")
 const GLOW := preload("res://assets/encounter/campfire/glow.png")
 const GameData = preload("res://core/game_data.gd")
 const EchoPool = preload("res://core/run/echo_pool.gd")
-const TILE := Vector2(66, 42)
+## Shape tiles: 3 columns of icon + name (the longest name, "Lumari Chorus", is 66 design px).
+const TILE := Vector2(94, 32)
+const TILE_COLS := 3
+const TILE_PAD := 8          # every name keeps at least this much room to the tile's edges
+const TILE_ICON_PX := 4      # shape icon cell size; a 4-tall shape is 19 px, centred in the tile
+const TILE_TEXT_X := 20      # names start here, right of the icon column
+const GROUNDS_W := 290       # TILE_COLS * TILE.x + 2 * 4
+const HALL_W := 266
 const CREST_TILE := Vector2(32, 38)
 
 var demo := false
@@ -97,11 +104,11 @@ func _build() -> void:
 func _build_grounds() -> PanelContainer:
 	var p := FlowUI.panel()
 	var v := FlowUI.vbox(5)
-	v.custom_minimum_size.x = 276
+	v.custom_minimum_size.x = GROUNDS_W
 	v.add_child(FlowUI.label("Training Grounds", &"HeadingLabel"))
-	v.add_child(FlowUI.para("A shape's bonus and behaviour work in your runs once it is learned here. New shapes grow from ones you know.", 276, Pal.INK9))
+	v.add_child(FlowUI.para("A shape's bonus and behaviour work in your runs once it is learned here. New shapes grow from ones you know.", GROUNDS_W, Pal.INK9))
 	var grid := GridContainer.new()
-	grid.columns = 4
+	grid.columns = TILE_COLS
 	grid.add_theme_constant_override("h_separation", 4)
 	grid.add_theme_constant_override("v_separation", 4)
 	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -122,40 +129,62 @@ func _shape_tile(s: Dictionary) -> Button:
 	var b := FlowUI.button("", TILE.x, TILE.y)
 	b.theme_type_variation = &"ChoiceButton"
 	b.pressed.connect(select_shape.bind(id))
-	var nm := FlowUI.label(String(s["name"]), &"HeaderLabel", null, TILE.x - 4, HORIZONTAL_ALIGNMENT_CENTER)
-	nm.position = Vector2(2, TILE.y - 16)
-	nm.clip_text = true
+	var nm := FlowUI.label(String(s["name"]), &"HeaderLabel", null, TILE.x - TILE_TEXT_X - TILE_PAD)
+	nm.name = "Name"
+	nm.position = Vector2(TILE_TEXT_X, 0)
+	nm.size = Vector2(TILE.x - TILE_TEXT_X - TILE_PAD, TILE.y)
+	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	b.add_child(nm)
 	b.draw.connect(func() -> void:
 		var known := GameState.is_shape_unlocked(id)
 		var avail := GameState.shape_available(id)
 		var fill := Pal.AMBER5 if known else (Pal.CRYSTAL4 if avail else Pal.INK6)
-		var rows := 1
-		for c: Array in s["cells"]:
-			rows = maxi(rows, int(c[1]) + 1)
-		var px := 5
-		var gh := rows * px + rows - 1
-		FormationWords.draw_shape_glyph(b, Vector2(roundf(TILE.x / 2.0 - px - 0.5), roundf((TILE.y - 16 - gh) / 2.0)), s, px, fill, Pal.INK3)
+		FormationWords.draw_shape_glyph(b, shape_icon_pos(s), s, TILE_ICON_PX, fill, Pal.INK3)
 		if not known:
+			# a corner badge on the tile's top-right edge, clear of the name
 			var lock := preload("res://ui/effect_icons/lock.png")
-			b.draw_texture(lock, Vector2(TILE.x - 13, 4), Pal.CRYSTAL4 if avail else Pal.INK6)
+			b.draw_texture(lock, Vector2(TILE.x - 7, -3), Pal.CRYSTAL4 if avail else Pal.INK6)
 		if id == _sel_shape:
 			b.draw_rect(Rect2(Vector2.ZERO, TILE), Pal.AMBER6, false, 1.0))
 	return b
 
 
+## Top-left of a shape's icon inside its tile: centred vertically, in a fixed icon column.
+static func shape_icon_pos(s: Dictionary) -> Vector2:
+	var lo := 99
+	var hi := 0
+	for c: Array in s["cells"]:
+		lo = mini(lo, int(c[1]))
+		hi = maxi(hi, int(c[1]))
+	var rows := maxi(1, hi - lo + 1)
+	var gh := rows * TILE_ICON_PX + rows - 1
+	return Vector2(5, roundf((TILE.y - gh) / 2.0))
+
+
+## The rect the shape icon covers inside its tile (frame included), for tests.
+static func shape_icon_rect(s: Dictionary) -> Rect2:
+	var p := shape_icon_pos(s)
+	var lo := 99
+	var hi := 0
+	for c: Array in s["cells"]:
+		lo = mini(lo, int(c[1]))
+		hi = maxi(hi, int(c[1]))
+	var rows := maxi(1, hi - lo + 1)
+	return Rect2(p - Vector2.ONE, Vector2(2 * TILE_ICON_PX + 3, rows * TILE_ICON_PX + rows + 1))
+
+
 func _build_hall() -> PanelContainer:
 	var p := FlowUI.panel()
 	var v := FlowUI.vbox(5)
-	v.custom_minimum_size.x = 272
+	v.custom_minimum_size.x = HALL_W
 	v.add_child(FlowUI.label("Banner Hall", &"HeadingLabel"))
-	v.add_child(FlowUI.para("Your team's name and crest, carried by your Echoes and shown to rivals before every Echo fight.", 272, Pal.INK9))
+	v.add_child(FlowUI.para("Your team's name and crest, carried by your Echoes and shown to rivals before every Echo fight.", HALL_W, Pal.INK9))
 	v.add_child(FlowUI.label("TEAM NAME", &"TagLabel"))
 	var row := FlowUI.hbox(4)
 	_name_edit = LineEdit.new()
 	_name_edit.text = GameState.team_name()
 	_name_edit.max_length = GameState.TEAM_MAX
-	_name_edit.custom_minimum_size = Vector2(200, 22)
+	_name_edit.custom_minimum_size = Vector2(HALL_W - 70, 22)
 	_name_edit.add_theme_font_override("font", UIText.BOLD)
 	_name_edit.add_theme_font_size_override("font_size", UIText.BODY)
 	_name_edit.add_theme_color_override("font_color", Pal.INK10)
@@ -183,7 +212,7 @@ func _build_hall() -> PanelContainer:
 	v.add_child(FlowUI.label("CREST", &"TagLabel"))
 	var grid := GridContainer.new()
 	grid.columns = 8
-	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("h_separation", 1)
 	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for id: String in Crests.ORDER:
 		var t := _crest_tile(id)
@@ -286,9 +315,9 @@ func _refresh_detail() -> void:
 		c.queue_free()
 	if _sel_shape == "":
 		var known := (GameState.meta["unlocked_formations"] as Array).size()
-		_detail.add_child(FlowUI.label("%d of %d shapes learned. Tap a shape." % [known, GameData.Formations.SHAPES.size()], &"MutedLabel", null, 276))
+		_detail.add_child(FlowUI.label("%d of %d shapes learned. Tap a shape." % [known, GameData.Formations.SHAPES.size()], &"MutedLabel", null, GROUNDS_W))
 		if _msg != "":
-			_detail.add_child(FlowUI.label(_msg, &"GoldLabel", Pal.AMBER6, 276))
+			_detail.add_child(FlowUI.label(_msg, &"GoldLabel", Pal.AMBER6, GROUNDS_W))
 		return
 	var s := FormationWords.shape_by_id(_sel_shape)
 	var row := FlowUI.hbox(4)
@@ -328,10 +357,10 @@ func _refresh_crest() -> void:
 		c.queue_free()
 	var row := FlowUI.hbox(6)
 	if GameState.has_crest(_sel_crest):
-		row.add_child(FlowUI.label("%s crest. Your Echoes carry it." % Crests.name_of(_sel_crest), &"MutedLabel", null, 272))
+		row.add_child(FlowUI.label("%s crest. Your Echoes carry it." % Crests.name_of(_sel_crest), &"MutedLabel", null, HALL_W))
 	else:
 		var can := int(GameState.meta["glimmers"]) >= GameState.CREST_COST
-		row.add_child(FlowUI.label("%s crest: %d Glimmers" % [Crests.name_of(_sel_crest), GameState.CREST_COST], &"GoldLabel", Pal.CRYSTAL5 if can else Pal.INK9, 180))
+		row.add_child(FlowUI.label("%s crest: %d Glimmers" % [Crests.name_of(_sel_crest), GameState.CREST_COST], &"GoldLabel", Pal.CRYSTAL5 if can else Pal.INK9, HALL_W - 90))
 		var b := FlowUI.button("Remember", 84, 22)
 		b.disabled = not can
 		b.pressed.connect(unlock_crest)

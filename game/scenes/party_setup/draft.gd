@@ -202,8 +202,10 @@ func _draw() -> void:
 		PartyDraw.BOLD, UIText.BODY, true, 78, HORIZONTAL_ALIGNMENT_RIGHT)
 	# what the alignment line on the cards means, said once, as a labelled panel; once the party
 	# sets out, the same strip says so
+	# no box (critic r4: the framed strip read as an input field): a hairline above, then the
+	# icon and one plain caption line
 	var bb := Rect2(l + 8, 332, r0 - l - 128, 22)
-	PartyDraw.panel(self, bb, 0, &"DimPanel")
+	draw_rect(Rect2(bb.position.x, bb.position.y - 1, bb.size.x, 1), Pal.INK3)
 	var ty := UIText.centered_y(bb.position.y, bb.size.y)
 	if _done:
 		PartyDraw.text(self, Vector2(bb.position.x + 8, ty), _msg, Pal.AMBER6, PartyDraw.BOLD)

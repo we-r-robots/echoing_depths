@@ -161,8 +161,74 @@ func _check_controls(n: Node, fails: Array[String]) -> void:
 				fails.append("%s uses a font outside the UI set" % c.get_path())
 			elif not UIText.size_ok(f, sz):
 				fails.append("%s: font size %d is off the grid or below the x-height floor" % [c.get_path(), sz])
+			else:
+				var over := _overflow(c, f, sz)
+				if over != "":
+					fails.append("%s: %s" % [c.get_path(), over])
 	for ch in n.get_children():
 		_check_controls(ch, fails)
+
+
+## Text that doesn't fit its Control (hires-ui round 5): a one-line Label or a Button whose text
+## is wider than its box (so it is clipped, cut with an ellipsis or spills out), or text that
+## runs off the screen. Returns "" when it fits.
+func _overflow(c: Control, f: Font, sz: int) -> String:
+	var text := ""
+	var room := c.size.x
+	var lead := 0.0
+	if c is Label:
+		var l := c as Label
+		if l.autowrap_mode != TextServer.AUTOWRAP_OFF or l.visible_characters >= 0 or l.visible_ratio < 1.0:
+			return ""
+		text = l.text
+		if l.uppercase:
+			text = text.to_upper()
+		var sb := l.get_theme_stylebox("normal")
+		if sb != null:
+			room -= sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT)
+			lead = sb.get_margin(SIDE_LEFT)
+	elif c is Button:
+		var b := c as Button
+		if b.icon != null or b.clip_text == false and b.text_overrun_behavior == TextServer.OVERRUN_NO_TRIMMING and b.autowrap_mode != TextServer.AUTOWRAP_OFF:
+			return ""
+		text = b.text
+		var sb := b.get_theme_stylebox("normal")
+		if sb != null:
+			room -= sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT)
+	else:
+		return ""
+	var w := 0.0
+	for line in text.split("\n"):
+		w = maxf(w, f.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x)
+	if w > room + 0.5:
+		return "text \"%s\" is %d px wide in a %d px box" % [text.replace("\n", " / "), w, room]
+	# on screen: the text's own span (aligned in its box) stays inside the visible design rect
+	if c is Label:
+		var l := c as Label
+		var x0 := lead
+		match l.horizontal_alignment:
+			HORIZONTAL_ALIGNMENT_CENTER:
+				x0 = lead + (room - w) / 2.0
+			HORIZONTAL_ALIGNMENT_RIGHT:
+				x0 = lead + room - w
+		var xf := c.get_global_transform_with_canvas()
+		var a := xf * Vector2(x0, 0)
+		var b2 := xf * Vector2(x0 + w, 0)
+		var vis := c.get_viewport().get_visible_rect()
+		if a.x < vis.position.x - 0.5 or b2.x > vis.end.x + 0.5:
+			return "text \"%s\" runs off the screen (x %d..%d of %d..%d)" % [text, a.x, b2.x, vis.position.x, vis.end.x]
+		# inside the button or panel it sits on
+		var box: Node = c.get_parent()
+		while box != null and not (box is Button or box is Panel or box is PanelContainer):
+			box = box.get_parent()
+		if box is Control:
+			var bx := box as Control
+			var bxf := bx.get_global_transform_with_canvas()
+			var bl := (bxf * Vector2.ZERO).x
+			var br := (bxf * Vector2(bx.size.x, 0)).x
+			if a.x < bl - 0.5 or b2.x > br + 0.5:
+				return "text \"%s\" spills out of %s (x %d..%d of %d..%d)" % [text, bx.name, a.x, b2.x, bl, br]
+	return ""
 
 
 func _summary() -> void:
