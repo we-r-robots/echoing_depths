@@ -81,7 +81,7 @@ func _build() -> void:
 	add_child(_left)
 	_right = _reward_panel()
 	add_child(_right)
-	_go = FlowUI.button("To Lanternrest", 120, 24)
+	_go = FlowUI.primary("To Lanternrest", 150)
 	_go.pressed.connect(func() -> void: proceed.emit())
 	add_child(_go)
 
@@ -152,7 +152,7 @@ func _layout() -> void:
 	_right.reset_size()
 	_left.position = Vector2(cx - 8 - _left.size.x, 92)
 	_right.position = Vector2(cx + 8, 92)
-	_go.position = Vector2(roundf(UIFrame.right(self) - 128), 332)
+	_go.position = Vector2(roundf(UIFrame.right(self) - 158), 326)
 	queue_redraw()
 
 

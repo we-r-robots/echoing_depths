@@ -7,6 +7,8 @@ extends Control
 
 const W := 208
 const H := 318
+## The card's foot: the Details button and the primary Confirm (28 design px tall).
+const FOOT := 38
 const LOCK := preload("res://assets/party/lock.png")
 const DOT := preload("res://assets/party/dot.png")
 
@@ -25,6 +27,9 @@ var _lock_tip: Control
 var _sig := ""
 var _flash := 0.0
 var _details_btn: Button
+var _was_open := false
+## Extra foot height for a second button over Confirm (the road's review mode adds Back).
+var extra_foot := 0
 
 
 func _ready() -> void:
@@ -34,8 +39,8 @@ func _ready() -> void:
 	_details_btn = Button.new()
 	_details_btn.text = "Details"
 	_details_btn.focus_mode = Control.FOCUS_NONE
-	_details_btn.position = Vector2(8, H - 28)
-	_details_btn.size = Vector2(62, 20)
+	_details_btn.position = Vector2(8, H - 32)
+	_details_btn.size = Vector2(62, 22)
 	_details_btn.pressed.connect(toggle_details)
 	add_child(_details_btn)
 	_lock_tip = Control.new()
@@ -191,15 +196,15 @@ func _rebuild_chips() -> void:
 			y += 7
 		first = false
 		for e: Dictionary in items:
-			if y + EffectIcons.CHIP > H - 34:
+			if y + EffectIcons.CHIP > H - FOOT:
 				break
 			var chip := EffectChip.new()
 			add_child(chip)
 			chip.position = Vector2(10, y)
-			# the tooltip opens beside its row, pointing at it; the locked row's long list opens in
-			# the card's free lower half instead, clear of the board's name plates
+			# every row's tooltip opens in the card's reading pane under the list (never over the
+			# board, critic r3); the row it belongs to stays lit
 			chip.label_size = UIText.HEADING
-			chip.setup(e, "zone" if bool(e.get("_locked", false)) else "left", W - 40)
+			chip.setup(e, "zone", W - 40)
 			chip.locked = bool(e.get("_locked", false))
 			_chips.append(chip)
 			y += ROW
@@ -229,16 +234,38 @@ func open_tip(k: int) -> void:
 
 ## The card's empty lower half (global rect): under the rows and the growth block, above the buttons.
 func free_zone() -> Rect2:
+	return get_global_transform() * _zone_local()
+
+
+func _zone_local() -> Rect2:
 	var top := float(_growth_y)
-	if String(_ev.get("state", "")) == "active" and top > 0.0 and H - 34 - top >= 40:
+	if String(_ev.get("state", "")) == "active" and top > 0.0 and H - FOOT - top >= 40:
 		top += 44.0   # the growth block
-	top = clampf(top, 66.0, H - 34.0 - 40.0)
-	var r := Rect2(4, top, W - 8, H - 34 - 4 - top)
-	return get_global_transform() * r
+	var foot := H - FOOT - extra_foot
+	top = clampf(top, 66.0, float(foot) - 40.0)
+	return Rect2(4, top, W - 8, foot - 4 - top)
+
+
+## The reading pane: the card's free lower half framed as the place where an effect's full text
+## opens (the shared tooltip), with a quiet hint while nothing is open (critic r3: a dead void).
+func _draw_pane() -> void:
+	var z := _zone_local().grow_individual(-4, -2, -4, -2)
+	if z.size.y < 30 or details:
+		return
+	PartyDraw.inset(self, z, Pal.INK2)
+	if Tip.any_open():
+		return
+	var hint := "Tap an effect to read it"
+	var ty := roundf(z.get_center().y - 6)
+	PartyDraw.text(self, Vector2(z.position.x, ty), hint, Pal.INK8, PartyDraw.BOLD, UIText.BODY, false, z.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func _process(delta: float) -> void:
 	Tip.set_zone(free_zone())
+	var open := Tip.any_open()
+	if open != _was_open:
+		_was_open = open
+		queue_redraw()
 	if details and not Tip.is_open_for(_details_btn):
 		details = false
 		_details_btn.text = "Details"
@@ -262,12 +289,13 @@ func _draw() -> void:
 	for sec: Array in _sections:
 		draw_rect(Rect2(10, sec[0], W - 20, 1), Pal.INK3)
 	_draw_growth_block(shape, strays)
+	_draw_pane()
 
 
 ## Fills the card's foot: what one more hero would make (or, at four, what it grew from).
 func _draw_growth_block(shape: Dictionary, strays: bool) -> void:
 	var top := maxi(_growth_y, 0)
-	var bottom := H - 34
+	var bottom := H - FOOT
 	if top <= 0 or bottom - top < 40:
 		return
 	if strays or String(_ev["state"]) != "active":

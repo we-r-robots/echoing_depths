@@ -1214,7 +1214,13 @@ func _on_damage(ev: Dictionary) -> void:
 		if _split_tags > 1:
 			split = ""   # one "halved"/"shared" tag per action; the dashed links mark the rest
 	fx.next_uid = dst
-	fx.popup(amount, row, _num_pos(T, dst, head != ""), 1, false, head, head_col, split, Pal.CRYSTAL5 if split == "halved" else Pal.AMBER6, delay)
+	_avoid_for(dst)
+	var np: Vector2 = _num_pos(T, dst, head != "")
+	if T.hp <= 0 and not T.is_crystal:
+		# a killing blow: the unit collapses under its number, so the number drops with it and
+		# never hangs at the height of the unit behind
+		np.y += roundf(T.top_h * 0.3)
+	fx.popup(amount, row, np, 1, false, head, head_col, split, Pal.CRYSTAL5 if split == "halved" else Pal.AMBER6, delay)
 	var pid := String((ev.get("primary", {}) as Dictionary).get("id", "")) if ev.get("primary", null) is Dictionary else ""
 	if was_split or pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
 		var main := int(_cur_action.get("target", -1))
@@ -1354,6 +1360,30 @@ func _formation_line(side: int, form: Dictionary) -> int:
 	return 0 if nb > 0 else -1
 
 
+## Before a popup on unit `uid`: the other living units' heads and HP plates it must keep clear of,
+## and its own body, which it may move onto (BattleFX._clear_of_units).
+func _avoid_for(uid: int) -> void:
+	fx.avoid.clear()
+	fx.home = Rect2()
+	for u in units:
+		if u == null:
+			continue
+		var t: Vector2 = u.top()
+		var th: float = u.top_h
+		if u.is_crystal:
+			t = u.position + Vector2(0.0, -48.0)
+			th = 48.0
+		var body := Rect2(t.x - 11.0, t.y - 1.0, 22.0, th + 1.0)
+		if u.uid == uid:
+			fx.home = body
+			continue
+		if not u.alive:
+			continue
+		# the head and shoulders (where staffs, hats and blades reach) and the HP plate at the feet
+		fx.avoid.append(Rect2(t.x - 14.0, t.y - 2.0, 28.0, minf(th * 0.5, 18.0) + 2.0))
+		fx.avoid.append(Rect2(u.position.x - 15.0, u.position.y, 30.0, 11.0))
+
+
 ## Number anchor: just above the target's head (BattleFX.number_anchor). Measured in world px, the
 ## same units the units stand in; the banner band and the lore caption come in from the UI layer.
 func _num_pos(T, uid: int, head_word := false) -> Vector2:
@@ -1407,6 +1437,7 @@ func _on_heal(ev: Dictionary) -> void:
 	var delay := _stagger(dst)
 	var pos: Vector2 = _num_pos(T, dst, drain)
 	fx.next_uid = dst
+	_avoid_for(dst)
 	fx.popup(int(ev.get("amount", 0)), fx.Row.HEAL, pos, 1, true, "DRAIN" if drain else "", Pal.VIOLET4, "", Color.WHITE, delay)
 
 
@@ -1445,6 +1476,7 @@ func _on_ko(ev: Dictionary) -> void:
 	fx.particles(u.chest(), 16, u.side_color, 50.0, 30.0, 0.9, 20.0, 2, 3.0)
 	fx.ring(u.chest(), 3, 18, 0.4, Pal.INK10, 1.0)
 	fx.light(u.chest(), Pal.INK10, 2, 0.5, 0.5)
+	_avoid_for(u.uid)
 	fx.word("KO!", u.chest() + Vector2(0, 6), Pal.BLOOD4, 0.3)
 
 

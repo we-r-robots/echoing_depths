@@ -62,7 +62,8 @@ func _ready() -> void:
 
 
 func _add(key: String, text: String, sig: Signal) -> void:
-	var b := FlowUI.button(text, 140, 24)
+	# the first entry (Continue run, else New run) is the screen's one primary action
+	var b := FlowUI.primary(text, 150) if buttons.is_empty() else FlowUI.button(text, 140, 24)
 	b.pressed.connect(func() -> void: sig.emit())
 	_menu.add_child(b)
 	buttons[key] = b
@@ -74,7 +75,7 @@ func _layout() -> void:
 	_title.position = Vector2(cx - 200, 70)
 	_sub.position = Vector2(cx - 200, 104)
 	_menu.reset_size()
-	_menu.position = Vector2(cx - 70, 150)
+	_menu.position = Vector2(cx - 75, 150)
 	_foot.reset_size()
 	var sr := UIText.safe_rect(self)
 	_foot.position = Vector2(roundf(sr.position.x + 10), 334)

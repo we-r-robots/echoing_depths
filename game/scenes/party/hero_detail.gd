@@ -130,6 +130,8 @@ func select(i: int) -> void:
 	_card.set_hero(h)
 	var info := EncounterDB.class_info(PartyModel.base_class(h))
 	_align.set_hero(h, load(info["portrait"]), Pal.c(info["color"]), _region_names(h))
+	# one class word per hero: the token on the grid wears the class the card names
+	_align.grid.hero_class = PartyModel.class_name_of(String(h["class"]))
 	_message_override = ""
 	_message = _describe(h)
 	queue_redraw()
@@ -310,10 +312,11 @@ func _draw() -> void:
 	if ready > 0:
 		var t := "%d ready" % ready
 		PartyDraw.text(self, Vector2(rb.position.x, 18), t, Pal.AMBER5, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, rb.size.x - 8, HORIZONTAL_ALIGNMENT_RIGHT)
-	# description bar (bottom)
+	# the status sentence lives inside the hero card (critic r3: it floated outside every panel);
+	# while the advancement card is open, that card says it all
 	var msg := _message_override if _message_override != "" else _message
-	var cx := _card.position.x
-	PartyDraw.text(self, Vector2(cx + 2, UIText.centered_y(337, 18, PartyDraw.BOLD)), msg, Pal.INK9, PartyDraw.BOLD)
+	if _card.message != msg:
+		_card.message = msg
 
 
 ## Sample party mid-run: Ilse wears a bound Relic (effective != underlying), Brannoc sits at the

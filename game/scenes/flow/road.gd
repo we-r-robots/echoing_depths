@@ -112,7 +112,7 @@ func _build_outcome(v: VBoxContainer) -> void:
 	var form := FlowUI.button("Formation", 96, 22)
 	form.pressed.connect(func() -> void: arrange.emit())
 	_buttons.add_child(form)
-	var go := FlowUI.button("Continue", 96, 22)
+	var go := FlowUI.primary("Continue", 112)
 	go.pressed.connect(func() -> void: proceed.emit())
 	_buttons.add_child(go)
 
@@ -126,7 +126,7 @@ func _build_decision(v: VBoxContainer) -> void:
 	_head.text = "%s can advance" % nm
 	v.add_child(FlowUI.para(("%s has gathered %d memories. Advance now to take the class of the region where %s stands on the alignment grid (level resets to 1, with new strengths). Or hold back and keep growing as a %s, up to level %d; you will be asked again after the next memory.") % [
 		nm, int(h.get("memories", 3)), nm, base, int(h.get("max_level", 6))], 340, Pal.INK9, HORIZONTAL_ALIGNMENT_CENTER))
-	var adv := FlowUI.button("Advance", 110, 24)
+	var adv := FlowUI.primary("Advance", 118)
 	adv.pressed.connect(func() -> void: decided.emit(0))
 	_buttons.add_child(adv)
 	var hold := FlowUI.button("Hold back", 110, 24)

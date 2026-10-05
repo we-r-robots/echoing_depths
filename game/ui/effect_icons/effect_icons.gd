@@ -6,7 +6,7 @@ extends RefCounted
 ## An "effect" is a Dictionary:
 ##   {"icon": Texture2D, "sign": 1 buff / -1 cost / 0 neutral, "kind": "stat"|"behaviour"|"cost"|"bond",
 ##    "title": a short label, at most 20 chars ("Front Def +10%", "Ilse draws melee"),
-##    "name": the tooltip title: the effect's category or lore name ("Defence", "Keeper's ring"),
+##    "name": the tooltip title: the effect's category or lore name ("Def", "Keeper's ring"),
 ##    "text": the full sentence for the tooltip}
 ##
 ##   EffectIcons.formation_effects(shape, who, bonds) -> Array of effects in the order
@@ -222,7 +222,7 @@ static func short_stat(stat: String, v: float) -> String:
 
 
 const STAT_CATEGORY := {
-	"def_pct": "Defence", "atk_pct": "Attack", "mag_pct": "Magic", "spd_pct": "Speed", "hp_pct": "Health",
+	"def_pct": "Def", "atk_pct": "Atk", "mag_pct": "Mag", "spd_pct": "Spd", "hp_pct": "HP",
 	"heal_pct": "Healing", "charge_pct": "Charge", "crit_add": "Critical hits", "dmg_taken_pct": "Damage taken",
 }
 

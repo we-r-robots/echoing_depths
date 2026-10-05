@@ -87,7 +87,7 @@ func _build() -> void:
 		_save_name()
 		to_title.emit())
 	add_child(_title_btn)
-	_go = FlowUI.button("New run", 96, 22)
+	_go = FlowUI.primary("New run", 112)
 	_go.pressed.connect(func() -> void:
 		_save_name()
 		new_run.emit())
@@ -350,7 +350,7 @@ func _layout() -> void:
 	_hall.position = Vector2(fx + 632 - _hall.size.x, 36)
 	_res.position = Vector2(roundf(UIFrame.right(self) - 230), 8)
 	_title_btn.position = Vector2(roundf(UIFrame.left(self) + 8), 334)
-	_go.position = Vector2(roundf(UIFrame.right(self) - 104), 334)
+	_go.position = Vector2(roundf(UIFrame.right(self) - 120), 327)
 	queue_redraw()
 
 

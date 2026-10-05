@@ -148,7 +148,7 @@ func _build() -> void:
 	_result = FlowUI.vbox(3)
 	_result.visible = false
 	_col.add_child(_result)
-	_continue = FlowUI.button("Continue", 96, 22)
+	_continue = FlowUI.primary("Continue", 120)
 	_continue.visible = false
 	_continue.pressed.connect(_on_continue)
 	_col.add_child(_continue)

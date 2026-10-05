@@ -711,6 +711,62 @@ func _draw_bonds(sub: Array) -> void:
 				draw_rect(Rect2(x0, fb.y - 1, x1 - x0 + 1, 3), c1 if lit or locked else Pal.CRYSTAL5)
 
 
+## The opaque pixels of a hero's idle animation (all frames), in its 64x64 frame, cached per class.
+static var _opaque_cache := {}
+
+
+func _opaque_rect(i: int) -> Rect2:
+	var sp := _sprites[i]
+	if sp.sprite_frames == null:
+		return Rect2(16, 8, 32, 52)
+	var key := sp.sprite_frames.resource_path + "#" + str(sp.sprite_frames.get_instance_id())
+	if _opaque_cache.has(key):
+		return _opaque_cache[key]
+	var r := Rect2()
+	for k in sp.sprite_frames.get_frame_count(&"idle"):
+		var tex := sp.sprite_frames.get_frame_texture(&"idle", k)
+		var img := tex.get_image() if tex != null else null
+		if img == null:
+			continue
+		var u := Rect2(img.get_used_rect())
+		r = u if not r.has_area() else r.merge(u)
+	if not r.has_area():
+		r = Rect2(16, 8, 32, 52)
+	_opaque_cache[key] = r
+	return r
+
+
+## A hero's sprite on the board (board-local), from its opaque pixels.
+func sprite_rect(i: int) -> Rect2:
+	var o := _opaque_rect(i)
+	return Rect2((_pos[i] as Vector2) - Vector2(64, 120) + o.position * 2.0, o.size * 2.0)
+
+
+## Where hero i's name plate (and its role tag under it) goes: under its feet, slid sideways or down
+## until it clears the other heroes' sprites and the plates already placed (critic r3: plates sat
+## on a neighbour's bow and staff).
+func _plate_spot(i: int, f: Vector2, w: float, h: float, taken: Array[Rect2]) -> Rect2:
+	var others: Array[Rect2] = taken.duplicate()
+	for j in heroes.size():
+		if j != i and placement[j] is Array and j != _dragging:
+			others.append(sprite_rect(j).grow(1))
+	var best := Rect2(roundi(f.x - 8 - w / 2.0), f.y + 3, w, h)
+	var best_s := INF
+	for dy: int in [3, 5, 7, 9]:
+		for dx: int in [-8, -4, -12, -16, 0, -20, 4, -24, 8]:
+			var r := Rect2(roundi(f.x + dx - w / 2.0), f.y + dy, w, h)
+			var ov := 0.0
+			for o: Rect2 in others:
+				var x := r.intersection(o)
+				if x.has_area():
+					ov += x.get_area()
+			var sc := ov * 50.0 + absf(dx + 8) + (dy - 3) * 2.0
+			if sc < best_s:
+				best_s = sc
+				best = r
+	return best
+
+
 ## Above the sprites: name plates under the feet; role tags (hidden while dragging a preview).
 func _draw_overlay() -> void:
 	var ev := FormationWords.evaluate(placed_cells(), unlocked)
@@ -719,6 +775,7 @@ func _draw_overlay() -> void:
 	var roles: Array = []
 	if cells.size() >= 2 and _dragging < 0:
 		roles = FormationWords.Formation.roles(sid, cells)
+	var taken: Array[Rect2] = []
 	for i in heroes.size():
 		if not (placement[i] is Array) or i == _dragging:
 			continue
@@ -734,7 +791,9 @@ func _draw_overlay() -> void:
 						if FormationWords.ROLE_TAGS.has(r):
 							tags.append(String(FormationWords.ROLE_TAGS[r]))
 							break
-		var plate := Rect2(roundi(f.x - 8 - w / 2.0), f.y + 3, w, 12)
+		var plate := _plate_spot(i, f, w, 12 + (14 if not tags.is_empty() else 0), taken)
+		taken.append(Rect2(plate.position, Vector2(w, 12 + (14 if not tags.is_empty() else 0))))
+		plate.size.y = 12
 		_overlay.draw_rect(plate, Pal.INK1)
 		_overlay.draw_rect(Rect2(plate.position.x, plate.end.y - 1, plate.size.x, 1), Pal.c(_infos[i]["color"]))
 		PartyDraw.text(_overlay, Vector2(plate.position.x + 3, UIText.centered_y(plate.position.y, plate.size.y - 1, PartyDraw.BOLD)), nm, Pal.INK10 if i != held else Pal.AMBER6, PartyDraw.BOLD, UIText.BODY, false)

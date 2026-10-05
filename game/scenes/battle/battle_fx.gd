@@ -400,6 +400,9 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 			if absf(nx - pos.x) < 0.5:
 				break   # can't move further without leaving its target: overlap rather than mislead
 			pos.x = clampf(nx, 186.0, 454.0)
+	if not avoid.is_empty():
+		pos = _clear_of_units(pos, home_x, hw, my_top, _pop_bot(tag), best)
+	avoid.clear()
 	_pp_uid[best] = next_uid
 	next_uid = -1
 	_pp_link[best] = Vector2.ZERO
@@ -418,6 +421,60 @@ func popup(value: int, row: int, pos: Vector2, scale: int, plus: bool, head: Str
 	_pp_tag_col[best] = tag_col
 	_last_pop = best
 	return best
+
+
+## Other units' heads and HP plates the next popup must keep clear of (world rects), and the
+## popup's own unit body (world rect). Set by the controller just before a popup; cleared after it.
+var avoid: Array[Rect2] = []
+var home := Rect2()
+## How far a popup may move down onto its own unit to clear a neighbour (fraction of its height).
+const HOME_DROP := 0.55
+
+
+## A popup box that covers another unit's head or plate moves toward its own unit: first down onto
+## its own head (never past HOME_DROP of its body), then sideways toward its own centre line, and
+## sideways within PUSH_MAX. The candidate with the least overlap wins (ties: the least movement);
+## a candidate that runs into another popup is ruled out.
+func _clear_of_units(pos: Vector2, home_x: float, hw: float, top: float, bot: float, me: int) -> Vector2:
+	var best_p := pos
+	var best_s := INF
+	var hc := home.get_center().x if home.size.x > 0.0 else home_x
+	var max_drop := maxf(0.0, home.size.y * HOME_DROP) if home.size.y > 0.0 else 6.0
+	var dxs: Array[float] = [0.0]
+	for k in range(1, 10):
+		dxs.append(float(k))
+		dxs.append(-float(k))
+	for dy in range(0, int(max_drop) + 1, 1):
+		for dx in dxs:
+			var p := Vector2(pos.x + dx, pos.y + dy)
+			if absf(p.x - hc) > PUSH_MAX + absf(pos.x - hc):
+				continue
+			var box := Rect2(p.x - hw, p.y - top, hw * 2.0, top + bot)
+			var ov := 0.0
+			for r: Rect2 in avoid:
+				var i := box.intersection(r)
+				if i.has_area():
+					ov += i.get_area()
+			if _pop_hits(box, me):
+				continue
+			var sc := ov * 100.0 + dy + absf(dx) * 1.5
+			if sc < best_s:
+				best_s = sc
+				best_p = p
+		if best_s < 100.0:
+			break   # clear of every neighbour at this drop: stop moving down
+	return Vector2(roundf(best_p.x), roundf(best_p.y))
+
+
+func _pop_hits(box: Rect2, me: int) -> bool:
+	for j in MAX_POP:
+		if j == me or not _pp_on[j]:
+			continue
+		var hwj := _pop_hw_j(j)
+		var bj := Rect2(_pp_x[j] - hwj, _pp_y[j] - _pop_top(j), hwj * 2.0, _pop_top(j) + _pop_bot(_pp_tag[j]))
+		if bj.intersects(box):
+			return true
+	return false
 
 
 ## Floating word without a number (e.g. "READY!", "KO").

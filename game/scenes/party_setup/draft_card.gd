@@ -197,11 +197,11 @@ func _draw() -> void:
 	var cw := floori((w - 16) / 5.0)
 	var sx := 8
 	for sname: String in ["hp", "atk", "def", "mag", "spd"]:
-		var well := Rect2(sx, sy, cw - 2, 24)
+		var well := Rect2(sx, sy, cw - 2, 25)
 		PartyDraw.inset(self, well)
 		draw_rect(Rect2(well.position.x + 1, well.position.y, well.size.x - 2, 1), STAT_COLORS[sname])
-		PartyDraw.text(self, Vector2(sx, sy + 1), PartyModel.STAT_LABELS[sname], Pal.INK8, PartyDraw.BOLD, UIText.BODY, false, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
-		PartyDraw.text(self, Vector2(sx, sy + 12), str(st[sname]), Pal.INK10, PartyDraw.BOLD, UIText.BODY, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
+		PartyDraw.text(self, Vector2(sx, sy + 2), PartyModel.STAT_LABELS[sname], Pal.INK9, PartyDraw.BOLD, UIText.BODY, false, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
+		PartyDraw.text(self, Vector2(sx, sy + 13), str(st[sname]), Pal.INK10, PartyDraw.BOLD, UIText.BODY, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
 		sx += cw
 	# the ability (its name and one short line), then the basic attack as one quiet line; the full
 	# sentences are in each row's tooltip
@@ -215,9 +215,11 @@ func _draw() -> void:
 			draw_rect(rr, Pal.INK3)
 		var y := rr.position.y + 2
 		if k == 1:
-			PartyDraw.tint_tex(self, ABILITY, Vector2(8, y + 5), cc)
-			BigText.draw(self, Vector2(18, y), String(act.get("name", aid)), Pal.INK10)
-			PartyDraw.text(self, Vector2(8, y + 17), action_short(aid), Pal.INK9, PartyDraw.BOLD)
+			# the same icon + name + short label as hero detail (PartyModel.ability_short), in the
+			# card's one body face: only the hero's name is serif
+			PartyDraw.tint_tex(self, ABILITY, Vector2(8, y + 3), cc)
+			PartyDraw.text(self, Vector2(18, y), String(act.get("name", aid)), Pal.INK10, PartyDraw.BOLD)
+			PartyDraw.text(self, Vector2(18, y + 14), PartyModel.ability_short(act), Pal.INK9, PartyDraw.BOLD)
 		else:
 			draw_rect(Rect2(8, rr.position.y - 3, w - 16, 1), Pal.INK3)
 			PartyDraw.text(self, Vector2(8, y), "Basic: %s" % String(act.get("name", aid)), Pal.INK9, PartyDraw.BOLD)

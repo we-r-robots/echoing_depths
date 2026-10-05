@@ -30,6 +30,7 @@ var hero_color := Pal.AMBER6
 var rarity := {}              # corner region -> 1..3
 var names := {}               # region -> display name ("???" while hidden)
 var new_regions: Array = []   # regions recorded in the codex during this visit (NEW tag)
+var hero_class := ""          # the hero's own class name, on its token (the card's word)
 var ready_glow := false
 var focus_region := ""        # outlined region (advancement destination); "" = hero's own
 var reach_cell: Variant = null  # corner a held-back hero could reach (hold preview)
@@ -285,9 +286,10 @@ func _plaque(cx: float, y: float, s: String, fg: Color, edge: Color, tag := "") 
 func _draw_plaques() -> void:
 	var here := PartyModel.region_of(effective)
 	var er := cell_rect(effective)
-	var nm := String(names.get(here, "???"))
-	_plaque(er.position.x + C / 2.0, er.position.y + 31, nm, Pal.INK10 if nm != "???" else Pal.INK8, HI,
-		"NEW" if here in new_regions else "")
+	var nm := hero_class if hero_class != "" else String(names.get(here, "???"))
+	_plaque(er.position.x + C / 2.0, er.position.y + 31, nm, Pal.INK10 if nm != "???" else Pal.INK8, HI)
+	if here in new_regions:
+		_corner_badge(er, "NEW")
 	if focus_region != "" and focus_region != here:
 		var fc := center(PartyModel.region_cell(focus_region))
 		var fn := String(names.get(focus_region, "???"))
@@ -300,6 +302,16 @@ func _draw_plaques() -> void:
 		if PartyModel.region_of(cursor).ends_with("*"):
 			y = cr.position.y + 15
 		_plaque(cr.position.x + C / 2.0, y, cn, Pal.INK10 if cn != "???" else Pal.INK8, HI)
+
+
+## A small badge straddling a cell's top-right corner (the codex's NEW mark), inside the grid frame.
+func _corner_badge(cell: Rect2, tag: String) -> void:
+	var tw := PartyDraw.text_w(tag, PartyDraw.BOLD) + 6
+	var x := minf(cell.end.x - tw + 3, total() - FRAME - 1 - tw)
+	var r := Rect2(x, maxf(cell.position.y - 4, FRAME), tw, 11)
+	draw_rect(r.grow(1), Pal.INK1)
+	draw_rect(r, Pal.CRYSTAL4)
+	PartyDraw.text(self, Vector2(r.position.x + 3, UIText.centered_y(r.position.y, r.size.y, PartyDraw.BOLD)), tag, Pal.INK1, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
 
 
 func _brackets(r: Rect2, c: Color) -> void:

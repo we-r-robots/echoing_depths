@@ -36,9 +36,18 @@ class ActionButton extends Button:
 		for st in ["normal", "hover", "pressed", "disabled", "focus", "hover_pressed"]:
 			add_theme_stylebox_override(st, StyleBoxEmpty.new())
 
+	var primary := false   # the card's main action: filled amber, dark text one size up
+
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
 		var down := is_pressed() or button_pressed
+		if primary:
+			draw_rect(r, Pal.AMBER3)
+			draw_rect(Rect2(1, 1, size.x - 2, size.y - 3), Pal.AMBER4 if down else (Pal.AMBER6 if lit else Pal.AMBER5))
+			var ty := UIText.centered_y(0, size.y - 1, PartyDraw.BOLD, UIText.NUMBER) + (1 if down else 0)
+			PartyDraw.text(self, Vector2(0, ty), String(get_meta("label")), Pal.INK1, PartyDraw.BOLD,
+				UIText.NUMBER, false, size.x, HORIZONTAL_ALIGNMENT_CENTER)
+			return
 		if lit:
 			PartyDraw.selected(self, r, accent)
 		else:
@@ -56,13 +65,14 @@ func _ready() -> void:
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_btn_adv = ActionButton.new("Advance")
-	_btn_adv.position = Vector2(22, H - 30)
-	_btn_adv.size = Vector2(92, 20)
+	_btn_adv.position = Vector2(22, H - 34)
+	_btn_adv.size = Vector2(92, 26)
+	_btn_adv.primary = true
 	_btn_adv.accent = Pal.AMBER5
 	_btn_adv.pressed.connect(func() -> void: advance_chosen.emit())
 	add_child(_btn_adv)
 	_btn_hold = ActionButton.new("Hold Back")
-	_btn_hold.position = Vector2(118, H - 30)
+	_btn_hold.position = Vector2(118, H - 31)
 	_btn_hold.size = Vector2(92, 20)
 	_btn_hold.accent = Pal.CRYSTAL4
 	_btn_hold.pressed.connect(func() -> void: hold_chosen.emit())

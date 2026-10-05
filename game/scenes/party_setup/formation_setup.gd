@@ -85,11 +85,8 @@ func _ready() -> void:
 	add_child(board)
 	panel = FormationPanel.new()
 	add_child(panel)
-	_confirm = Button.new()
-	_confirm.text = "Confirm"
-	_confirm.focus_mode = Control.FOCUS_NONE
-	_confirm.position = Vector2(FormationPanel.W - 84, FormationPanel.H - 28)
-	_confirm.size = Vector2(76, 20)
+	_confirm = FlowUI.primary("Confirm", 112)
+	_confirm.position = Vector2(FormationPanel.W - 120, FormationPanel.H - 36)
 	_confirm.pressed.connect(confirm)
 	panel.add_child(_confirm)
 	board.changed.connect(_on_changed)
@@ -116,8 +113,9 @@ func _ready() -> void:
 		_back = Button.new()
 		_back.text = "Back"
 		_back.focus_mode = Control.FOCUS_NONE
-		_back.position = Vector2(FormationPanel.W - 84, FormationPanel.H - 52)
-		_back.size = Vector2(76, 20)
+		_back.position = Vector2(FormationPanel.W - 120, FormationPanel.H - 62)
+		_back.size = Vector2(112, 22)
+		panel.extra_foot = 26
 		_back.pressed.connect(_on_back)
 		panel.add_child(_back)
 	board.setup(_pending["heroes"], _pending["slots"], _pending["unlocked"])

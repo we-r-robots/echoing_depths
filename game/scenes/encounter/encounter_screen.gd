@@ -407,7 +407,7 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 	if party.size() >= 4 and party[-1].get("name", "") != recruit.get("name", ""):
 		recruit = {}
 	var card_h := 112
-	var cont_h := 22
+	var cont_h := int(FlowUI.PRIMARY_H)
 	var rec_h := 40 if not recruit.is_empty() else 0
 	# re-centre the whole column around the result so nothing floats over empty space
 	var total := 52 + body_h + 10 + card_h + rec_h + 6 + cont_h
@@ -553,8 +553,7 @@ func _show_card(btn: EncounterChoiceButton, hero: Dictionary, before: Dictionary
 
 	if rec_h > 0:
 		reveal.append(_recruit_panel(recruit, card_y + card_h + 4))
-	_continue = Button.new()
-	_continue.text = "Continue"
+	_continue = FlowUI.primary("Continue", COL_W)
 	_continue.position = Vector2(col_x, card_y + card_h + rec_h + 6)
 	_continue.size = Vector2(COL_W, cont_h)
 	_continue.modulate.a = 0.0

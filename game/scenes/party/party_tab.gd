@@ -1,9 +1,10 @@
 class_name PartyTab
 extends Button
-## One hero in the party row: portrait, name, level, memory pips, mini alignment grid.
+## One hero in the party row: portrait, name, level and memory pips (the big grid shows the
+## selected hero's alignment; a mini grid per tab was one element too many, critic r3).
 ## The whole tab is the hit target (112x30). Selected tab gets the lit crystal row look.
 
-const W := 112
+const W := 100
 const H := 30
 const PIP_FULL := preload("res://ui/icons/memory_gem.png")
 const STAR := preload("res://ui/icons/star.png")
@@ -12,7 +13,6 @@ var hero: Dictionary
 var info: Dictionary
 var is_selected := false:
 	set(v): is_selected = v; queue_redraw()
-var _mini: AlignGrid
 var _por: TextureRect
 var _badge: Control
 var _t := 0.0
@@ -39,20 +39,10 @@ func setup(h: Dictionary) -> void:
 	if _badge == null:
 		_badge = Control.new()
 		_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_badge.position = Vector2(22, 0)
+		_badge.position = Vector2(1, 0)   # the portrait's far corner, clear of the name
 		_badge.size = Vector2(9, 9)
 		_badge.draw.connect(_draw_badge)
 		add_child(_badge)
-	if _mini == null:
-		_mini = AlignGrid.new()
-		_mini.cell = 3
-		_mini.gap = 1
-		_mini.position = Vector2(W - 28, 4)
-		add_child(_mini)
-	var e := PartyModel.effective(h)
-	_mini.dot_color = Pal.c(info["color"])
-	_mini.from_pos = Vector2i(e[0], e[1])
-	_mini.to_pos = _mini.from_pos
 	queue_redraw()
 
 

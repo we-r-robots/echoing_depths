@@ -80,10 +80,7 @@ func _build() -> void:
 		c.tapped.connect(toggle.bind(i))
 		_portraits.append(SpritePortrait.for_class(String(o["class"]), 20))
 		_cards.append(c)
-	_go = Button.new()
-	_go.text = "Set out"
-	_go.focus_mode = Control.FOCUS_NONE
-	_go.size = Vector2(76, 20)
+	_go = FlowUI.primary("Set out", 104)
 	_go.pressed.connect(commit)
 	add_child(_go)
 	get_viewport().size_changed.connect(_layout)
@@ -100,7 +97,7 @@ func _layout() -> void:
 	var x0 := roundi((get_viewport_rect().size.x - total) / 2.0)
 	for i in n:
 		_cards[i].position.x = x0 + i * (cw + 8)
-	_go.position = Vector2(UIFrame.right(self) - 84, 336)
+	_go.position = Vector2(UIFrame.right(self) - 112, 329)
 	queue_redraw()
 
 
@@ -205,12 +202,13 @@ func _draw() -> void:
 		PartyDraw.BOLD, UIText.BODY, true, 78, HORIZONTAL_ALIGNMENT_RIGHT)
 	# what the alignment line on the cards means, said once, as a labelled panel; once the party
 	# sets out, the same strip says so
-	var bb := Rect2(l + 8, 334, r0 - l - 100, 22)
+	var bb := Rect2(l + 8, 332, r0 - l - 128, 22)
 	PartyDraw.panel(self, bb, 0, &"DimPanel")
 	var ty := UIText.centered_y(bb.position.y, bb.size.y)
 	if _done:
 		PartyDraw.text(self, Vector2(bb.position.x + 8, ty), _msg, Pal.AMBER6, PartyDraw.BOLD)
 		return
-	var pw := PartyDraw.pill(self, Vector2(bb.position.x + 6, bb.position.y + 6), "ALIGNMENT", Pal.AMBER6, Pal.AMBER1, Pal.AMBER4)
-	PartyDraw.text(self, Vector2(bb.position.x + 12 + pw, ty),
-		"Each class starts at a fixed place; your choices move it.", Pal.INK9, PartyDraw.BOLD)
+	# the alignment mark the cards use, then one plain sentence (no caps badge: one type style)
+	PartyDraw.tint_tex(self, DraftCard.START, Vector2(bb.position.x + 8, bb.position.y + 8), Pal.AMBER6)
+	PartyDraw.text(self, Vector2(bb.position.x + 20, ty),
+		"Alignment: each class starts at a fixed place; your choices move it.", Pal.INK9, PartyDraw.BOLD)

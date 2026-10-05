@@ -40,6 +40,22 @@ static func button(text: String, w := 96.0, h := 22.0) -> Button:
 	return b
 
 
+## The screen's one main action (Set out, Confirm, Continue, New run ...): filled amber with dark
+## text in the number size, and taller than secondary buttons (PRIMARY_H vs 22 design px).
+const PRIMARY_H := 28.0
+
+
+static func primary(text: String, w := 112.0, h := PRIMARY_H) -> Button:
+	return make_primary(button(text, w, h))
+
+
+static func make_primary(b: Button) -> Button:
+	b.theme_type_variation = &"PrimaryButton"
+	b.custom_minimum_size.y = maxf(b.custom_minimum_size.y, PRIMARY_H)
+	b.size.y = maxf(b.size.y, PRIMARY_H)
+	return b
+
+
 static func panel(variation: StringName = &"PanelContainer") -> PanelContainer:
 	var p := PanelContainer.new()
 	if variation != &"PanelContainer":
