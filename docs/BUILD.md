@@ -55,3 +55,10 @@ Super Auto Pets is a bar for readability and punch only. Never copy its structur
 - Only edit files in the area you own (named in your task). If you need a change to shared files (`project.godot`, `game/core/` when not yours), make the minimal change and report it.
 - A scene you build must be capturable standalone: `tools/capture.sh res://scenes/<area>/<scene>.tscn ...` must show a realistic, populated state with no input (use demo data in a `demo` mode).
 - Run the Godot project headless once after adding assets (`godot --path game --headless --import`) and fix every error and warning you introduce.
+
+## Playable flow decisions (user, 2026-10-05)
+- **Story is its own track.** Story progress (the chapter, which Crystal memories appear) is kept apart from Lanternrest's town upgrades: it is never bought or tied to spendable currencies (Glimmers, Shards). The placeholder (one chapter per Crystal victory) stays until story pacing is designed.
+- **Meta prices are a starting point, tuned in playtesting:** shapes cost 1 Shard (3-hero) or 2 Shards (4-hero), crests cost 25 Glimmers, 100 Glimmers form a Shard.
+- **Team name and crests: placeholder.** The default name "The Lanternrest Company" and the 8 crests (Lantern, Crystal and Moon free; Star, Key, Flame, Wave and Tower bought) stay for now. Still undecided: when a player can rename, and whether a run starts with a name plus generic crests and customising is unlocked through meta.
+- **Formation setup opens before every fight**, monster fights included.
+- **The PvP splash shows the rival's heroes** (with name and crest). Their formation stays hidden.
