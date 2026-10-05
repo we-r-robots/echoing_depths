@@ -20,7 +20,7 @@ const COST_SHORT := {"kindred": "Back unguarded", "vigil": "No front line", "lam
 	"seawall": "Spd -3%, no back row", "lumari_chorus": "No front line", "vault_door": "No standout",
 	"crescent": "Open end draws melee", "lighthouse": "Post falls fast", "keepers_ring": "Front +5% dmg taken",
 	"shardpoint": "Tip draws melee", "echo_step": "Def -5%", "strays": "No shape behaviour"}
-const ROW_H := 16
+const ROW_H := 20          # roster row: name and HP one size up (15) when they fit, then the bars
 const BANNER_H := 26
 const CHIP_GAP := 3
 
@@ -126,6 +126,8 @@ func tick(vdt: float) -> void:
 	caption_t += vdt
 	lore_t += vdt
 	frag_t += vdt
+	if frag_wait and (caption_uid < 0 or (caption_t > 0.5 and b.fx.live_popups() == 0)):
+		_start_fragment_banner()
 	cutin_t += vdt
 	sd_banner_t += vdt
 	if end_t >= 0.0:
@@ -146,9 +148,22 @@ func show_lore(name: String, text: String) -> void:
 	lore_t = 0.0
 
 
+## The fragment banner waits for the action that broke the fragment: its caption stays up while
+## its numbers show, then the banner takes the slot, and the caption does not come back after it
+## (critic r3: the banner pre-empted "Vael Firestorm", which then reappeared with no hit on screen).
+var frag_wait := false
+
+
 func show_fragment(n: int) -> void:
 	frag_n = n
+	frag_wait = true
+	frag_t = 99.0
+
+
+func _start_fragment_banner() -> void:
+	frag_wait = false
 	frag_t = 0.0
+	caption_uid = -1   # that action is over: never restore its caption after the banner
 
 
 func screen_flash(c: Color, a: float) -> void:
@@ -157,6 +172,8 @@ func screen_flash(c: Color, a: float) -> void:
 
 
 func show_caption(uid: int, text: String, target: int, is_ability: bool, area := "single") -> void:
+	if frag_wait:
+		_start_fragment_banner()   # the next action is starting: the banner first, then this caption
 	caption_area = area
 	caption_uid = uid
 	caption_text = text
@@ -555,11 +572,22 @@ func _draw_panel(side: int) -> void:
 	var y0 := 358.0 - h
 	var r := Rect2(x0, y0, PANEL_W, h)
 	_panel_bg(r, b.side_colors[side], 0.95)
+	# names one size up (critic r3: the roster read thinner than the old 640x360 frame at phone
+	# size) when every name on this side fits; else the whole side stays at the label size
+	var sz := UIText.NUMBER
 	for i in n:
-		_draw_row(side, b.units[ids[i]], Vector2(x0, y0 + 3 + i * ROW_H))
+		if UIText.width(b.units[ids[i]].label, BOLD, sz) > _name_room(sz):
+			sz = UIText.LABEL
+	for i in n:
+		_draw_row(side, b.units[ids[i]], Vector2(x0, y0 + 3 + i * ROW_H), sz)
 
 
-func _draw_row(side: int, u, p: Vector2) -> void:
+## Room for a roster name: the row minus the portrait and a 3-digit HP number.
+func _name_room(sz: int) -> float:
+	return PANEL_W - 4.0 - 17.0 - 4.0 - 6.0 - UIText.width("000", BOLD, sz) - 10.0
+
+
+func _draw_row(side: int, u, p: Vector2, sz := UIText.LABEL) -> void:
 	var left := side == 0
 	var sc: Color = b.side_colors[side]
 	var acting: bool = u.acting
@@ -571,17 +599,18 @@ func _draw_row(side: int, u, p: Vector2) -> void:
 		draw_rect(Rect2(p.x + 2, p.y, PANEL_W - 4, ROW_H - 1), Color(Pal.BLOOD3, rf * 0.35))
 	var px := p.x + 4.0 if left else p.x + PANEL_W - 4.0 - 17.0
 	var tex: Texture2D = b.portraits.get(u.uid)
-	draw_rect(Rect2(px - 1, p.y + 1, 18, 15), Pal.INK1)
-	draw_rect(Rect2(px, p.y + 2, 16, 13), Pal.INK3)
+	var py := p.y + 3.0
+	draw_rect(Rect2(px - 1, py - 1, 18, 15), Pal.INK1)
+	draw_rect(Rect2(px, py, 16, 13), Pal.INK3)
 	if tex != null:
 		var m := Color(1, 1, 1, 1) if u.alive else Color(0.45, 0.45, 0.55, 1)
-		draw_texture_rect(tex, Rect2(px, p.y + 2, 16, 13), false, m)
-	draw_rect(Rect2(px - 1, p.y + 1, 18, 15), (sc if acting else Pal.INK5), false, 1.0)
+		draw_texture_rect(tex, Rect2(px, py, 16, 13), false, m)
+	draw_rect(Rect2(px - 1, py - 1, 18, 15), (sc if acting else Pal.INK5), false, 1.0)
 	var tx := px + 21.0 if left else px - 4.0
 	var bw := 112.0
 	var bar_x := tx if left else tx - bw
 	var name_col := Pal.INK10 if u.alive else Pal.FADE2
-	var ny := p.y + 0.0
+	var ny := UIText.centered_y(p.y, 12.0, BOLD, sz)
 	# HP number on the far side of the name
 	var num_x := p.x + PANEL_W - 6.0 if left else p.x + 6.0
 	var hs := ""
@@ -593,19 +622,19 @@ func _draw_row(side: int, u, p: Vector2) -> void:
 	else:
 		hs = "KO"
 		hc = Pal.BLOOD3
-	var hw := UIText.width(hs, BOLD, UIText.LABEL)
-	UIText.draw(self, Vector2(num_x - hw if left else num_x, ny), hs, hc, BOLD, UIText.LABEL)
-	var room := absf(num_x - tx) - 24.0   # the name keeps clear of a 3-digit HP number
-	var nm := UIText.fit(u.label, room, BOLD, UIText.LABEL)
-	UIText.draw(self, Vector2(tx if left else tx - UIText.width(nm, BOLD, UIText.LABEL), ny), nm,
-		name_col if not acting else sc.lerp(Pal.INK10, 0.5), BOLD, UIText.LABEL)
+	var hw := UIText.width(hs, BOLD, sz)
+	UIText.draw(self, Vector2(num_x - hw if left else num_x, ny), hs, hc, BOLD, sz)
+	var room := absf(num_x - tx) - UIText.width("000", BOLD, sz) - 6.0   # clear of a 3-digit HP number
+	var nm := UIText.fit(u.label, room, BOLD, sz)
+	UIText.draw(self, Vector2(tx if left else tx - UIText.width(nm, BOLD, sz), ny), nm,
+		name_col if not acting else sc.lerp(Pal.INK10, 0.5), BOLD, sz)
 	if not u.alive:
-		draw_rect(Rect2(bar_x, p.y + 12.0, bw, 1), Pal.INK4)
+		draw_rect(Rect2(bar_x, p.y + 15.0, bw, 1), Pal.INK4)
 		return
 	# HP bar
 	var frac: float = clampf(u.hp_shown / float(u.max_hp), 0.0, 1.0)
 	var chip: float = clampf(u.hp_chip / float(u.max_hp), 0.0, 1.0)
-	var by := p.y + 11.0
+	var by := p.y + 15.0
 	draw_rect(Rect2(bar_x - 1, by - 1, bw + 2, 5), Pal.INK1)
 	draw_rect(Rect2(bar_x, by, bw, 3), Pal.INK3)
 	var hcol := Pal.LIFE4 if frac > 0.5 else (Pal.AMBER5 if frac > 0.25 else Pal.BLOOD3)
@@ -649,7 +678,9 @@ func _intro_effects(side: int) -> Array:
 			continue
 		var c := e.duplicate()
 		if k == "stat":
-			c["title"] = String(e.get("short", e.get("title", "")))
+			# whose stat it is stays on the chip ("Ilse Heal +40%"; critic r3: two bare "+40%")
+			var subj := String(e.get("subject", ""))
+			c["title"] = (subj + " " if subj != "" else "") + String(e.get("short", e.get("title", "")))
 		if k == "behaviour":
 			beh.append(c)
 		else:
@@ -681,13 +712,14 @@ func _build_intro() -> void:
 			var row: Array = []
 			for e: Dictionary in list:
 				row.append([e, _chip_label_w(String(e["title"]))])
-			# one row: if the labels don't fit, stat chips show just the value ("+40%"; the icon
-			# names the stat), then labels drop from the end (the tooltip still says it all)
+			# one row: if the labels don't fit, stat chips keep their subject and value ("Ilse +40%";
+			# the icon names the stat), then labels drop from the end (the tooltip still says it all)
 			if _row_w(row) > tw:
 				for item: Array in row:
 					var e: Dictionary = item[0]
-					if String(e.get("kind", "")) == "stat":
-						e["title"] = String(e["title"]).get_slice(" ", String(e["title"]).count(" "))
+					if String(e.get("kind", "")) == "stat" and e.has("value"):
+						var subj := String(e.get("subject", ""))
+						e["title"] = (subj + " " if subj != "" else "") + String(e["value"])
 						item[1] = _chip_label_w(String(e["title"]))
 			var k := row.size() - 1
 			while _row_w(row) > tw and k >= 0:

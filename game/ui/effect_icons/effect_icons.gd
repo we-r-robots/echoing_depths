@@ -206,6 +206,7 @@ static func _stat_effect(m: Dictionary, who: Dictionary, sign: int) -> Dictionar
 		stat_word = "dmg taken"
 	var title := "%s %s %+d%%" % [_scope_short(String(m["scope"]), who), stat_word, pct]
 	return {"icon": stat_icon(stat), "sign": sign, "kind": "stat", "title": title, "short": short_stat(stat, v),
+		"subject": _scope_short(String(m["scope"]), who), "value": "%+d%%" % pct,
 		"name": String(STAT_CATEGORY.get(stat, "Effect")), "text": _mod_sentence(subj[0], subj[1], stat, v)}
 
 

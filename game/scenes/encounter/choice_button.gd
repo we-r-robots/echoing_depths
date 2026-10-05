@@ -1,9 +1,10 @@
 class_name EncounterChoiceButton
 extends Button
-## One encounter choice, readable without hover (one focus per row, then two quiet lines):
+## One encounter choice, readable without hover (one focus per row, then one quiet line):
 ##   line 1  the action (serif, one size up)
-##   line 2  Hero  memory gem Lv 2>3 [Awakens] [+ Tamsin joins]
-##   line 3  arrow  Cruelty +1, Freedom +1   * Strong shift
+##   line 2  Hero  arrow Cruelty +1, Freedom +1 [star] [Awakens] [+ Tamsin joins]
+## The level step and the notes (strong shift, edge cap, how to read the grid) are in the tooltip
+## on the mini grid.
 ## Right: the hero's alignment grid, solid cell = now, white ring = after this choice.
 ## Strong-shift rows use the same plate (so they never look selected) with gold studs and a glint.
 
@@ -59,7 +60,7 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	what.text = c.get("label", "")
 	# (a label too long for the room beside the grid drops one size step, never clipped;
 	# then every row on the screen does, so the rows keep one size)
-	var room := width - 42 - (7 * 5 + 6 + 4) - 14
+	var room := width - 42 - (7 * 5 + 4 + 6) - 14
 	_what = what
 	small = UIText.width(what.text, UIText.SERIF, UIText.HEADING) > room
 	what.position.x = 42
@@ -67,44 +68,42 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	_ignore(what)
 	_match_rows.call_deferred()
 
-	# line 2, quiet: who grows (class colour), the memory it gives and, if it is the one that lets
-	# the hero Awaken, one amber word
-	var l2 := _row(Vector2(42, 24), 3)
-	var who := _label(String(h["name"]), cc, true)
-	l2.add_child(who)
-	l2.add_child(_spacer(2))
-	l2.add_child(_icon("res://ui/icons/memory_gem.png", Color.WHITE, 1))
-	l2.add_child(_label("Lv %d \u2192 %d" % [lv, lv + 1], Pal.INK9, true))
-	if awakens:
-		# plain amber word with its glyph, no boxed badge (it reads the same on the run's encounter
-		# screen, which has no legend)
-		l2.add_child(_spacer(2))
-		l2.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
-		l2.add_child(_label("Awakens", Pal.AMBER6, true))
-	if c.has("recruit"):
-		l2.add_child(_spacer(4))
-		l2.add_child(_label("+ %s joins" % c["recruit"]["name"], Pal.LIFE4, true))
-
-	# line 3, quiet: the move the hero actually makes (edge-clamped), always with a number; colour
-	# only in the arrow glyph (and the gold star of a strong shift)
-	var l3 := _row(Vector2(42, 36), 3)
+	# line 2, quiet: who grows (class colour) and the one gain that differs between rows, the move
+	# on the grid (colour only in its arrow); an Awakening or a recruit adds one amber/green word.
+	# The level step, "strong shift", an edge cap and the now/after markers are in the grid's
+	# tooltip (critic r3: three lines per row were too dense)
 	var eff := EncounterDB.effective_shift(h["pos"], c)
-	if eff == Vector2i.ZERO:
-		l3.add_child(_label("No move: at the grid's edge", Pal.INK8, true))
-	else:
+	var l2 := _row(Vector2(42, 29), 3)
+	l2.add_child(_label(String(h["name"]), cc, true))
+	l2.add_child(_spacer(2))
+	var shift_text := "No move"
+	if eff != Vector2i.ZERO:
 		var words := EncounterDB.shift_words(eff)
 		var arrow_col := Pal.c(words[0]["color"]) if words.size() == 1 else Pal.INK10
-		l3.add_child(_icon(EncounterDB.arrow_icon(eff), arrow_col, 2))
+		l2.add_child(_icon(EncounterDB.arrow_icon(eff), arrow_col, 2))
 		var parts: PackedStringArray = []
 		for w: Dictionary in words:
 			parts.append("%s +%d" % [w["word"], w["amount"]])
-		l3.add_child(_label(", ".join(parts), Pal.INK9, true))
-	if eff != s and eff != Vector2i.ZERO:
-		l3.add_child(_label("(capped at edge)", Pal.INK8))
-	elif strong:
-		l3.add_child(_spacer(3))
-		l3.add_child(_icon("res://ui/icons/star.png", Pal.AMBER6, 2))
-		l3.add_child(_label("Strong shift", Pal.AMBER6, true))
+		shift_text = ", ".join(parts)
+	l2.add_child(_label(shift_text, Pal.INK9 if eff != Vector2i.ZERO else Pal.INK8, true))
+	# what fits beside the grid: the strong-shift star and the word "Awakens" go first to the
+	# tooltip (the gold studs still mark a strong row; the amber glyph still marks an Awakening)
+	var room2 := float(width - 42 - (7 * 5 + 4) - 8 - 6)
+	var used := l2.get_combined_minimum_size().x
+	var aw := 3.0 + 9.0 + 3.0 + UIText.width("Awakens", UIText.BOLD, UIText.BODY)
+	var star_w := 3.0 + 9.0
+	var show_star := strong and used + star_w + (aw if awakens else 0.0) <= room2
+	if show_star:
+		l2.add_child(_icon("res://ui/icons/star.png", Pal.AMBER6, 2))
+		used += star_w
+	if awakens:
+		l2.add_child(_spacer(2))
+		l2.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
+		if used + aw <= room2:
+			l2.add_child(_label("Awakens", Pal.AMBER6, true))
+	if c.has("recruit"):
+		l2.add_child(_spacer(4))
+		l2.add_child(_label("+ %s joins" % c["recruit"]["name"], Pal.LIFE4, true))
 
 	grid = AlignGrid.new()
 	grid.cell = 7
@@ -115,6 +114,32 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	grid.show_target = true
 	grid.position = Vector2(width - grid.total_size() - 8, int((H - grid.total_size()) / 2.0))
 	add_child(grid)
+	grid.mouse_filter = Control.MOUSE_FILTER_STOP
+	Tip.attach(grid, String(h["name"]), _detail(c, h, lv, eff, s), cc)
+
+
+## The row's detail for its tooltip (on the mini grid): the level step, Awakening, the move with
+## its strong / capped notes, and how to read the grid.
+func _detail(c: Dictionary, h: Dictionary, lv: int, eff: Vector2i, s: Vector2i) -> String:
+	var out: PackedStringArray = []
+	out.append("Gains a memory: Lv %d to %d." % [lv, lv + 1])
+	if awakens:
+		out.append("Awakens: ready to advance to a new class.")
+	if eff == Vector2i.ZERO:
+		out.append("No move: already at the grid's edge.")
+	else:
+		var parts: PackedStringArray = []
+		for w: Dictionary in EncounterDB.shift_words(eff):
+			parts.append("%s +%d" % [w["word"], w["amount"]])
+		out.append("Moves %s on the alignment grid." % ", ".join(parts))
+		if eff != s:
+			out.append("Capped at the grid's edge.")
+		elif strong:
+			out.append("Strong shift: two steps at once.")
+	if c.has("recruit"):
+		out.append("%s joins the party." % c["recruit"]["name"])
+	out.append("Grid: solid cell now, ring after.")
+	return " ".join(out)
 
 
 var small := false   # the action label is one size step down (too long for serif 15)
@@ -124,7 +149,7 @@ var _what: Label
 func _apply_size() -> void:
 	_what.add_theme_font_override("font", UIText.SERIF)
 	_what.add_theme_font_size_override("font_size", UIText.TITLE if small else UIText.HEADING)
-	_what.position.y = 7 if small else 3
+	_what.position.y = 9 if small else 5
 
 
 ## One size for every row's action: if any sibling row needed the smaller face, all use it.
