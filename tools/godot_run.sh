@@ -15,6 +15,16 @@ GODOT="${GODOT:-godot}"
 RES=""
 prev=""
 for a in "$@"; do [[ "$prev" == "--resolution" ]] && RES="$a"; prev="$a"; done
+XVFB() {
+  export LIBGL_ALWAYS_SOFTWARE=1
+  exec xvfb-run -a -s "-screen 0 ${XVFB_SCREEN:-3840x2160x24}" "$GODOT" --display-driver x11 --rendering-driver opengl3 "$@"
+}
+# Capture runs (any run with --resolution) prefer a virtual X display when xvfb-run is installed:
+# its window is exactly --resolution whatever the desktop's monitors and scales are
+# (GODOT_RUN_DESKTOP=1 keeps them on the desktop).
+if [[ -n "$RES" && "${GODOT_RUN_DESKTOP:-0}" != 1 ]] && command -v xvfb-run >/dev/null; then
+  XVFB "$@"
+fi
 if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" && -n "$RES" && "${GODOT_RUN_TILED:-0}" != 1 ]] \
     && command -v hyprctl >/dev/null; then
   T="$(mktemp -d)"
@@ -29,7 +39,29 @@ if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" && -n "$RES" && "${GODOT_RUN_TILED:-
   cleanup() { [[ -f "$T/pid" && ! -f "$T/status" ]] && kill "$(cat "$T/pid")" 2>/dev/null; rm -rf "$T"; }
   trap cleanup EXIT
   trap 'exit 124' TERM INT
-  hyprctl dispatch "hl.dsp.exec_cmd('$T/wrap.sh', {float=true, size='${RES/x/ }', no_initial_focus=true})" >/dev/null
+  # A monitor with scale != 1 (e.g. a 2x laptop panel next to a 1x desktop screen) would give the
+  # window a scaled buffer (a 1920x1080 window captured at 3840x2160). Open it on a scale-1 monitor
+  # when there is one; otherwise ask for a logical size of RES / scale so the buffer is RES.
+  MON="$(hyprctl monitors -j 2>/dev/null | python3 -c '
+import json, sys
+ms = [m for m in json.load(sys.stdin) if not m.get("disabled")]
+one = [m for m in ms if abs(m["scale"] - 1) < 1e-3]
+if one:
+    one.sort(key=lambda m: (not m.get("focused"), -m["width"] * m["height"]))
+    print(one[0]["name"], 1)
+elif ms:
+    m = next((m for m in ms if m.get("focused")), ms[0])
+    print(m["name"], m["scale"])
+' 2>/dev/null || true)"
+  SIZE="${RES/x/ }"; MONRULE=""
+  if [[ -n "$MON" ]]; then
+    read -r MONNAME MONSCALE <<<"$MON"
+    MONRULE=", monitor='$MONNAME'"
+    if [[ "$MONSCALE" != 1 ]]; then
+      SIZE="$(python3 -c "import sys; w,h=sys.argv[1].split('x'); s=float(sys.argv[2]); print(round(int(w)/s), round(int(h)/s))" "$RES" "$MONSCALE")"
+    fi
+  fi
+  hyprctl dispatch "hl.dsp.exec_cmd('$T/wrap.sh', {float=true, size='$SIZE', no_initial_focus=true$MONRULE})" >/dev/null
   touch "$T/log"
   tail -n +1 -f "$T/log" --pid=$$ &
   TAILPID=$!
@@ -41,5 +73,4 @@ if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
   exec "$GODOT" "$@"
 fi
 command -v xvfb-run >/dev/null || { echo "godot_run: no display and xvfb-run not installed (see tools/cloud_setup.sh)" >&2; exit 1; }
-export LIBGL_ALWAYS_SOFTWARE=1
-exec xvfb-run -a -s "-screen 0 ${XVFB_SCREEN:-3840x2160x24}" "$GODOT" --display-driver x11 --rendering-driver opengl3 "$@"
+XVFB "$@"
