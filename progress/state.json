@@ -725,6 +725,10 @@
     {
       "t": "17:30",
       "msg": "hires-ui critic round 3: FAIL, 0/5 overall but 3/5 at phone size; legibility, floors and rules all pass; fails on 4 overlaps and calm/hierarchy (dense screens, weak primary buttons)."
+    },
+    {
+      "t": "17:59",
+      "msg": "hires-ui round-4 build: capture tooling for scaled monitors, r3 overlaps fixed, caption sync, amber primary buttons, calmer encounter/hero detail/draft/setup; captures in captures/hires-ui/r4 and captures/flow/r4; critic round 4 next"
     }
   ],
   "questions": [

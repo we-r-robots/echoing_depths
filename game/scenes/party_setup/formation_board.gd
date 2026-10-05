@@ -748,7 +748,8 @@ func sprite_rect(i: int) -> Rect2:
 func _plate_spot(i: int, f: Vector2, w: float, h: float, taken: Array[Rect2]) -> Rect2:
 	var others: Array[Rect2] = taken.duplicate()
 	for j in heroes.size():
-		if j != i and placement[j] is Array and j != _dragging:
+		# the dragged hero counts too: a plate never sits on the sprite in the player's hand
+		if j != i and (placement[j] is Array or j == _dragging):
 			others.append(sprite_rect(j).grow(1))
 	var best := Rect2(roundi(f.x - 8 - w / 2.0), f.y + 3, w, h)
 	var best_s := INF
