@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Make a blind A/B comparison image for a critic.
 
-usage: tools/blind_pair.py <ours.png> <reference.png> <out_pair.png> <piece-name>
+usage: tools/blind_pair.py <ours.png> <reference.png> <out_pair.png> <piece-name> [WxH]
 
-Both images are fitted to the same 960x540 frame (letterboxed on black,
-nearest-neighbour for pixel art) and placed side by side in random order,
+Both images are fitted to the same frame, 960x540 by default (about a phone
+held at arm's length; pass 1920x1080 for a full-size pair), letterboxed on black
+(nearest-neighbour for pixel art), and placed side by side in random order,
 labelled only "A" and "B". The answer key is appended to captures/.keys/<piece>.txt,
 which critics must never read; the lead agent reveals it after the verdict.
 """
 import os, random, sys, time
 from PIL import Image, ImageDraw
 
-W, H = 960, 540
+W, H = (int(v) for v in sys.argv[5].split("x")) if len(sys.argv) > 5 else (960, 540)
 
 def fit(path):
     im = Image.open(path).convert("RGB")
