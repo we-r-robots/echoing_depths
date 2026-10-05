@@ -12,12 +12,25 @@ step "godot binary"
 if v=$(godot --version 2>/dev/null); then echo "PASS ($v)"; else echo "FAIL"; exit 1; fi
 
 step "import project"
+# A fresh clone has no import cache, and Godot loads the project theme at startup
+# before the first scan, logging a load error for every texture and font it uses.
+# So on a fresh clone check only from the scan onward, then require a clean warm start.
+fresh=0; [[ -d game/.godot/imported ]] || fresh=1
 godot --path game --headless --import >/tmp/smoke_import.log 2>&1
-if grep -qiE "^(ERROR|SCRIPT ERROR)" /tmp/smoke_import.log; then echo "FAIL (see /tmp/smoke_import.log)"; fail=1; else echo "PASS"; fi
+if (( fresh )) && grep -q first_scan_filesystem /tmp/smoke_import.log; then
+  sed -n '/first_scan_filesystem/,$p' /tmp/smoke_import.log >/tmp/smoke_import_checked.log
+  godot --path game --headless --import >>/tmp/smoke_import_checked.log 2>&1
+else
+  cp /tmp/smoke_import.log /tmp/smoke_import_checked.log
+fi
+if grep -qiE "^(ERROR|SCRIPT ERROR)" /tmp/smoke_import_checked.log; then echo "FAIL (see /tmp/smoke_import_checked.log)"; fail=1; else echo "PASS"; fi
 
 step "test suite"
 out=$(godot --path game --headless -s res://tests/run_all.gd 2>&1 | tail -1)
 if echo "$out" | grep -q " 0 failed, 0 engine errors"; then echo "PASS ($out)"; else echo "FAIL ($out)"; fail=1; fi
+
+step "python3 Pillow"
+if v=$(python3 -c 'import PIL.Image; print(PIL.__version__)' 2>/dev/null); then echo "PASS ($v)"; else echo "FAIL (python3 cannot import PIL.Image; see tools/cloud_setup.sh)"; fail=1; fi
 
 step "render a battle frame"
 rm -rf captures/smoke_cloud

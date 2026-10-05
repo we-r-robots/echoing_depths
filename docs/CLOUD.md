@@ -10,7 +10,7 @@ Cloud sessions run on an Anthropic-managed Ubuntu VM and use the account's cloud
 3. Start a session on branch `gauntlet-build`.
 
 ## Smoke test (first cloud session)
-Ask the session to run `tools/smoke.sh` and report the output. It checks the Godot binary, project import, the full test suite, rendering a battle frame (not blank, 640x360), and recording a short video. Rendering uses `tools/godot_run.sh`, which starts a virtual display automatically when no screen exists; it is slower than a GPU, so the capture timeouts are raised.
+Ask the session to run `tools/smoke.sh` and report the output. It checks the Godot binary, project import, the full test suite, Pillow for `python3`, rendering a battle frame (not blank, 640x360), and recording a short video. Rendering uses `tools/godot_run.sh`, which starts a virtual display automatically when no screen exists; it is slower than a GPU, so the capture timeouts are raised.
 
 ## Reference footage
 `references/` is gitignored (other games' footage is never committed). Cloud critics need it for blind comparisons, so a session must re-download it with `tools/fetch_references.sh` (yt-dlp; sources listed in the script; frame numbering matches the local copies). If YouTube blocks the cloud VM, keep the visual critic rounds local and run logic work (core, run layer, tests) in the cloud.

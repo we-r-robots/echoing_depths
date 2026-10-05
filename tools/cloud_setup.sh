@@ -13,6 +13,10 @@ apt-get install -y -qq xvfb xauth libgl1-mesa-dri libglx-mesa0 libgl1 libegl1 \
   libxcursor1 libxinerama1 libxrandr2 libxi6 libxkbcommon0 libasound2t64 \
   ffmpeg python3-pil unzip ca-certificates curl >/dev/null
 pip install -q --break-system-packages yt-dlp 2>/dev/null || pip install -q yt-dlp || true
+# python3-pil is built for Ubuntu's python3.12; some images point python3 at another
+# version, so install a matching Pillow when the default python3 cannot import it.
+python3 -c 'import PIL.Image' 2>/dev/null ||
+  python3 -m pip install -q --break-system-packages --ignore-installed pillow
 
 if ! command -v godot >/dev/null; then
   url="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
