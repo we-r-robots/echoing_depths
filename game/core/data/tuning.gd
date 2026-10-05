@@ -48,4 +48,4 @@ const COMBAT := {
 const MAX_LEGENDARY_PER_PARTY := 1
 
 ## Level caps per tier.
-const MAX_LEVEL := {"base": 6, "advanced": 4, "legendary": 4, "monster": 10}
+const MAX_LEVEL := {"base": 6, "advanced": 4, "legendary": 4, "monster": 10, "memory": 1}

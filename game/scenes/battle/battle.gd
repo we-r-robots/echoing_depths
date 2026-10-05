@@ -109,6 +109,7 @@ var _started_by_api := false
 var _demo_running := false
 var _focus_end := -1.0
 var _seek_to := -1.0
+var _tip_demo := -1
 var _pending_moves: Array = []
 var _move_lit_until := -1.0
 var _ko_settle := 0.0
@@ -161,6 +162,8 @@ func _start_demo() -> void:
 		args[kv[0]] = kv[1] if kv.size() > 1 else "true"
 	if args.has("spectacle"):
 		spectacle_level = clampi(int(args["spectacle"]), 0, 2)
+	if args.has("tip"):
+		_tip_demo = int(args["tip"])
 	if args.has("from"):
 		_seek_to = float(args["from"])
 	if args.has("shape"):
@@ -313,6 +316,9 @@ func _process(delta: float) -> void:
 			if _intro_t >= INTRO_LEN and _seek_to > 0.0:
 				_seek(_seek_to)
 				_seek_to = -1.0
+			if _intro_t >= INTRO_LEN and _tip_demo >= 0:
+				hud.open_tip_demo(_tip_demo)
+				_tip_demo = -1
 			if _intro_t >= INTRO_LEN:
 				_state = State.PLAY
 				hud.intro_t = -1.0
@@ -719,6 +725,7 @@ func _on_fight_start(ev: Dictionary) -> void:
 			lines.append([true, String(c.get("name", "")), "comp"])
 		form_lines[k] = lines
 	hud.row_flash.resize(maxi(16, units.size()))
+	hud.build_banner()
 
 
 func _make_unit(u: Dictionary) -> Node2D:

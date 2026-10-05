@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 11:04",
+  "updated": "2026-10-05 11:07",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -152,7 +152,7 @@
         }
       ],
       "preview": "captures/battle-scene/r11/f00600.png",
-      "note": "Updating for the new formations: banner, on-board behaviour moments, Hold the door step-forward."
+      "note": "Switching the formation banner to the shared effect icons (icons only, tooltips on hover or tap)."
     },
     {
       "id": "alignment-ui",
@@ -175,7 +175,7 @@
       "name": "Hero draft and formation setup screens",
       "bar": "Super Auto Pets team screen + Sea of Stars menus",
       "wave": 2,
-      "status": "building",
+      "status": "judging",
       "rounds": [
         {
           "winner": "bar",
@@ -188,7 +188,7 @@
           "image": "captures/party-formation/r6/f00420.png"
         }
       ],
-      "preview": "captures/party-formation/r6/f00420.png",
+      "preview": "captures/party-formation/r7/f00420.png",
       "note": "Hero draft and formation setup: drag or tap onto the 2x4 grid, live shape naming with bonus, behaviour, cost and growth path, locked shapes shown as Strays, opponent formation hidden."
     },
     {
@@ -238,11 +238,15 @@
       "name": "Formation redesign: distinct per-shape effects",
       "bar": "05-formations.md + Super Auto Pets readability",
       "wave": 3,
-      "status": "judging",
+      "status": "won",
       "rounds": [
         {
           "winner": "bar",
           "gap": "Close: detection perfect across 210 placements and every cue truthful. Small fixes: Strays cancelled splash even between adjacent units, Keeper's Ring slightly weak (38.8%), monster ability share 24%, one ring check missing, two cue wordings."
+        },
+        {
+          "winner": "ours",
+          "gap": "PASSED round 2: 210 placements detected perfectly, every behaviour checked against its geometry, 0 of 6976 cues untruthful, all 16 shapes between 43% and 56%, all earlier combat targets hold."
         }
       ],
       "note": "Approved design (05-formations.md): 15 lore-named shapes growing from dominoes to tetrominoes, Strays, Training Grounds unlocks (locked shapes fight as Strays). Combat-core builder implementing."
@@ -562,6 +566,18 @@
     {
       "t": "11:04",
       "msg": "User design: the final chamber becomes the Crystal of Remembrance (chip 4 fragments to free a Shard while story memories surface). Spec 06 written; combat core build started."
+    },
+    {
+      "t": "11:05",
+      "msg": "Run polish committed: named, escalating floor guardians, distinct rival team names, crest fields on Echoes. Run builder briefed to integrate the Crystal once the combat core has it."
+    },
+    {
+      "t": "11:06",
+      "msg": "Setup screens round 3: grid-first layout, slim bench, one shape card with icon plus short label lines (user's choice), shared effect icons and tooltip built. Critic round 3 judging. Battle banner switching to icons."
+    },
+    {
+      "t": "11:07",
+      "msg": "Formation redesign PASSED (critic round 2): the third piece to beat its bar. Small follow-ups logged for after the Crystal build."
     }
   ],
   "questions": [

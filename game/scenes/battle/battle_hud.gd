@@ -1,4 +1,5 @@
 extends Control
+const GameData = preload("res://core/game_data.gd")
 ## Screen-space battle HUD (Sea of Stars style): party panels with portraits, HP and charge,
 ## formation badges with their buff and debuff, the fight timer with the sudden-death fuse,
 ## an action caption bar, the formation intro cards, the ability cut-in, the sudden-death
@@ -89,6 +90,12 @@ func _button(text: String, pos: Vector2, sig: Signal) -> Button:
 
 func tick(vdt: float) -> void:
 	t += vdt
+	var show_chips: bool = (intro_t < 0.0 or intro_t > intro_len - 0.35) and end_t < 0.0
+	for side in 2:
+		for c: Array in _chips[side]:
+			(c[0] as Control).visible = show_chips
+	if _pulse_layer != null:
+		_pulse_layer.queue_redraw()
 	flash_a = maxf(0.0, flash_a - vdt * 5.0)
 	fade_in = maxf(0.0, fade_in - vdt * 3.0)
 	caption_t += vdt
@@ -220,7 +227,7 @@ func _mod_text(m: Dictionary) -> String:
 
 func badge_rect(side: int) -> Rect2:
 	var w := badge_width(side)
-	return Rect2(3 if side == 0 else 640 - 3 - w, 2, w, 45)
+	return Rect2(3 if side == 0 else 640 - 3 - w, 2, w, 26)
 
 
 ## [title, bonus, behaviour, cost] for the banner. A locked shape fights as Strays.
@@ -261,23 +268,109 @@ func _w1(t: String) -> float:
 ## behaviour (side colour ◆) and the cost (red ▼). A pulse shows the field that just fired.
 ## Line 1 (2x): NAME and its bonus (green ▲). Line 2 (2x): rotates every 3 s between the
 ## behaviour (side colour ◆) and the cost (red ▼); a pulse shows the one that just fired.
+## Banner (BUILD.md: effects are icons): the shape name, then a row of shared effect chips
+## (EffectChip: hover / tap / press-and-hold opens the full sentence in the shared Tip).
+## When a behaviour or effect fires, its chip pulses.
+var _chips: Array = [[], []]        # side -> [[EffectChip, effect], ...]
+var _pulse_layer: Control
+
+
+## Capture aid (--tip=N): open the tooltip of side 0's N-th banner chip.
+func open_tip_demo(k: int) -> void:
+	if k < (_chips[0] as Array).size():
+		Tip.show_for(_chips[0][k][0])
+
+
+func build_banner() -> void:
+	for side in 2:
+		for c: Array in _chips[side]:
+			(c[0] as Control).queue_free()
+		_chips[side] = []
+	for side in 2:
+		for eff: Dictionary in _banner_effects(side):
+			var chip := EffectChip.new()
+			add_child(chip)
+			chip.setup(eff, true)
+			_chips[side].append([chip, eff])
+	if _pulse_layer == null:
+		_pulse_layer = Control.new()
+		_pulse_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_pulse_layer.size = Vector2(640, 360)
+		_pulse_layer.draw.connect(_draw_chip_pulses)
+		add_child(_pulse_layer)
+	move_child(_pulse_layer, -1)
+	move_child(speed_btn, -1)
+	move_child(skip_btn, -1)
+	_place_chips()
+
+
+func _banner_effects(side: int) -> Array:
+	var form: Dictionary = b.sides[side].get("formation", {})
+	var sid := String(form.get("shape", form.get("id", "strays")))
+	var shape: Dictionary = GameData.Formations.STRAYS
+	for s: Dictionary in GameData.Formations.SHAPES:
+		if s["id"] == sid:
+			shape = s
+	var locked := bool(form.get("locked", false))
+	var cells: Array = []
+	var names: Array = []
+	for uid: int in b.side_units[side]:
+		cells.append([b.units[uid].col, b.units[uid].row])
+		names.append(b.units[uid].label)
+	var who: Dictionary = {} if locked else EffectIcons.who_of(sid, cells, names)
+	var out: Array = []
+	if locked:
+		out.append({"icon": EffectIcons.icon("lock"), "sign": 0, "kind": "cost",
+			"title": "%s, locked" % String(form.get("shape_name", shape.get("name", ""))),
+			"text": "%s is not unlocked at the Training Grounds yet, so this party fights as Strays." % String(form.get("shape_name", ""))})
+		shape = GameData.Formations.STRAYS
+	out.append_array(EffectIcons.formation_effects(shape, who, b.sides[side].get("compositions", [])))
+	return out
+
+
 func badge_width(side: int) -> float:
 	var p := _badge_parts(side)
-	var l1 := 6.0 + _w2(p[0]) + 8.0 + (13.0 + _w2(p[1]) if p[1] != "" else 0.0) + 6.0
-	var l2 := 6.0 + 13.0 + maxf(_w2(p[2]), _w2(p[3])) + 6.0
-	return minf(314.0, maxf(l1, l2))
+	var n: int = maxi(1, (_chips[side] as Array).size())
+	return 6.0 + _w2(p[0]) + 8.0 + n * (EffectIcons.CHIP + 2) + 4.0
 
 
-func _badge_field(side: int) -> int:
-	var pulse: float = badge_pulse[side]
-	if pulse > 0.0 and badge_line[side] == 1:
-		return 3
-	if pulse > 0.0 and badge_line[side] == 9:
-		return 2
-	var p := _badge_parts(side)
-	if p[3] == "":
-		return 2
-	return 2 if int(t / 3.0) % 2 == 0 else 3
+func _place_chips() -> void:
+	for side in 2:
+		var r := badge_rect(side)
+		var x := r.position.x + 6.0 + _w2(_badge_parts(side)[0]) + 8.0
+		for c: Array in _chips[side]:
+			(c[0] as Control).position = Vector2(x, r.position.y + 3)
+			x += EffectIcons.CHIP + 2
+
+
+## Which chips a banner pulse refers to (line 0 bonus, 1 cost, 9 behaviour, other = class bond).
+func _chip_hit(side: int, k: int) -> bool:
+	var e: Dictionary = _chips[side][k][1]
+	var kind := String(e.get("kind", ""))
+	match badge_line[side]:
+		9: return kind == "behaviour"
+		0: return kind == "stat" and int(e.get("sign", 0)) > 0
+		1: return int(e.get("sign", 0)) < 0
+		-1: return false
+	return kind == "bond"
+
+
+func _draw_chip_pulses() -> void:
+	for side in 2:
+		var pulse: float = badge_pulse[side]
+		if pulse <= 0.0:
+			continue
+		for k in (_chips[side] as Array).size():
+			if not _chip_hit(side, k):
+				continue
+			var ch: Control = _chips[side][k][0]
+			if not ch.visible:
+				continue
+			var col := EffectIcons.color_of(_chips[side][k][1])
+			var g := roundf((1.0 - pulse) * 6.0)
+			var rr := Rect2(ch.position, Vector2(EffectIcons.CHIP, EffectIcons.CHIP)).grow(1.0 + g)
+			_pulse_layer.draw_rect(rr, Color(col, pulse), false, 1.0)
+			_pulse_layer.draw_rect(Rect2(ch.position, Vector2(EffectIcons.CHIP, EffectIcons.CHIP)).grow(-1), Color(col, 0.45 * pulse))
 
 
 func _draw_badge(side: int, alpha: float) -> void:
@@ -286,30 +379,7 @@ func _draw_badge(side: int, alpha: float) -> void:
 	var pulse: float = badge_pulse[side]
 	_panel_bg(r, sc, alpha, pulse)
 	var p := _badge_parts(side)
-	var x := r.position.x + 6.0
-	var y := r.position.y + 3.0
-	_text_scaled_left(font_bold, p[0], Vector2(x, y), Color(sc.lerp(Pal.INK10, pulse * 0.7), alpha), 2)
-	x += _w2(p[0]) + 8.0
-	if p[1] != "":
-		if pulse > 0.0 and badge_line[side] == 0:
-			draw_rect(Rect2(x - 3, y - 1, _w2(p[1]) + 18, 22), Color(Pal.LIFE4, 0.3 * pulse))
-		_triangle2(Vector2(x, y + 7), true, Color(Pal.LIFE4, alpha))
-		_text_scaled_left(font_bold, _fit2(p[1], r.end.x - x - 19.0), Vector2(x + 13, y), Color(Pal.LIFE4, alpha), 2)
-	var f := _badge_field(side)
-	var col: Color = sc.lerp(Pal.INK10, 0.45) if f == 2 else Pal.BLOOD4
-	var x2 := r.position.x + 6.0
-	var y2 := r.position.y + 23.0
-	var txt := _fit2(p[f], r.size.x - 25.0)
-	if pulse > 0.0 and (badge_line[side] == 9 or badge_line[side] == 1):
-		draw_rect(Rect2(x2 - 3, y2 - 1, _w2(txt) + 18, 22), Color(col, 0.3 * pulse))
-	if f == 3:
-		_triangle2(Vector2(x2, y2 + 7), false, Color(col, alpha))
-	else:
-		_tri[0] = Vector2(x2 + 5, y2 + 2); _tri[1] = Vector2(x2 + 10, y2 + 8); _tri[2] = Vector2(x2 + 5, y2 + 14)
-		draw_colored_polygon(_tri, Color(col, alpha))
-		_tri[1] = Vector2(x2, y2 + 8)
-		draw_colored_polygon(_tri, Color(col, alpha))
-	_text_scaled_left(font_bold, txt, Vector2(x2 + 13, y2), Color(col, alpha), 2)
+	_text_scaled_left(font_bold, p[0], Vector2(r.position.x + 6.0, r.position.y + 3.0), Color(sc.lerp(Pal.INK10, pulse * 0.7), alpha), 2)
 
 
 func _fit2(t: String, w: float) -> String:
@@ -646,11 +716,11 @@ func _draw_sd_banner() -> void:
 func _draw_fading() -> void:
 	if sd_banner_t < 3.2:
 		var a := clampf(sd_banner_t / 0.3, 0.0, 1.0) * (1.0 - clampf((sd_banner_t - 2.8) / 0.4, 0.0, 1.0))
-		_text_scaled(font_serif, "The memory of this battle is fading...", Vector2(320, 70), Color(Pal.INK10, a), 2)
+		_text_scaled(font_serif, "The memory of this battle is fading...", Vector2(320, 40), Color(Pal.INK10, a), 2)
 	# readout: a fading-eye glyph and the multiplier, under the badges once the line has gone
 	if sd_banner_t < 3.2:
 		return
-	_text_scaled(font_serif, "Fading  x%.2f" % b.sd_mult, Vector2(320, 70), Pal.INK10, 2)
+	_text_scaled(font_serif, "Fading  x%.2f" % b.sd_mult, Vector2(320, 40), Pal.INK10, 2)
 
 
 # --- finish -----------------------------------------------------------------------------------------

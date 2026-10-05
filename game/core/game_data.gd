@@ -7,6 +7,7 @@ const Classes = preload("res://core/data/classes.gd")
 const Actions = preload("res://core/data/abilities.gd")
 const Items = preload("res://core/data/items.gd")
 const Formations = preload("res://core/data/formations.gd")
+const Memories = preload("res://core/data/memories.gd")
 
 const STATS := ["hp", "atk", "def", "mag", "spd"]
 const MAX_PARTY_HEROES := 4      # player parties / Echoes
@@ -23,7 +24,10 @@ static func has_class(id: String) -> bool:
 
 
 static func get_class_def(id: String) -> Dictionary:
-	return Classes.CLASSES.get(id, {})
+	var c: Dictionary = Classes.CLASSES.get(id, {})
+	if c.is_empty():
+		return Memories.MEMORIES.get(id, {})   # Crystal memories use the class schema
+	return c
 
 
 static func get_action(id: String) -> Dictionary:
@@ -106,7 +110,7 @@ static func validate_party(party: Variant, kind: String = "auto") -> Array[Strin
 			continue
 		var cid := String(cv)
 		var tier := String(get_class_def(cid)["tier"])
-		if kind == "player" and tier == "monster":
+		if kind == "player" and (tier == "monster" or tier == "memory"):
 			errs.append("hero %d: monster class '%s' on a player side" % [i, cid])
 		if kind == "monster" and tier != "monster":
 			errs.append("hero %d: hero class '%s' on a monster side" % [i, cid])

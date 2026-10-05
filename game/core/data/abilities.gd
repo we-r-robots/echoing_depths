@@ -38,6 +38,9 @@ const ACTIONS := {
 	"flicker": {"name": "Flicker", "kind": "basic", "target": "lowest_hp_enemy", "duration": 0.49, "impact": 0.26, "anim": "shoot",
 		"effects": [{"op": "damage", "kind": "magic", "power": 0.7, "to": "primary"}]},
 
+	"kindle": {"name": "Kindle", "kind": "basic", "target": "melee", "duration": 0.55, "impact": 0.3, "anim": "cast",
+		"effects": [{"op": "damage", "kind": "magic", "power": 0.7, "to": "primary"}, {"op": "heal", "power": 0.9, "to": "lowest_hp_ally"}]},
+
 	# ---------------- base class abilities ----------------
 	"cleave": {"name": "Cleave", "kind": "ability", "target": "melee", "duration": 0.72, "impact": 0.36, "anim": "melee_big",
 		"effects": [{"op": "damage", "kind": "physical", "power": 1.9, "to": "primary"}, {"op": "damage", "kind": "physical", "power": 0.8, "to": "primary_adjacent"}]},
