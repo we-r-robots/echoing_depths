@@ -777,6 +777,10 @@
     {
       "t": "21:35",
       "msg": "battle-scene critic round 10: FAIL 1/5 (wins SAP mid-fight, loses SoS on the central pile). Builder round 15 (presentation only) started."
+    },
+    {
+      "t": "22:33",
+      "msg": "battle-scene round-15 build: drawn-position label attribution (root cause: home-slot geometry + box distance), stop-short lunges, hit-stop, victory beat and top band with team name, effects off HUD, side identity, area rings, Fading ticks, rear icon, Crystal fixes; captures/battle-scene/r15/"
     }
   ],
   "questions": [

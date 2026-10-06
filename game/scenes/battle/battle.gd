@@ -420,7 +420,7 @@ func _process(delta: float) -> void:
 		_move_lit_until = -1.0
 		for n in units:
 			n.lit = false
-	if _focus_end >= 0.0 and sim_t > _focus_end + 0.05:
+	if _focus_end >= 0.0 and sim_t > _focus_end + 0.05 and _state != State.END:   # the final KO keeps its number through the beat
 		_focus_end = -1.0
 		fx.fade_popups()   # numbers never outlive their action
 		for u in units:
