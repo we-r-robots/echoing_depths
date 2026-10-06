@@ -7,3 +7,10 @@ Updated 2026-10-05 after the user's answers (recorded in class-roster-draft.md 4
 4. **Crystal of Remembrance rework:** design pass on the user's ideas (no Fading; AoE blast; possessing a party member's memory) in docs/design/ideas.md.
 5. **Character and NPC art direction:** a different route from the current style; no reference yet.
 6. **Name and crest rules:** which generic names and crests at the start, and which Titles unlock how.
+
+## Lanternrest village (built 2026-10-05, 03df33c; placeholders in use)
+7. **Training Grounds unlock:** placeholder "after the first run comes home". Real rule (Shards, a story beat)?
+8. **Renaming:** the Lantern menu still allows typing any team name. Lock it until customisation is unlocked?
+9. **The mist:** when does each side thin, and what's behind it?
+10. **Empty plots:** should they hint at what could be built ("room for something the village remembers" today)?
+11. **Starting identity:** the 6 generic starting names, and whether all 3 free crests are offered at the start.
