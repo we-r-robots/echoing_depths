@@ -61,7 +61,8 @@ class Unit:
 	# per stat: every formation/composition contribution [source, name, value] (for formation_proc)
 	var contribs := {}
 	var roles: Array = []      # "front"/"back" + shape roles (post, tip, keeper, flanker, gap, middle)
-	var in_shape := true       # part of the shape that fights (a locked shape's fallback covers only some)
+	var in_shape := true       # part of a shape that fights (a locked shape's fallback covers only some)
+	var part := -1             # index of the formation part it fights in (-1 = none; heroes only)
 	var draw := 0              # 1 = draws nearby melee (gap), 2 = taunts all melee (Lighthouse post)
 	var dmg_taken := 1.0       # Keeper's Ring cost
 	var cover_target := -1     # Vigil covering fire: uid this unit's next basic action targets
@@ -123,10 +124,15 @@ var _k_crit_on := true
 var _k_var := 0.0
 var _k_fm_thr := 0.1
 var _alive := [0, 0]
-# formations (05-formations.md): effective shape and behaviour per side
-var _shape: Array = [{}, {}]
-var _beh: Array = [{}, {}]
-var _guard_uses := [0, 0]
+# formations (05-formations.md): every counting part of a side fights with its own shape and
+# behaviour, on its own heroes (Unit.part indexes these per-side lists; -1 = in no part)
+var _shape: Array = [{}, {}]       # per side: the summary shape (one part: it; several: "parts"; Crystal: chamber)
+var _pshape: Array = [[], []]      # per side, per part: the effective shape
+var _pbeh: Array = [[], []]        # per side, per part: its behaviour
+var _pbid: Array = [[], []]        # per side, per part: its behaviour id
+var _puses: Array = [[], []]       # per side, per part: Guardian intercepts left
+var _base_bid: Array[String] = ["none", "none"]   # per side: "none" (no part), the one part's id, or "parts"
+var _ovr: Array = [{}, {}]         # per side: the Keeper's dim / a Saboteur's cut ropes ({} = none): stops every part
 var _cur_melee := false        # the resolving action is a melee attack
 var _cur_actor: Unit = null
 var _cur_splash := false       # the resolving action also hits several units (no Brace/Share then)
@@ -136,7 +142,6 @@ var _ring_skip := -1           # Keeper's Ring kept this action off the keeper (
 var _beh_last := {}            # "side|effect" -> last behaviour cue time (ms)
 const SPLASH := ["primary_adjacent", "other_enemies", "primary_column_rest"]
 static var _act_info := {}      # action id -> [is_melee, hits several units], computed once
-var _bid: Array[String] = ["", ""]   # behaviour id per side (cached from _beh)
 var _cur_ability := false      # an ability is resolving (cascade cap)
 var _proc_last := {}           # "side|source|stat" -> last formation_proc time (ms)
 var _proc_at := -1             # time (ms) of the last formation_proc: at most one per instant
@@ -564,28 +569,40 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 		var cdef := GameData.get_class_def(String(h["class"]))
 		if String(cdef["tier"]) != "monster":
 			bases.append(String(cdef["base"]))
-	var fx := Formation.effective({"heroes": heroes, "unlocked_formations": Formation.unlocked_of(party)})
+	var fx := Formation.effective({"heroes": heroes, "unlocked_formations": Formation.unlocked_of(party),
+		"formation_rule": String(party.get("formation_rule", Formation.RULE_PARTS))})
 	var shape: Dictionary = fx["effective"]
 	var geo: Dictionary = fx["shape"]
 	var state := String(fx["state"])
-	# who the fighting shape applies to: everyone (active / strays), the fallback's heroes, or nobody
-	var members: Array = []
-	if state == "active" or state == "strays":
-		members = cells
-	elif state == "locked_fallback":
-		members = fx["sub_cells"]
-	var sub_roles := Formation.roles(String(shape["id"]), members)
+	# every counting part fights on its own heroes (05-formations.md "Every formation part counts"):
+	# its roles are computed within the part; heroes in no part get plain front/back roles
+	var parts: Array = fx["parts"]
+	var part_of: Array = []
 	var roles: Array = []
+	var part_roles: Array = []
+	for p: Dictionary in parts:
+		part_roles.append(Formation.roles(String(p["effective"]["id"]), p["sub_cells"]))
 	for c: Array in cells:
-		var k := members.find(c)
-		roles.append(sub_roles[k] if k >= 0 else ["front" if int(c[0]) == 0 else "back"])
-	var beh_def: Dictionary = shape["behaviour"]
-	if beh_def.is_empty():
-		beh_def = {"id": "none", "name": "", "text": ""}
+		var pi := Formation.part_of(fx, c)
+		part_of.append(pi)
+		if pi >= 0:
+			roles.append(part_roles[pi][(parts[pi]["sub_cells"] as Array).find(c)])
+		else:
+			roles.append(["front" if int(c[0]) == 0 else "back"])
 	_shape[side] = shape
-	_beh[side] = beh_def
-	_bid[side] = String(beh_def["id"])
-	_guard_uses[side] = int(beh_def.get("uses", 0))
+	_pshape[side] = []
+	_pbeh[side] = []
+	_pbid[side] = []
+	_puses[side] = []
+	for p: Dictionary in parts:
+		var pb: Dictionary = p["effective"]["behaviour"]
+		if pb.is_empty():
+			pb = {"id": "none", "name": "", "text": ""}
+		_pshape[side].append(p["effective"])
+		_pbeh[side].append(pb)
+		_pbid[side].append(String(pb["id"]))
+		_puses[side].append(int(pb.get("uses", 0)))
+	_base_bid[side] = "none" if parts.is_empty() else (String(_pbid[side][0]) if parts.size() == 1 else "parts")
 	var comps := Formation.compositions(bases)
 	var hi := 0
 
@@ -594,7 +611,8 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 		var cdef := GameData.get_class_def(cid)
 		var u := Unit.new()
 		u.roles = roles[hi]
-		u.in_shape = members.has(cells[hi])
+		u.part = int(part_of[hi])
+		u.in_shape = u.part >= 0
 		hi += 1
 		u.uid = _units.size()
 		u.side = side
@@ -616,11 +634,13 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 		var pct := {"hp_pct": 0.0, "atk_pct": 0.0, "def_pct": 0.0, "mag_pct": 0.0, "spd_pct": 0.0,
 			"crit_add": 0.0, "charge_pct": 0.0, "heal_pct": 0.0, "dmg_taken_pct": 0.0}
 		var mods: Array = []
-		if u.in_shape:   # the shape's bonus and cost apply to the heroes forming it
-			for m: Dictionary in shape["bonus"]:
-				mods.append([m, "formation:" + String(shape["id"]), "", String(shape["name"])])
-			for m: Dictionary in shape["cost"]["mods"]:
-				mods.append([m, "formation:" + String(shape["id"]), "", String(shape["name"])])
+		var ushape: Dictionary = _pshape[side][u.part] if u.part >= 0 else {}
+		var ubeh: Dictionary = _pbeh[side][u.part] if u.part >= 0 else {}
+		if u.in_shape:   # a part's bonus and cost apply to the heroes forming it
+			for m: Dictionary in ushape["bonus"]:
+				mods.append([m, "formation:" + String(ushape["id"]), "", String(ushape["name"])])
+			for m: Dictionary in ushape["cost"]["mods"]:
+				mods.append([m, "formation:" + String(ushape["id"]), "", String(ushape["name"])])
 		for comp: Dictionary in comps:
 			for m: Dictionary in comp["mods"]:
 				mods.append([m, "comp:" + String(comp["id"]), String(comp["when"].get("base", "")), String(comp["name"])])
@@ -654,10 +674,10 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 		u.charge_mult = maxf(0.0, 1.0 + float(pct["charge_pct"]))
 		u.heal_mult = maxf(0.0, 1.0 + float(pct["heal_pct"]))
 		u.dmg_taken = maxf(0.0, 1.0 + float(pct["dmg_taken_pct"]))
-		if String(shape["cost"].get("draw", "")) == "gap" and u.roles.has("gap"):
+		if u.part >= 0 and String(ushape["cost"].get("draw", "")) == "gap" and u.roles.has("gap"):
 			u.draw = 1
 			u.draw_effect = "draws_melee"
-		if bool(beh_def.get("taunt", false)) and u.roles.has("post"):
+		if bool(ubeh.get("taunt", false)) and u.roles.has("post"):
 			u.draw = 2
 			u.draw_effect = "taunt"
 		if u.roles.has("tip"):   # Shardpoint cost: the tip draws every melee hit
@@ -678,12 +698,30 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 	var comp_ev: Array = []
 	for comp: Dictionary in comps:
 		comp_ev.append({"id": comp["id"], "name": comp["name"], "mods": comp["mods"]})
+	var beh_def: Dictionary = shape["behaviour"]
+	if beh_def.is_empty():
+		beh_def = {"id": "none", "name": "", "text": ""}
+	# every counting part, in slot order of its first hero (the battle banner names each one)
+	var parts_ev: Array = []
+	for pi in parts.size():
+		var p: Dictionary = parts[pi]
+		var pe: Dictionary = p["effective"]
+		var pb: Dictionary = _pbeh[side][pi]
+		var uids: Array = []
+		for u: Unit in _sides[side]:
+			if u.part == pi:
+				uids.append(u.uid)
+		parts_ev.append({"id": pe["id"], "name": pe["name"], "shape": p["shape"]["id"], "shape_name": p["shape"]["name"],
+			"state": p["state"], "sub_cells": (p["sub_cells"] as Array).duplicate(true),
+			"cells": (p["cells"] as Array).duplicate(true), "uids": uids, "locked": bool(p["locked"]),
+			"buffs": pe["bonus"], "debuffs": pe["cost"]["mods"],
+			"behaviour": {"id": pb["id"], "name": pb["name"], "text": pb["text"]}, "cost": String(pe["cost"]["text"])})
 	return {"side": side, "name": String(party.get("name", "Side %d" % side)),
 		"formation": {"id": shape["id"], "name": shape["name"], "shape": geo["id"], "shape_name": geo["name"],
 			"state": state, "sub_cells": (fx["sub_cells"] as Array).duplicate(true),
 			"locked": bool(fx["locked"]), "buffs": shape["bonus"], "debuffs": shape["cost"]["mods"],
 			"behaviour": {"id": beh_def["id"], "name": beh_def["name"], "text": beh_def["text"]},
-			"cost": String(shape["cost"]["text"])},
+			"cost": String(shape["cost"]["text"]), "parts": parts_ev},
 		"compositions": comp_ev}
 
 
