@@ -53,18 +53,18 @@ group() {
 
 if want battle; then
   echo "battle"
-  group battle res://scenes/battle/battle.tscn "start_intro_cards:90 ability_banner_cleave:390 mid_fight_numbers_cleave_crit:420 numbers_crit_firestorm:600 ko_rear_tag:780 fading_line:1680 fading_readout:1890 victory_card:2170"
+  group battle res://scenes/battle/battle.tscn "start_intro_cards:90 ability_banner_cleave:400 mid_fight_numbers_cleave_crit:445 smite_beam_ko:492 numbers_crit_firestorm:625 ko_rear_tag:793 banner_waits_corin_cleave:1035 caption_mend_strikes:1250 caption_mend_heals_self:1512 fading_line:1700 fading_readout:1950 victory_first_frame:2129 victory_card:2200"
   group battle res://scenes/battle/battle.tscn "tooltip_open_banner_chip:300" --tip=2
 fi
 
 if want crystal; then
   echo "crystal"
-  group crystal res://scenes/battle/battle_crystal.tscn "start_intro_cards:90 memory_surfaces_lore:180 ability_banner_memory:720 fragment_banner:840 fragment_4_of_4_in_the_fading:3300 victory_shard_breaks_free:3440"
+  group crystal res://scenes/battle/battle_crystal.tscn "start_intro_cards:90 memory_surfaces_lore:180 ability_banner_memory:720 firestorm_numbers:830 fragment_banner:840 smite_under_lore:1866 fragment_4_of_4_in_the_fading:3332 victory_shard_breaks_free:3472"
 fi
 
 if want monsters; then
   echo "monsters"
-  group monsters res://scenes/battle/battle_monsters.tscn "caption_and_numbers:420 tall_sentinel_numbers_ko:560 ability_banner_unravel:620"
+  group monsters res://scenes/battle/battle_monsters.tscn "caption_and_numbers:433 tall_sentinel_numbers_ko:583 ability_banner_unravel:643"
 fi
 
 if want setup; then
@@ -96,8 +96,8 @@ fi
 if want videos; then
   echo "videos (1920x1080)"
   mkdir -p "$OUT/battle" "$OUT/crystal"
-  CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle.tscn "$OUT/battle/fight.mp4" 2250 >/dev/null
-  CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle_crystal.tscn "$OUT/crystal/crystal_demo.mp4" 3500 >/dev/null
+  CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle.tscn "$OUT/battle/fight.mp4" 2300 >/dev/null
+  CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle_crystal.tscn "$OUT/crystal/crystal_demo.mp4" 3560 >/dev/null
 fi
 
 if want crops; then

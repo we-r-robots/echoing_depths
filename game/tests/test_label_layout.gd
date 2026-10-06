@@ -32,7 +32,7 @@ func _parties(cells_a: Array, cells_b: Array, row0 := 0) -> Array:
 	return out
 
 
-func _check_label(box: Rect2, uid: int, geo: Array, placed: Array, blocked: Array, field: Rect2, what: String) -> void:
+func _check_label(box: Rect2, uid: int, geo: Array, placed: Array, blocked: Array, field: Rect2, what: String, column := true) -> void:
 	var own: Dictionary = {}
 	var others: Array = []
 	for g: Dictionary in geo:
@@ -49,7 +49,16 @@ func _check_label(box: Rect2, uid: int, geo: Array, placed: Array, blocked: Arra
 	for r: Rect2 in blocked:
 		check(not box.intersection(r).has_area(), "%s %s overlaps the HUD %s" % [what, box, r])
 	check(field.encloses(box), "%s %s stays inside the field %s" % [what, box, field])
-	check(LabelLayout.nearest_is_own(box, own, others, 0.0), "%s %s is nearest its own unit %d" % [what, box, uid])
+	if column:
+		# numbers and KO! (critic r11 fix 1): in their own unit's column, above its head (or over its
+		# own body), no other body straight under them
+		var miss := LabelLayout.col_misattribution(box, own, others, 0.0)
+		check(miss <= 0.0, "%s %s stands in its own unit %d's column (misses by %.1f px)" % [what, box, uid, miss])
+		var hb: Rect2 = own["body"]
+		check(absf(box.get_center().x - hb.get_center().x) <= LabelLayout.COL_SLACK + 0.5,
+			"%s %s is centred on its unit's head (%.1f px off, slack %.0f): never moved sideways" % [what, box, box.get_center().x - hb.get_center().x, LabelLayout.COL_SLACK])
+	else:
+		check(LabelLayout.nearest_is_own(box, own, others, 0.0), "%s %s is nearest its own unit %d" % [what, box, uid])
 	# never off its own unit's column: its centre stays over its own body's span
 	var b: Rect2 = own["body"]
 	var sl := LabelLayout.SPAN_SLACK + 0.5
@@ -79,7 +88,7 @@ func test_every_four_hero_shape_takes_a_crit_kill_on_every_hero() -> void:
 							continue
 						var sz := FX.label_size(188, false, "CRIT!", false, "", true)
 						var body: Rect2 = g["body"]
-						var box := LabelLayout.place(sz, Vector2(body.get_center().x, body.position.y - 1.0), g, geo, placed, [], FIELD)
+						var box := LabelLayout.place(sz, Vector2(body.get_center().x, body.position.y - 1.0), g, geo, placed, [], FIELD, true)
 						_check_label(box, int(g["uid"]), geo, placed, [], FIELD, "%s vs %s +%d side %d unit %d" % [ca, cb, row0, side, g["uid"]])
 						placed.append(box)
 						n += 1
@@ -98,21 +107,32 @@ func test_a_whole_side_in_the_fading_with_tags() -> void:
 		for g: Dictionary in geo:
 			var sz := FX.label_size(24, false, "", false, "Fading ×1.48", false)
 			var body: Rect2 = g["body"]
-			var box := LabelLayout.place(sz, Vector2(body.get_center().x, body.position.y - 1.0), g, geo, placed, [], FIELD)
+			var box := LabelLayout.place(sz, Vector2(body.get_center().x, body.position.y - 1.0), g, geo, placed, [], FIELD, true)
 			_check_label(box, int(g["uid"]), geo, placed, [], FIELD, "Fading %s unit %d" % [ca, g["uid"]])
 			placed.append(box)
 
 
-func test_a_label_moves_sideways_or_down_never_up_a_stack() -> void:
+func test_a_second_label_on_the_same_unit_stacks_upward_never_sideways() -> void:
+	# critic r11 fix 1: a label that meets another climbs in its own column instead of sliding
+	# onto a neighbour's
 	var geo := _parties([[0, 0], [0, 1], [1, 0], [1, 1]], [[0, 0], [0, 1], [1, 0], [1, 1]])
 	var g: Dictionary = geo[1]
 	var body: Rect2 = g["body"]
 	var sz := FX.label_size(32, false, "", false, "", false)
 	var pref := Vector2(body.get_center().x, body.position.y - 1.0)
-	var first := LabelLayout.place(sz, pref, g, geo, [], [], FIELD)
-	var second := LabelLayout.place(sz, pref, g, geo, [first], [], FIELD)
-	check(second.position.y >= first.position.y - LabelLayout.RISE_UP - 0.5, "a second label on the same unit does not stack above the first (%s vs %s)" % [second, first])
+	var first := LabelLayout.place(sz, pref, g, geo, [], [], FIELD, true)
+	var second := LabelLayout.place(sz, pref, g, geo, [first], [], FIELD, true)
+	check(second.end.y <= first.position.y, "the second label stacks above the first (%s over %s)" % [second, first])
+	check(absf(second.get_center().x - body.get_center().x) <= LabelLayout.COL_SLACK + 0.5, "and stays centred on its head (%s, head x %.0f)" % [second, body.get_center().x])
 	check(not second.intersects(first), "the two labels don't overlap")
+
+
+func test_a_crit_kill_keeps_its_ko_under_the_number() -> void:
+	# the KO! pill sits under the number: the label is no wider than its CRIT! and number
+	var with_ko := FX.label_size(188, false, "CRIT!", false, "", true)
+	var without := FX.label_size(188, false, "CRIT!", false, "", false)
+	eq(with_ko.x, without.x, "KO! adds no width to a crit label")
+	check(with_ko.y > without.y, "KO! takes a line of its own under the number (%s vs %s)" % [with_ko, without])
 
 
 func test_world_labels_meet_the_text_floor() -> void:
@@ -155,7 +175,7 @@ func _check_fight(fight: String, rec: Array, sequence := "") -> Dictionary:
 	var by_t := {}
 	for r: Dictionary in rec:
 		var what := "%s%s label \"%s\" (unit %d)" % [fight, sequence, r["text"], r["uid"]]
-		_check_label(r["box"], int(r["uid"]), r["geo"], r["placed"], r["blocked"], r["field"], what)
+		_check_label(r["box"], int(r["uid"]), r["geo"], r["placed"], r["blocked"], r["field"], what, not bool(r["small"]))
 		var tx := String(r["text"])
 		if tx.contains("KO!"):
 			stats["ko"] += 1
@@ -201,10 +221,9 @@ func _banners_clear(b: Node) -> void:
 	var lr: Rect2 = b.hud.lore_rect()
 	if lr.has_area():
 		_lore_seen += 1
-		banners.append(["lore banner", lr])
+		banners.append(["lore banner", lr, b.hud.LORE_MARGIN - 1.0])
 	if b.hud.frag_t <= b.hud.FRAG_SHOW and b.hud.frag_n > 0:
-		banners.append(["fragment banner", b.hud.fragment_rect()])
-	var m: float = b.hud.BANNER_MARGIN - 1.0
+		banners.append(["fragment banner", b.hud.fragment_rect(), b.hud.BANNER_MARGIN - 1.0])
 	for l: Dictionary in b.fx.label_boxes():
 		var wb: Rect2 = l["box"]
 		var p0: Vector2 = xf * wb.position
@@ -213,6 +232,7 @@ func _banners_clear(b: Node) -> void:
 		for bn: Array in banners:
 			_banner_checks += 1
 			var r: Rect2 = bn[1]
+			var m: float = bn[2]
 			check(not ub.intersects(r.grow(m)), "label \"%s\" %s keeps %d px clear of the %s %s at %.2f s" % [l["text"], ub, m, bn[0], r, b.sim_t])
 
 
@@ -262,13 +282,17 @@ func _crystal_hud(b: Node) -> void:
 ## centre-to-box rule, while the units were DRAWN knocked back, in their hit frames and lunged, and a
 ## label over a front-row head sat beside the face of the unit one row behind. These tests check
 ## every live label on every frame of the real fights against where each unit is drawn that frame
-## (its current animation frame at its current position): the label's centre is nearer its own
-## unit's drawn body than any other's, and clearly nearer its own face point (LabelLayout.HEAD_RATIO).
+## (its current animation frame at its current position). Since round 16 (critic r11 fix 1) a number
+## stands in its own unit's column (LabelLayout.col_misattribution: over its head span, above its
+## head or over its own body, no other body straight under it), and the critic's cases sit above their
+## own target's head span; formation cues keep the nearest-body and face rule (LabelLayout.HEAD_RATIO).
 ## A unit dashing to or back from its strike spot is a transient and isn't counted against other
 ## labels (it is checked where it stands: home and the strike spot).
 const FIXTURES := {
-	"pvp": [["CRIT! 103", "Moth"], ["32", "Tamsin"], ["CRIT! 65 KO!", "Vael"]],
-	"monsters": [["77 KO!", "Hollow Rat"]],
+	"pvp": [["CRIT! 103", "Moth"], ["22", "Corin"], ["32", "Tamsin"], ["CRIT! 65 KO!", "Vael"]],
+	# the rat stands in front of the Fading Wisp: the column above its head is the Wisp's body, so its
+	# number sits on its own body (checked by the column rule with every other label)
+	"monsters": [["77 KO!", "Hollow Rat", false]],
 	"crystal": [],
 }
 var _drawn_checks := 0
@@ -291,7 +315,7 @@ func _drawn_attribution(b: Node, fight: String) -> void:
 				continue
 			if u.acting and u.uid != own and u.in_transit(b.sim_t):
 				continue
-			var g := {"uid": u.uid, "body": u.drawn_rect()}
+			var g := {"uid": u.uid, "body": u.drawn_rect(), "back": u.is_crystal}
 			if u.uid == own:
 				og = g
 			else:
@@ -299,7 +323,8 @@ func _drawn_attribution(b: Node, fight: String) -> void:
 		var box: Rect2 = fx._pp_box[j]
 		var text: String = fx._label_text(j)
 		_drawn_checks += 1
-		var miss: float = LabelLayout.misattribution(box, og, others, 0.0)
+		var small: bool = fx._pp_small[j]
+		var miss: float = LabelLayout.misattribution(box, og, others, 0.0) if small else LabelLayout.col_misattribution(box, og, others, 0.0)
 		if miss > 0.0:
 			_drawn_fails += 1
 			if _drawn_fails <= 12:
@@ -308,16 +333,16 @@ func _drawn_attribution(b: Node, fight: String) -> void:
 			if text == fxt[0] and b.units[own].label == fxt[1]:
 				var k := "%s/%s" % [fxt[0], fxt[1]]
 				_fixture_frames[k] = int(_fixture_frames.get(k, 0)) + 1
-				# the critic's own measure: the nearest face on screen is the victim's
-				var best := ""
-				var bd := INF
-				for u in b.units:
-					if u != null and (u.alive or u.uid == own):
-						var d: float = box.get_center().distance_to(u.head_point())
-						if d < bd:
-							bd = d
-							best = u.label
-				check(best == fxt[1], "%s: \"%s\" sits nearest %s's face as drawn (nearest: %s) at %.2f s" % [fight, fxt[0], fxt[1], best, b.sim_t])
+				# critic r11 fix 1: the number sits above its own target's head span, as drawn
+				var hb: Rect2 = og["body"]
+				var cxx: float = box.get_center().x
+				check(cxx >= hb.position.x and cxx <= hb.end.x, "%s: \"%s\" is over %s's head span %.0f..%.0f (centre x %.0f) at %.2f s" % [fight, fxt[0], fxt[1], hb.position.x, hb.end.x, cxx, b.sim_t])
+				check(fxt.size() > 2 or box.end.y <= hb.position.y + ABOVE_SLACK, "%s: \"%s\" sits above %s's head (box bottom %.0f, head top %.0f) at %.2f s" % [fight, fxt[0], fxt[1], box.end.y, hb.position.y, b.sim_t])
+
+
+## How far a number's box may reach into its own head as drawn (world px): the box's bottom holds
+## the rise room (the digits land on the crown) and a hit frame or knock-back may lift the head.
+const ABOVE_SLACK := FX.HEAD_DIP + 3.0
 
 
 func _drawn_fight(fight: String) -> void:
@@ -332,7 +357,7 @@ func _drawn_fight(fight: String) -> void:
 		check(int(_fixture_frames.get(k, 0)) >= 20, "%s: critic case \"%s\" on %s was on screen and checked (%d frames)" % [fight, fxt[0], fxt[1], int(_fixture_frames.get(k, 0))])
 
 
-func test_drawn_attribution_pvp_cleave_103_and_32_firestorm_65() -> void:
+func test_drawn_attribution_pvp_cleave_103_22_32_firestorm_65_above_their_heads() -> void:
 	_drawn_fight("pvp")
 
 

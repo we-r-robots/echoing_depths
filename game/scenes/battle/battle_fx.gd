@@ -1,6 +1,6 @@
 extends Node2D
 ## Pooled battle effects drawn in world space: sprite effects (sparks, bursts, slashes, heal glows),
-## particles, projectiles, floor rings and light pillars. Damage/heal numbers and their tags are
+## particles, projectiles, floor rings and pixel-art light beams. Damage/heal numbers and their tags are
 ## laid out in world space (so they stay pinned to their target) but drawn on the UI layer at native
 ## resolution, through the battle's world -> UI transform.
 ## Everything is pre-allocated in setup(); the per-frame path only mutates pooled slots.
@@ -22,7 +22,6 @@ const MAX_SPR := 24
 const MAX_PART := 320
 const MAX_PROJ := 10
 const MAX_RING := 20
-const MAX_PILLAR := 8
 const MAX_POP := 40
 const MAX_LIGHT := 12
 const GLOW = preload("res://assets/battle/glow.png")
@@ -68,14 +67,6 @@ var _rg_col := PackedColorArray()
 var _rg_flat := PackedFloat32Array()
 var _ring_pts := PackedVector2Array()
 
-# light pillars (visual time)
-var _pl_on: Array[bool] = []
-var _pl_x := PackedFloat32Array()
-var _pl_y := PackedFloat32Array()
-var _pl_t := PackedFloat32Array()
-var _pl_dur := PackedFloat32Array()
-var _pl_w := PackedFloat32Array()
-var _pl_col := PackedColorArray()
 
 # popups (visual time)
 var _pp_on: Array[bool] = []
@@ -146,8 +137,6 @@ func setup(pop_canvas: Control, to_ui: Callable) -> void:
 	_rg_on.resize(MAX_RING); _rg_c.resize(MAX_RING); _rg_r0.resize(MAX_RING); _rg_r1.resize(MAX_RING)
 	_rg_t.resize(MAX_RING); _rg_dur.resize(MAX_RING); _rg_col.resize(MAX_RING); _rg_flat.resize(MAX_RING)
 	_ring_pts.resize(33)
-	_pl_on.resize(MAX_PILLAR); _pl_x.resize(MAX_PILLAR); _pl_y.resize(MAX_PILLAR); _pl_t.resize(MAX_PILLAR)
-	_pl_dur.resize(MAX_PILLAR); _pl_w.resize(MAX_PILLAR); _pl_col.resize(MAX_PILLAR)
 	_pp_on.resize(MAX_POP); _pp_val.resize(MAX_POP); _pp_row.resize(MAX_POP); _pp_x.resize(MAX_POP)
 	_pp_y.resize(MAX_POP); _pp_t.resize(MAX_POP); _pp_scale.resize(MAX_POP); _pp_plus.resize(MAX_POP)
 	_pp_small.resize(MAX_POP)
@@ -156,6 +145,8 @@ func setup(pop_canvas: Control, to_ui: Callable) -> void:
 	_pp_mote.resize(MAX_POP)
 	_pp_ko.resize(MAX_POP); _pp_ko_t.resize(MAX_POP); _pp_unit.resize(MAX_POP); _pp_box.resize(MAX_POP)
 	_shield_pts.resize(6)
+	_make_dither()
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED   # the beams' dither tiles
 	_pop_node = pop_canvas
 	_pop_node.draw.connect(_draw_pop_layer)
 	var add := CanvasItemMaterial.new()
@@ -260,17 +251,10 @@ func ring(c: Vector2, r0: float, r1: float, dur: float, col: Color, flat := 0.35
 			return
 
 
+## A column of light on a unit's spot (a memory surfacing, the opening volley, a taunt): the
+## pixel-art beam (critic r11 fix 3), `w` half its width, a hero's height plus a head above the feet.
 func pillar(x: float, y: float, w: float, dur: float, col: Color) -> void:
-	for i in MAX_PILLAR:
-		if not _pl_on[i]:
-			_pl_on[i] = true
-			_pl_x[i] = x
-			_pl_y[i] = y
-			_pl_t[i] = 0.0
-			_pl_dur[i] = dur
-			_pl_w[i] = w
-			_pl_col[i] = col
-			return
+	beam(x, y, w, y - 44.0, 80.0, dur, col, col.lerp(Pal.INK10, 0.5))
 
 
 ## Label metrics (world units: UI design px / ZOOM). A label is one box: the rise room, the head
@@ -286,6 +270,8 @@ const HEAD_DIP := 3.0
 ## The KO! pill beside a number: gap to the number and padding round the word (UI design px).
 const KO_GAP := 3.0
 const KO_PAD := 3.0
+## The KO! pill's line under a number (world px): the pill plus a little air.
+const KO_H := (11.0 * HEAD_SIZE / 15.0 + KO_PAD * 2.0) / ZOOM + 1.5
 ## Back-column damage as an icon, not jargon (critic r10 fix 9: "Rear 1/2" on a Backstab read as a
 ## contradiction): head words that draw the shared rear_half glyph (twice for a quarter: both ranks
 ## at the back). The full sentence is in the shared tooltip on the icon (tap / hover).
@@ -354,7 +340,10 @@ static func label_size(value: int, plus: bool, head: String, small: bool, tag: S
 	if value >= 0:
 		row_w = (UIText.width(("+" if plus else "") + str(value), UIText.BOLD, NUM_SIZE) + 4.0 + ((MOTE_W + MOTE_GAP) if mote else 0.0)) / ZOOM
 		if ko:
-			row_w += (KO_GAP + _ko_w()) / ZOOM
+			# the KO! pill sits under the number, not beside it: the label stays as narrow as its
+			# number and clear of the neighbours' columns (critic r11 fix 1)
+			row_w = maxf(row_w, _ko_w() / ZOOM)
+			h += KO_H
 		h += NUM_RISE + NUM_H
 	elif ko:
 		row_w = _ko_w() / ZOOM
@@ -416,11 +405,11 @@ func _place(j: int) -> void:
 	for k in MAX_POP:
 		if k != j and _pp_on[k]:
 			placed.append(_pp_box[k])
-	_pp_box[j] = LabelLayout.place(sz, pref, own, units_geo, placed, blocked, field)
+	_pp_box[j] = LabelLayout.place(sz, pref, own, units_geo, placed, blocked, field, not _pp_small[j])
 	if recording:
 		record.append({"uid": _pp_unit[j], "box": _pp_box[j], "text": _label_text(j), "geo": units_geo.duplicate(),
 			"placed": placed, "blocked": blocked.duplicate(), "field": field, "small": _pp_small[j],
-			"fallback": LabelLayout.last_fallback, "t": sim_t})
+			"fallback": LabelLayout.last_fallback or LabelLayout.last_column_miss, "t": sim_t})
 	_pp_x[j] = _pp_box[j].get_center().x
 	_pp_y[j] = _pp_box[j].end.y
 
@@ -540,6 +529,14 @@ func sweep(a: Vector2, b: Vector2, col: Color) -> void:
 	_sw_next = (_sw_next + 1) % 4
 
 
+## True while an attacker's travel streak is still drawn.
+func trail_busy() -> bool:
+	for i in 4:
+		if _sw_thin[i] and _sw_t[i] < 0.45:
+			return true
+	return false
+
+
 ## A thin streak from attacker to target showing the travel.
 func trail(a: Vector2, b: Vector2, col: Color) -> void:
 	sweep(a, b, col)
@@ -556,11 +553,130 @@ func shard_fly(from: Vector2, to: Vector2) -> void:
 func fade_popups() -> void:
 	for i in MAX_POP:
 		_pp_on[i] = false
-	for i in MAX_PILLAR:
-		_pl_on[i] = false
+	_beams.clear()
+
+
+## Pixel-art light beams (critic r11 fix 3: Smite's and Mend's light column read as a flat ~330 px
+## debug quad). A beam is as wide as its target's body, banded (a dark rim, the body, a bright core),
+## falls from its top to the feet in a few frames, has a soft dithered top, fades by thinning its
+## dither (never by alpha), narrows as it goes and leaves a ground ring at the feet. World px, visual time.
+const MAX_BEAM := 6
+var _beams: Array = []
+
+
+## `x` the column's centre, `feet` the target's feet, `half_w` half its body width, `head` the top of
+## its head (below it the beam thins so the unit shows through), `height` from the feet to the top.
+func beam(x: float, feet: float, half_w: float, head: float, height: float, dur: float, col: Color, hi: Color) -> void:
+	if _beams.size() >= MAX_BEAM:
+		_beams.pop_front()
+	_beams.append({"x": roundf(x), "y": roundf(feet), "hw": maxf(3.0, roundf(half_w)), "head": roundf(head),
+		"h": roundf(height), "t": 0.0, "dur": dur, "col": col, "hi": hi})
+
+
+func _draw_beams() -> void:
+	for bm: Dictionary in _beams:
+		var u: float = float(bm["t"]) / float(bm["dur"])
+		if u >= 1.0:
+			continue
+		var x: float = bm["x"]
+		var feet: float = bm["y"]
+		var col: Color = bm["col"]
+		var hi: Color = bm["hi"]
+		var top: float = feet - float(bm["h"])
+		for r: Rect2 in clip_rects:   # never inside a banner
+			if r.end.y < feet and r.position.x < x + bm["hw"] and r.end.x > x - bm["hw"]:
+				top = maxf(top, r.end.y)
+		var fall := clampf(float(bm["t"]) / 0.08, 0.0, 1.0)   # the light reaches the feet in ~5 frames
+		var bottom := roundf(lerpf(top, feet, fall))
+		var hw: float = bm["hw"]
+		if u > 0.55:
+			hw = maxf(1.0, roundf(hw * (1.0 - (u - 0.55) / 0.45 * 0.6)))
+		var fade := 1.0 - u * u
+		var soft := maxf(6.0, roundf((feet - top) * 0.4))
+		var head: float = bm["head"]
+		var rim := Color(col.lerp(Pal.INK1, 0.35), 0.9)
+		var core_w := maxf(1.0, roundf(hw * 0.5))
+		# rows grouped into runs of one dither level: a few tiled draws per beam, not a draw per pixel
+		var run_lvl := -1
+		var run_over := false
+		var run_y := top
+		for yi in range(int(top), int(bottom) + 1):
+			var yy := float(yi)
+			var lvl := 0
+			var over := yy > head
+			if yi < int(bottom):
+				var d := clampf((yy - top) / soft, 0.0, 1.0) * fade
+				if over:
+					d = minf(d, 0.3)   # over the unit: a light veil (a quarter of the pixels), the sprite shows through
+				lvl = _dither_level(d)
+			else:
+				lvl = -2   # flush the last run
+			if lvl != run_lvl or over != run_over:
+				if run_lvl > 0:
+					var h := yy - run_y
+					_dither_rect(Rect2(x - hw, run_y, 1.0, h), rim, run_lvl)
+					_dither_rect(Rect2(x + hw - 1.0, run_y, 1.0, h), rim, run_lvl)
+					if hw > 1.0:
+						_dither_rect(Rect2(x - hw + 1.0, run_y, hw * 2.0 - 2.0, h), col, run_lvl)
+					if not run_over:
+						_dither_rect(Rect2(x - core_w, run_y, core_w * 2.0, h), hi, run_lvl)
+				run_lvl = lvl
+				run_over = over
+				run_y = yy
+		# the ground ring: a pixel ellipse that opens a little as the beam fades
+		if fall >= 1.0:
+			var rx := roundf(float(bm["hw"]) + 4.0 + 4.0 * u)
+			var ry := 3.0
+			var rc := Color(hi, 1.0 - u)
+			for k in 33:
+				var a := TAU * k / 32.0
+				_ring_pts[k] = Vector2(roundf(x + cos(a) * rx), roundf(feet + 1.0 + sin(a) * ry))
+			_clip_polyline(_ring_pts, rc)
+
+
+## Ordered-dither level for a density: 4 solid, 3 a checker (half the pixels), 2 a quarter, 1 an
+## eighth, 0 nothing.
+static func _dither_level(d: float) -> int:
+	if d >= 0.85:
+		return 4
+	if d >= 0.45:
+		return 3
+	if d >= 0.2:
+		return 2
+	if d >= 0.07:
+		return 1
+	return 0
+
+
+## Dither tiles (white pixels on clear, tinted when drawn): half, a quarter, an eighth.
+var _dither_tex: Array[Texture2D] = []
+
+
+func _make_dither() -> void:
+	for pat: Array in [[2, [Vector2i(0, 0), Vector2i(1, 1)]], [2, [Vector2i(0, 0)]], [4, [Vector2i(0, 0), Vector2i(2, 2)]]]:
+		var n: int = pat[0]
+		var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+		img.fill(Color(0, 0, 0, 0))
+		for p: Vector2i in pat[1]:
+			img.set_pixelv(p, Color.WHITE)
+		_dither_tex.append(ImageTexture.create_from_image(img))
+
+
+## A block of a beam band at a dither level (whole world pixels). The tile is aligned to the world
+## grid, so the bands of one beam share one pattern (the core's pixels replace the body's).
+func _dither_rect(r: Rect2, c: Color, lvl: int) -> void:
+	if r.size.x < 0.5 or r.size.y < 0.5:
+		return
+	if lvl >= 4:
+		draw_rect(r, c)
+		return
+	var tex: Texture2D = _dither_tex[3 - lvl]
+	var n := float(tex.get_width())
+	draw_texture_rect_region(tex, r, Rect2(fposmod(r.position.x, n), fposmod(r.position.y, n), r.size.x, r.size.y), c)
 
 
 func clear_all() -> void:
+	_beams.clear()
 	for i in MAX_POP:
 		_pp_on[i] = false
 	for i in MAX_PROJ:
@@ -605,11 +721,10 @@ func tick(vdt: float, now_sim: float) -> void:
 			_rg_t[i] += vdt
 			if _rg_t[i] >= _rg_dur[i]:
 				_rg_on[i] = false
-	for i in MAX_PILLAR:
-		if _pl_on[i]:
-			_pl_t[i] += vdt
-			if _pl_t[i] >= _pl_dur[i]:
-				_pl_on[i] = false
+	for k in range(_beams.size() - 1, -1, -1):
+		_beams[k]["t"] = float(_beams[k]["t"]) + vdt
+		if float(_beams[k]["t"]) >= float(_beams[k]["dur"]):
+			_beams.remove_at(k)
 	for i in MAX_POP:
 		if _pp_on[i]:
 			_pp_t[i] += vdt
@@ -634,20 +749,20 @@ func tick(vdt: float, now_sim: float) -> void:
 	_place_tips()
 
 
+## Frame-time probe (battle.gd --perf): usec spent drawing the effects, the numbers and the HUD.
+static var perf_on := false
+static var perf_us := 0
+
+
 func _draw() -> void:
-	# light pillars (behind numbers, above units)
-	for i in MAX_PILLAR:
-		if not _pl_on[i]:
-			continue
-		var u := _pl_t[i] / _pl_dur[i]
-		var w := roundf(_pl_w[i] * (1.0 - u * u))
-		var c := _pl_col[i]
-		var top := -20.0
-		for r: Rect2 in clip_rects:   # a pillar starts under a banner, never inside it
-			if r.end.y < _pl_y[i] and r.position.x < _pl_x[i] + w and r.end.x > _pl_x[i] - w:
-				top = maxf(top, r.end.y)
-		draw_rect(Rect2(_pl_x[i] - w, top, w * 2.0, _pl_y[i] - top), Color(c, 0.35 * (1.0 - u)))
-		draw_rect(Rect2(_pl_x[i] - maxf(1.0, w * 0.4), top, maxf(2.0, w * 0.8), _pl_y[i] - top), Color(Pal.INK10, 0.8 * (1.0 - u)))
+	var t0 := Time.get_ticks_usec() if perf_on else 0
+	_draw_world()
+	if perf_on:
+		perf_us += Time.get_ticks_usec() - t0
+
+
+func _draw_world() -> void:
+	_draw_beams()
 	# the freed Shard
 	if _shard_t >= 0.0:
 		var su := clampf(_shard_t / 1.1, 0.0, 1.0)
@@ -755,6 +870,13 @@ func _proj_pos(i: int, u: float) -> Vector2:
 ## Numbers, tags and their links draw on the UI layer above the world (native resolution). Layout
 ## is in world units (pinned to the target), converted per frame through the world -> UI transform.
 func _draw_pop_layer() -> void:
+	var t0 := Time.get_ticks_usec() if perf_on else 0
+	_draw_pops()
+	if perf_on:
+		perf_us += Time.get_ticks_usec() - t0
+
+
+func _draw_pops() -> void:
 	if not _to_ui.is_valid():
 		return
 	_tip_rects.clear()
@@ -864,7 +986,7 @@ func _draw_popup(ci: CanvasItem, i: int) -> void:
 		var s := ("+" if _pp_plus[i] else "") + str(val)
 		var nw := UIText.width(s, UIText.BOLD, NUM_SIZE) + 4.0
 		var mw := (MOTE_W + MOTE_GAP) if _pp_mote[i] else 0.0
-		var row_w := mw + nw + ((KO_GAP + _ko_w()) if _pp_ko[i] else 0.0)
+		var row_w := mw + nw
 		var c: Vector2 = _to_ui.call(Vector2(x, y + 0.75))
 		var x0 := c.x - row_w * 0.5
 		var base := c.y + UIText.cap(UIText.BOLD, NUM_SIZE)
@@ -873,13 +995,16 @@ func _draw_popup(ci: CanvasItem, i: int) -> void:
 			x0 += mw
 		# a two-font-pixel dark ring keeps the digits apart from bright slashes and sparks
 		UIText.outlined(ci, Vector2(roundf(x0 + nw * 0.5), base - UIText.ascent(UIText.BOLD, sz)), s, ROW_COL[_pp_row[i]], UIText.BOLD, sz, 1, Pal.INK1, true, 2)
-		if ko_on:
-			_draw_ko(ci, Vector2(x0 + nw + KO_GAP, base - UIText.cap(UIText.BOLD, NUM_SIZE) * 0.5))
 		y += NUM_H
 		var tag := _pp_tag[i]
 		if tag != "":
 			var tp: Vector2 = _to_ui.call(Vector2(x, y + 1.0))
 			UIText.outlined(ci, Vector2(tp.x, tp.y + UIText.cap(UIText.BOLD, TAG_SIZE) - UIText.ascent(UIText.BOLD, TAG_SIZE)), tag, _pp_tag_col[i], UIText.BOLD, TAG_SIZE, 1)
+			y += TAG_H
+		if ko_on:
+			# under the number, centred on its column
+			var kp: Vector2 = _to_ui.call(Vector2(x, y + KO_H * 0.5))
+			_draw_ko(ci, Vector2(roundf(kp.x - _ko_w() * 0.5), kp.y))
 	elif ko_on:
 		var c2: Vector2 = _to_ui.call(Vector2(x, y + HEAD_H * 0.5))
 		_draw_ko(ci, Vector2(c2.x - _ko_w() * 0.5, c2.y))

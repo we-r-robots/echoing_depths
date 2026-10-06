@@ -69,6 +69,9 @@ var _knock_amp := 0.0
 var _glow_t := 0.0
 var _bob_t := 0.0
 var victory_hop := false
+## At the result the fallen fade back (to under half) behind the survivors (critic r11 fix 5).
+var fade_back := false
+var _back := 0.0
 var focus_rim := false
 var dimmed := false
 var is_crystal := false
@@ -286,6 +289,27 @@ func play_now(anim: StringName) -> void:
 		# the hit and KO strips open on a white silhouette frame: skip it, the shader's partial
 		# flash (2-3 frames) marks the impact without erasing the struck sprite (critic r10 fix 7)
 		spr.frame = 1 if (anim == &"hit" or anim == &"ko") and spr.sprite_frames.get_frame_count(anim) > 2 else 0
+		swing_left = _strip_len(anim) if (anim == &"attack" or anim == &"cast") else 0.0
+
+
+## Seconds left of a playing attack or cast strip at speed 1, on the unit's own clock (swing_tick),
+## so the controller knows an actor is still swinging (an ability's banner waits for it).
+var swing_left := 0.0
+
+
+func swing_tick(dt: float) -> void:
+	swing_left = maxf(0.0, swing_left - dt)
+
+
+func _strip_len(anim: StringName) -> float:
+	var fr := spr.sprite_frames
+	var fps := fr.get_animation_speed(anim)
+	if fps <= 0.0 or fr.get_animation_loop(anim):
+		return 0.0
+	var n := 0.0
+	for i in fr.get_frame_count(anim):
+		n += fr.get_frame_duration(anim, i)
+	return n / fps
 
 
 func gauge_at(t: float) -> float:
@@ -438,7 +462,9 @@ func tick(sim_t: float, vdt: float, speed: float, real_dt := 0.0) -> void:
 		ko_t += vdt
 		var g2 := clampf((ko_t - 0.35) / 0.5, 0.0, 1.0)
 		mat.set_shader_parameter("gray", g2)
-		modulate.a = 1.0 - 0.45 * g2
+		modulate.a = (1.0 - 0.45 * g2) * (1.0 - 0.55 * _back)
+		if fade_back:
+			_back = move_toward(_back, 1.0, vdt * 2.0)
 		shadow.visible = ko_t < 0.6
 		if not shadow.visible and _plate_on:
 			_plate_on = false
@@ -470,7 +496,9 @@ func tick(sim_t: float, vdt: float, speed: float, real_dt := 0.0) -> void:
 	else:
 		charge_shown = move_toward(charge_shown, float(charge), vdt * (60.0 if charge_pulse > 0.0 else 160.0))
 	charge_pulse = maxf(0.0, charge_pulse - vdt)
-	if sim_t < top_until:
+	if fade_back and not alive:
+		z_index = -5   # the fallen recede behind the survivors at the result
+	elif sim_t < top_until:
 		z_index = 35
 	elif acting:
 		z_index = 30

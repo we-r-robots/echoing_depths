@@ -1,5 +1,6 @@
 extends Control
 const GameData = preload("res://core/game_data.gd")
+const FXS = preload("res://scenes/battle/battle_fx.gd")
 ## Screen-space battle HUD (Sea of Stars style) on the UI layer, at native resolution: party panels
 ## with portraits, HP and charge, formation banners with their effect chips, the fight timer with
 ## the Fading fuse, an action caption bar, the formation intro cards, the ability cut-in, the Fading
@@ -44,6 +45,10 @@ var caption_t := 9.0
 var caption_ability := false
 var caption_area := "single"
 var caption_extra := 0          # further units the action hits besides its target ("▸ Moth + 2")
+## The other kind of target an action touches (critic r11 fix 2): "· heals self", "· strikes Corin".
+var caption_tail_verb := ""
+var caption_tail := -1
+var caption_tail_extra := 0
 var cutin_uid := -1
 var cutin_name := ""
 var cutin_t := 9.0
@@ -199,9 +204,13 @@ func screen_flash(c: Color, a: float) -> void:
 var caption_stale := false
 
 
-func show_caption(uid: int, text: String, target: int, is_ability: bool, area := "single", extra := 0) -> void:
+func show_caption(uid: int, text: String, target: int, is_ability: bool, area := "single", extra := 0,
+		tail_verb := "", tail := -1, tail_extra := 0) -> void:
 	caption_stale = false
 	caption_extra = extra
+	caption_tail_verb = tail_verb
+	caption_tail = tail
+	caption_tail_extra = tail_extra
 	caption_area = area
 	caption_uid = uid
 	caption_text = text
@@ -224,6 +233,13 @@ func pulse_badge(side: int, line: int) -> void:
 
 # ------------------------------------------------------------------------------------- drawing
 func _draw() -> void:
+	var t0 := Time.get_ticks_usec() if FXS.perf_on else 0
+	_draw_hud()
+	if FXS.perf_on:
+		FXS.perf_us += Time.get_ticks_usec() - t0
+
+
+func _draw_hud() -> void:
 	if b == null or b.units.is_empty():
 		_draw_fade()
 		return
@@ -503,6 +519,8 @@ func _panel_bg(r: Rect2, sc: Color, alpha: float, pulse := 0.0) -> void:
 
 # --- timer ------------------------------------------------------------------------------------
 func _draw_timer() -> void:
+	if end_t >= 0.0:
+		return   # the result line gives the fight's time (critic r11 fix 5: the clock repeated it)
 	var st: float = b.sim_t if b.end_clock < 0.0 else minf(b.sim_t, b.end_clock)
 	var secs := int(st)
 	var r := Rect2(_c - 98, 334, 52, 24)
@@ -549,14 +567,24 @@ func _draw_caption() -> void:
 			tc = b.side_colors[b.units[caption_target].side]
 			if caption_extra > 0:
 				tgt += " + %d" % caption_extra
+	# the other kind of target, as a clause after the lead (critic r11 fix 2)
+	var tail := ""
+	var tail_col := Pal.INK10
+	if tgt != "" and caption_tail_verb != "" and caption_tail >= 0 and caption_tail < b.units.size():
+		var tu = b.units[caption_tail]
+		tail = "· %s %s" % [caption_tail_verb, "self" if caption_tail == caption_uid else tu.label]
+		if caption_tail_extra > 0:
+			tail += " + %d" % caption_tail_extra
+		tail_col = (b.side_colors[tu.side] as Color).lerp(Pal.INK10, 0.35)
 	var gap := UIText.width(" ", BOLD, sz)
 	var arrow_w := 14.0
 	var room := r.size.x - 16.0
 	var w_who := UIText.width(who, BOLD, sz)
 	var w_what := UIText.width(what, BOLD, sz)
 	var w_tgt := UIText.width(tgt, BOLD, sz) if tgt != "" else 0.0
+	var w_tail := (gap + UIText.width(tail, BOLD, sz)) if tail != "" else 0.0
 	var line1 := w_who + gap * 2.0 + w_what
-	var total := line1 + (arrow_w + w_tgt if tgt != "" else 0.0)
+	var total := line1 + (arrow_w + w_tgt + w_tail if tgt != "" else 0.0)
 	var who_col: Color = sc.lerp(Pal.INK10, 0.35)
 	var tgt_col: Color = tc.lerp(Pal.INK10, 0.35)
 	if total <= room:
@@ -567,13 +595,16 @@ func _draw_caption() -> void:
 		x = UIText.outlined(self, Vector2(x, y), who, who_col, BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
 		x = UIText.outlined(self, Vector2(x, y), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
 		if tgt != "":
-			_caption_target(x, r.get_center().y, y, tgt, tgt_col, arrow_w, sz)
+			x = _caption_target(x, r.get_center().y, y, tgt, tgt_col, arrow_w, sz)
+			if tail != "":
+				UIText.outlined(self, Vector2(x + gap, y), tail, tail_col, BOLD, sz, 0, Pal.INK1, false)
 		_dim_stale(r)
 		return
-	# Too long for one line (long memory names in the Crystal fight): two lines, the panel grows
-	# upward and, if it must, wider into the gap between the party panels. Names are never cut.
+	# Too long for one line (long memory names in the Crystal fight, a clause for a second kind of
+	# target): two lines, the panel grows upward and, if it must, wider into the gap between the
+	# party panels. Names are never cut.
 	var lh := UIText.line_h(BOLD, sz)
-	var w_need := maxf(line1, arrow_w + w_tgt) + 16.0
+	var w_need := maxf(line1, arrow_w + w_tgt + w_tail) + 16.0
 	var w_max := (_r - _l) - 2.0 * (PANEL_W + 4.0)
 	var w := clampf(w_need, r.size.x, w_max)
 	var r2 := Rect2(roundf(_c - w / 2.0), r.end.y - (lh * 2.0 + 10.0), roundf(w), lh * 2.0 + 10.0)
@@ -585,8 +616,10 @@ func _draw_caption() -> void:
 	UIText.outlined(self, Vector2(x1, y1), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
 	if tgt != "":
 		var y2 := y1 + lh
-		var x2 := roundf(_c - (arrow_w + w_tgt) / 2.0)
-		_caption_target(x2, y2 + UIText.cap(BOLD, sz) * 0.5 + (UIText.ascent(BOLD, sz) - UIText.cap(BOLD, sz)), y2, tgt, tgt_col, arrow_w, sz)
+		var x2 := roundf(_c - (arrow_w + w_tgt + w_tail) / 2.0)
+		x2 = _caption_target(x2, y2 + UIText.cap(BOLD, sz) * 0.5 + (UIText.ascent(BOLD, sz) - UIText.cap(BOLD, sz)), y2, tgt, tgt_col, arrow_w, sz)
+		if tail != "":
+			UIText.outlined(self, Vector2(x2 + gap, y2), tail, tail_col, BOLD, sz, 0, Pal.INK1, false)
 	_dim_stale(r2)
 
 
@@ -595,10 +628,10 @@ func _dim_stale(r: Rect2) -> void:
 		draw_rect(r.grow(-1.0), Color(Pal.INK1, 0.6))
 
 
-func _caption_target(x: float, cy: float, y: float, tgt: String, col: Color, arrow_w: float, sz: int) -> void:
+func _caption_target(x: float, cy: float, y: float, tgt: String, col: Color, arrow_w: float, sz: int) -> float:
 	_tri[0] = Vector2(x + 4, cy - 4); _tri[1] = Vector2(x + 10, cy); _tri[2] = Vector2(x + 4, cy + 4)
 	draw_colored_polygon(_tri, Pal.INK8)
-	UIText.outlined(self, Vector2(x + arrow_w, y), tgt, col, BOLD, sz, 0, Pal.INK1, false)
+	return UIText.outlined(self, Vector2(x + arrow_w, y), tgt, col, BOLD, sz, 0, Pal.INK1, false)
 
 
 # --- party panels -----------------------------------------------------------------------------
@@ -995,10 +1028,13 @@ func lore_reserve() -> Rect2:
 	var h := ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + n * UIText.line_h(BOLD, UIText.BODY) + 6.0)
 	# + the camera's travel: a world label placed now moves with the camera push and shake (up to
 	# ~5 world px = 10 UI px) while the banner stays put
-	return Rect2(_c - _lore_w() / 2.0, 40, _lore_w(), h + RESERVE_SLACK).grow(BANNER_MARGIN)
+	return Rect2(_c - _lore_w() / 2.0, 40, _lore_w(), h + RESERVE_SLACK).grow(LORE_MARGIN)
 
 
 const RESERVE_SLACK := 10.0
+## The lore banner keeps a wider clear band under it (critic r11 fix 7: a "20" on the Crystal's top
+## read as touching its bottom rule).
+const LORE_MARGIN := 10.0
 
 
 var caption_drawn := Rect2()
@@ -1085,52 +1121,62 @@ func _draw_cutin() -> void:
 ## The Fading (sudden death): one line in the game's voice, then a small rising readout.
 func _draw_fading() -> void:
 	var y := 40.0
-	if sd_banner_t < 3.2:
+	if fading_line_on():
 		var a := clampf(sd_banner_t / 0.3, 0.0, 1.0) * (1.0 - clampf((sd_banner_t - 2.8) / 0.4, 0.0, 1.0))
 		UIText.outlined(self, Vector2(_c, y), "The memory of this battle is fading…", Color(Pal.INK10, a), SERIF, UIText.HEADING, 1)
 		return
 	# readout under the banners once the line has gone
-	UIText.outlined(self, Vector2(_c, y), "Fading  ×%.2f" % b.sd_mult, Pal.FADE4, BOLD, UIText.NUMBER, 1)
+	var ro := fading_readout()
+	if ro != "":
+		UIText.outlined(self, Vector2(_c, y), ro, Pal.FADE4, BOLD, UIText.NUMBER, 1)
+
+
+## The Fading's line ("The memory of this battle is fading…") is up.
+func fading_line_on() -> bool:
+	return fading_tick >= 1 and sd_banner_t < 3.2
+
+
+## The Fading readout under the banners, or "": it follows the line and starts at the first real
+## step (critic r11 fix 6: it showed "×1.00" before the line).
+func fading_readout() -> String:
+	if fading_tick < 1 or b.sd_mult <= 1.0 or fading_line_on() or end_t >= 0.0:
+		return ""
+	return "Fading  ×%.2f" % b.sd_mult
 
 
 # --- finish -----------------------------------------------------------------------------------------
 func _draw_end() -> void:
 	if end_t < 0.0:
 		return
-	var a := clampf(end_t / 0.3, 0.0, 1.0)
 	var win: bool = winner == b.player_side
 	var col := Pal.AMBER6 if win else (Pal.FADE3 if winner == -1 else Pal.BLOOD4)
 	# the band sits in the top band of the screen, over the formation badges, so the survivors
-	# below it stay visible and unclipped while they celebrate (critic r10 fix 4)
-	var h := 64.0 * a
+	# below it stay visible and unclipped while they celebrate (critic r10 fix 4). It is whole with
+	# its text from its first frame (critic r11 fix 5: two empty black frames opened it).
+	var h := 64.0
 	var cy := 36.0
 	draw_rect(Rect2(0, cy - h * 0.5, _vw, h), Color(Pal.INK1, 0.95))
-	draw_rect(Rect2(0, cy - h * 0.5, _vw, 1), Color(col, a))
-	draw_rect(Rect2(0, cy + h * 0.5 - 1, _vw, 1), Color(col, a))
-	if h < 60.0:
-		return
+	draw_rect(Rect2(0, cy - h * 0.5, _vw, 1), col)
+	draw_rect(Rect2(0, cy + h * 0.5 - 1, _vw, 1), col)
 	# the word settles in as one piece (critic r5: letters dropping one by one left a frame reading
 	# "VICTᴼ", a raised letter that looked like a glyph bug)
 	var word := winner_text
 	var sz := UIText.DISPLAY
-	var lt := clampf((end_t - 0.15) / 0.25, 0.0, 1.0)
-	if lt > 0.0:
-		var dy := roundf((1.0 - lt) * (1.0 - lt) * -8.0)
-		UIText.outlined(self, Vector2(_c, cy - 25.0 + dy), word, Color(col, lt), SERIF, sz, 1)
-	if end_t > 0.8:
-		var sub_a := clampf((end_t - 0.8) / 0.3, 0.0, 1.0)
-		var sub: String = b.end_subtitle
-		var tn := team_name(winner) if winner >= 0 else ""
-		var sy := cy + 13.0
-		if tn != "" and sub.begins_with(tn):
-			# the winning team's name in its side colour, as on its roster tab
-			var rest := sub.substr(tn.length())
-			var w1 := UIText.width(tn, BOLD, UIText.LABEL)
-			var x := roundf(_c - (w1 + UIText.width(rest, BOLD, UIText.LABEL)) / 2.0)
-			x = UIText.outlined(self, Vector2(x, sy), tn, Color(UIText.legible(b.side_colors[winner].lerp(Pal.INK10, 0.2)), sub_a), BOLD, UIText.LABEL, 0, Pal.INK1, false)
-			UIText.outlined(self, Vector2(x, sy), rest, Color(Pal.INK10, sub_a), BOLD, UIText.LABEL, 0, Pal.INK1, false)
-		else:
-			UIText.outlined(self, Vector2(_c, sy), sub, Color(Pal.INK10, sub_a), BOLD, UIText.LABEL, 1, Pal.INK1, false)
+	var lt := clampf(end_t / 0.2, 0.0, 1.0)
+	var dy := roundf((1.0 - lt) * (1.0 - lt) * -6.0)
+	UIText.outlined(self, Vector2(_c, cy - 25.0 + dy), word, col, SERIF, sz, 1)
+	var sub: String = b.end_subtitle
+	var tn := team_name(winner) if winner >= 0 else ""
+	var sy := cy + 13.0
+	if tn != "" and sub.begins_with(tn):
+		# the winning team's name in its side colour, as on its roster tab
+		var rest := sub.substr(tn.length())
+		var w1 := UIText.width(tn, BOLD, UIText.LABEL)
+		var x := roundf(_c - (w1 + UIText.width(rest, BOLD, UIText.LABEL)) / 2.0)
+		x = UIText.outlined(self, Vector2(x, sy), tn, Color(UIText.legible(b.side_colors[winner].lerp(Pal.INK10, 0.2))), BOLD, UIText.LABEL, 0, Pal.INK1, false)
+		UIText.outlined(self, Vector2(x, sy), rest, Color(Pal.INK10), BOLD, UIText.LABEL, 0, Pal.INK1, false)
+	else:
+		UIText.outlined(self, Vector2(_c, sy), sub, Color(Pal.INK10), BOLD, UIText.LABEL, 1, Pal.INK1, false)
 
 
 ## "+N" chip for banner effects beyond the room (opens the rest in the shared tooltip).

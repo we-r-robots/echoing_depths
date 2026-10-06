@@ -25,6 +25,7 @@ const Layout = preload("res://scenes/battle/battle_layout.gd")
 const Demo = preload("res://scenes/battle/battle_demo.gd")
 const Unit = preload("res://scenes/battle/battle_unit.gd")
 const LabelLayout = preload("res://scenes/battle/label_layout.gd")
+const FXScript = preload("res://scenes/battle/battle_fx.gd")
 const META_PATH := "res://assets/sprites/sprite_meta.json"
 
 const DEMO_PVP_SEED := 34
@@ -49,6 +50,16 @@ const KO_TOP := 1.0
 ## FINAL_HOLD seconds with the last KO's number up, then the band comes in (critic r10 fix 4).
 const FINAL_HOLD := 0.6
 const FINAL_SLOW := 0.35
+## The result: the survivors line up centre front, VICTORY_GAP apart with their feet on VICTORY_Y
+## (under the band, over the rosters), walking there in VICTORY_WALK seconds.
+const VICTORY_GAP := 40.0
+const VICTORY_Y := 204.0
+const VICTORY_WALK := 0.7
+## An ability's banner waits (the clock holds) until the previous actor is back in its idle pose and
+## its trail has cleared, at most HOLD_MAX seconds (critic r11 fix 4: Brakka's Cleave banner came up
+## while Corin was still mid-swing, so the mirror match read as Corin casting it).
+const HOLD_MAX := 0.6
+const HOLD_ANIM_SPEED := 2.0
 const INTRO_LEN := 2.6
 const ABILITY_FREEZE := 0.3
 const SHADOWS := {"s": preload("res://assets/sprites/env/shadow_s.png"),
@@ -152,12 +163,18 @@ var _hits_in_action := 0
 var _cur_multi := false      # the current action strikes more than one unit (Cleave, Firestorm)
 var _split_tags := 0
 var _stale_seen := 0
+var _last_actor := -1        # the unit that acted last (an ability's banner waits for it)
+var _hold_uid := -1          # while >= 0 the clock holds for this unit to finish (HOLD_MAX)
+var _hold_t := 0.0
+var _held_ev := -1           # the event already held for (never twice)
+var _fading_tagged := 0      # the Fading step whose first hit carried the "Fading ×N" tag
 # frame-time probe (user arg --perf): wall-clock usec per frame, reported at the end of the fight
 var _perf := false
 var _perf_last := 0
 var _perf_buf := PackedInt32Array()
 var _perf_n := 0
 var _perf_proc := PackedInt32Array()
+var _perf_t := PackedFloat32Array()
 
 ## The world (stage, units, effects) renders into a pixel-exact SubViewport at the 640x360 design
 ## resolution (wider on wide screens), shown x3 with nearest filtering. The HUD and the numbers
@@ -185,9 +202,11 @@ func _ready() -> void:
 	hud.speed_pressed.connect(_cycle_speed)
 	hud.skip_pressed.connect(skip)
 	_perf = OS.get_cmdline_user_args().has("--perf")
+	FXScript.perf_on = _perf
 	if _perf:
 		_perf_buf.resize(20000)
 		_perf_proc.resize(20000)
+		_perf_t.resize(20000)
 	if autoplay_demo:
 		_start_demo.call_deferred()
 
@@ -338,20 +357,39 @@ func _clear() -> void:
 	hud.fading_tick = 0
 	_end_hold = 0.0
 	end_clock = -1.0
+	_last_actor = -1
+	_hold_uid = -1
+	_hold_t = 0.0
+	_held_ev = -1
+	_fading_tagged = 0
 
 
 # ---------------------------------------------------------------------------------------- frame
 func _process(delta: float) -> void:
-	_vclock += delta
-	if _perf and _state == State.PLAY:
+	if not _perf:
+		_frame(delta)
+		return
+	var now := Time.get_ticks_usec()
+	if _perf_last > 0 and _perf_n < _perf_buf.size():
+		_perf_buf[_perf_n] = now - _perf_last
+		# the battle's own work last frame: this _process plus the effects', numbers' and HUD's draws
+		_perf_proc[_perf_n] = _perf_work + FXScript.perf_us
+		_perf_t[_perf_n] = sim_t
+		_perf_n += 1
+	_perf_last = now
+	FXScript.perf_us = 0
+	if _state == State.PLAY:
 		_edge_probe()
-	if _perf:
-		var now := Time.get_ticks_usec()
-		if _perf_last > 0 and _perf_n < _perf_buf.size():
-			_perf_buf[_perf_n] = now - _perf_last
-			_perf_proc[_perf_n] = int(Performance.get_monitor(Performance.TIME_PROCESS) * 1000000.0)
-			_perf_n += 1
-		_perf_last = now
+	var t0 := Time.get_ticks_usec()
+	_frame(delta)
+	_perf_work = Time.get_ticks_usec() - t0
+
+
+var _perf_work := 0
+
+
+func _frame(delta: float) -> void:
+	_vclock += delta
 	if _state == State.IDLE:
 		hud.tick(delta)
 		return
@@ -382,10 +420,19 @@ func _process(delta: float) -> void:
 				fx.ring(Vector2(320, 206), 10, 150, 0.5, Pal.CRYSTAL4, 0.25)
 		State.PLAY:
 			stage.labels_alpha = 0.0
-			if not frozen:
+			if _hold_uid >= 0:
+				# an ability's banner waits for the previous actor to finish (critic r11 fix 4)
+				_hold_t += vdt
+				if not _actor_busy(units[_hold_uid]) or _hold_t >= HOLD_MAX:
+					_hold_uid = -1
+					_hold_t = 0.0
+			elif not frozen:
 				sim_t += vdt
 				while _ev_i < events.size() and float(events[_ev_i]["t"]) <= sim_t:
 					var ev: Dictionary = events[_ev_i]
+					if _should_hold(ev):
+						sim_t = float(ev["t"])
+						break
 					_ev_i += 1
 					_dispatch(ev)
 					if _state != State.PLAY:
@@ -413,7 +460,13 @@ func _process(delta: float) -> void:
 		var us := speed
 		if frozen and u.uid != _freeze_actor and (_freeze_hard or u.spr.animation != &"hit"):
 			us = 0.0   # (a hit reaction keeps playing so no unit freezes on its white hit frame)
-		u.tick(sim_t, 0.0 if (frozen and u.uid != _freeze_actor) else vdt, us, vdt)
+		# while a banner is held, the previous actor plays its own move out on a clock of its own
+		# (its recovery frames at double speed, so the wait stays short)
+		var ut := sim_t + (_hold_t if u.uid == _hold_uid else 0.0)
+		if u.uid == _hold_uid:
+			us *= HOLD_ANIM_SPEED
+		u.tick(ut, 0.0 if (frozen and u.uid != _freeze_actor) else vdt, us, vdt)
+		u.swing_tick(delta * us)
 	if not _pending_moves.is_empty() and _focus_end < 0.0 and _freeze <= 0.0 and _vclock > _ko_settle:
 		_play_pending_move()
 	if _move_lit_until > 0.0 and _vclock > _move_lit_until:
@@ -503,16 +556,48 @@ func _report_perf() -> void:
 	print("EDGE unit_frames_within_8px=%d  min_edge_gap_screen_px=%.0f" % [_edge_hits, _edge_min])
 	var a := _perf_buf.slice(30, _perf_n)
 	var p := _perf_proc.slice(30, _perf_n)
+	# the three heaviest frames of the battle's own work, with their sim time
+	var idx: Array = range(30, _perf_n)
+	idx.sort_custom(func(i: int, j: int) -> bool: return _perf_proc[i] > _perf_proc[j])
+	var worst := PackedStringArray()
+	for i: int in idx.slice(0, 3):
+		worst.append("%.2fms@%.2fs" % [_perf_proc[i] / 1000.0, _perf_t[i]])
+	print("WORST work frames: %s" % ", ".join(worst))
 	a.sort()
 	p.sort()
 	var tot := 0
 	for v in a:
 		tot += v
 	print("CHECK popups_alive_at_next_action(before clear)=%d  max_label_centre_to_own_body_screen_px=%.1f  alive_after_clear=%d" % [_stale_seen, _num_max_dist, fx.live_popups()])
-	print("PERF frames=%d wall_avg=%.2fms wall_p99=%.2fms wall_max=%.2fms process_avg=%.3fms process_p99=%.3fms nodes=%d" % [
+	print("PERF frames=%d wall_avg=%.2fms wall_p99=%.2fms wall_max=%.2fms work_p50=%.3fms work_p99=%.3fms work_max=%.3fms nodes=%d" % [
 		a.size(), tot / 1000.0 / maxi(1, a.size()), a[int(a.size() * 0.99)] / 1000.0, a[a.size() - 1] / 1000.0,
-		float(p[int(p.size() * 0.5)]) / 1000.0, float(p[int(p.size() * 0.99)]) / 1000.0, get_tree().get_node_count()])
+		float(p[int(p.size() * 0.5)]) / 1000.0, float(p[int(p.size() * 0.99)]) / 1000.0, float(p[p.size() - 1]) / 1000.0, get_tree().get_node_count()])
 	get_tree().quit()
+
+
+## True when `ev` starts an ability while the previous actor is still swinging, walking home or
+## trailing: the clock holds before it (its banner, wind-up freeze and cut-in come after).
+func _should_hold(ev: Dictionary) -> bool:
+	if _instant or _held_ev == _ev_i or String(ev.get("type", "")) != "action_start" or String(ev.get("kind", "")) != "ability":
+		return false
+	if _last_actor < 0 or _last_actor >= units.size() or _last_actor == int(ev.get("uid", -1)):
+		return false
+	var p = units[_last_actor]
+	if p == null or not _actor_busy(p):
+		return false
+	_held_ev = _ev_i
+	_hold_uid = _last_actor
+	_hold_t = 0.0
+	return true
+
+
+## Still finishing its action: moving, in its attack or cast strip, or its trail still drawn.
+func _actor_busy(u) -> bool:
+	if not u.alive:
+		return false
+	if u.acting or u.swing_left > 0.0:
+		return true
+	return fx.trail_busy()
 
 
 func shake(amount: float) -> void:
@@ -1024,6 +1109,7 @@ func _portrait(key: String, _base: String, _monster: bool, m: Dictionary) -> Tex
 # --- actions ----------------------------------------------------------------------------------
 func _on_action_start(ev: Dictionary) -> void:
 	_cur_action = ev
+	_last_actor = int(ev["uid"])
 	_hits_in_action = 0
 	_split_tags = 0
 	_stale_seen += fx.live_popups()
@@ -1055,9 +1141,15 @@ func _on_action_start(ev: Dictionary) -> void:
 	var is_ab := String(ev.get("kind", "basic")) == "ability"
 	var aid := String(ev.get("action", ""))
 	var cols := _fx_cols(aid)
+	var ct := _caption_targets(a.uid, tid)
 	var extra := _extra_targets(tid, a.side) if area == "single" else 0
 	_cur_multi = area != "single" or extra > 0
-	hud.show_caption(a.uid, String(ev.get("name", aid)), tid if area != "all_allies" else -1, is_ab, area, extra)
+	var lead := tid if area != "all_allies" else -1
+	if area == "single" and not ct.is_empty():
+		lead = int(ct["lead"])
+		extra = int(ct["extra"])
+	hud.show_caption(a.uid, String(ev.get("name", aid)), lead, is_ab, area, extra,
+		String(ct.get("verb", "")), int(ct.get("tail", -1)), int(ct.get("tail_extra", 0)))
 	match anim:
 		"melee", "melee_big", "dash", "slam", "slam_big":
 			if tgt != null:
@@ -1147,7 +1239,7 @@ func _ability_shape(aid: String, T, cols: Array) -> void:
 			var c1: Vector2 = c0 + Vector2(-T.facing * 10.0, 0.0)   # on the attacker's side of the column
 			fx.sweep(c1 - d * (1.1 + 0.3 * spectacle_level), c1 + d * (1.1 + 0.3 * spectacle_level), cols[0])
 		"mend", "sanctuary":
-			fx.pillar(T.position.x, T.position.y, 14.0 + 8.0 * spectacle_level, 0.7, Pal.LIFE4)
+			# the healed ally gets its beam in _on_heal (one beam per unit, critic r11 fix 3)
 			fx.ring(T.position, 4, 26, 0.6, Pal.LIFE4, 0.35)
 		"quake":
 			for k in 4:
@@ -1168,6 +1260,14 @@ func _big_area(aid: String, side: int, cols: Array) -> void:
 		if aid == "unravel" or aid == "hexfire":
 			for k in 2:   # a small spiral winding in on each target
 				fx.ring(u.chest() + Vector2(cos(k * 2.1) * 4.0, sin(k * 2.1) * 2.0), 14 + 3 * lv - k * 5, 2, 0.5 + k * 0.1, cols[k % 2], 0.6)
+
+
+## A pixel-art light beam on a unit (Smite, Mend, heals): its body's width, from its feet to a
+## head's height above its head.
+func _beam_on(T, dur: float, col: Color, hi: Color) -> void:
+	var br: Rect2 = T.body_rect()
+	# (a hero's width at most: on the Crystal a body-wide beam buried it)
+	fx.beam(br.get_center().x, T.position.y, minf(br.size.x * 0.5, 12.0), br.position.y, br.size.y + 36.0, dur, col, hi)
 
 
 func _fx_cols(aid: String) -> Array:
@@ -1217,7 +1317,7 @@ func _on_damage(ev: Dictionary) -> void:
 			_shake_after = maxf(_shake_after, 2.5)
 	else:
 		if aid == "smite":
-			fx.pillar(c.x, T.position.y, 7.0, 0.35, cols[0])
+			_beam_on(T, 0.45, cols[0], cols[1])
 		fx.ring(c, 2, 11, 0.3, cols[1].lerp(Color.WHITE, 0.4), 1.0)
 		fx.particles(c, 8 + (6 if crit else 0), cols[1], 55.0, 15.0, 0.45, 40.0, 1, 2.0)
 	if is_ab and not _action_first_hit:
@@ -1343,8 +1443,17 @@ func _annotation(ev: Dictionary) -> Array:
 	if back_a:
 		return [fx.REAR_HALF, Pal.INK9]
 	if sdm > 1.0:
-		return ["Fading ×%.2f" % sdm, Pal.FADE4]
+		return _fading_tag(sdm)
 	return ["", Color.WHITE]
+
+
+## The per-hit "Fading ×N" tag, only on the first hit after each step of the Fading (critic r11 fix
+## 6: every hit repeating the multiplier was noise; the readout under the banners carries it).
+func _fading_tag(mult: float) -> Array:
+	if mult <= 1.0 or hud.fading_tick <= _fading_tagged:
+		return ["", Color.WHITE]
+	_fading_tagged = hud.fading_tick
+	return ["Fading ×%.2f" % mult, Pal.FADE4]
 
 
 func _primary_note(p: Dictionary) -> Array:
@@ -1368,7 +1477,7 @@ func _primary_note(p: Dictionary) -> Array:
 		"echo_step": return ["halved", Pal.CRYSTAL5]
 		"chorus_splash": return ["Chorus", Pal.VIOLET4]
 		"sudden_death":
-			return ["Fading ×%.2f" % mult, Pal.FADE4] if mult > 1.0 else ["", Color.WHITE]
+			return _fading_tag(mult)
 	return ["", Color.WHITE]
 
 
@@ -1438,6 +1547,39 @@ func _extra_targets(tid: int, side: int) -> int:
 	return seen.size()
 
 
+## Who a single-target action really touches, read ahead to the next action (critic r11 fix 2: "Oren
+## Mend ▸ self" hid a crit on Ilse; "Ilse Mend ▸ Sable + 1" hid that the +1 was an enemy struck down
+## by a heal). The caption leads with the action's target (or, when that is the actor itself and the
+## action also strikes someone, with the struck unit), "+ N" counts only further units touched the
+## same way, and the other kind follows as a clause: "▸ Ilse · heals self", "▸ Sable · strikes Corin".
+## Returns {} for a plain action (one kind of effect): the caption keeps its usual target.
+func _caption_targets(actor: int, tid: int) -> Dictionary:
+	var struck: Array = []
+	var healed: Array = []
+	var i := _ev_i
+	while i < events.size():
+		var e: Dictionary = events[i]
+		var ty := String(e.get("type", ""))
+		if ty == "action_start" or ty == "sudden_death" or ty == "fight_end":
+			break
+		var d := int(e.get("dst", -1))
+		if int(e.get("src", -2)) == actor and d >= 0 and d < units.size():
+			if ty == "damage" and String(e.get("kind", "")) != "sudden_death" and not struck.has(d):
+				struck.append(d)
+			elif ty == "heal" and not healed.has(d):
+				healed.append(d)
+		i += 1
+	if struck.is_empty() or healed.is_empty():
+		return {}
+	# lead: the action's target, unless it is the actor itself (a self-heal) and the action strikes too
+	var lead_struck := not (healed.has(tid) and tid != actor)
+	var lead_list: Array = struck if lead_struck else healed
+	var tail_list: Array = healed if lead_struck else struck
+	var lead := tid if lead_list.has(tid) and tid != actor else int(lead_list[0])
+	return {"lead": lead, "extra": lead_list.size() - 1, "verb": "heals" if lead_struck else "strikes",
+		"tail": int(tail_list[0]) if not tail_list.has(actor) else actor, "tail_extra": tail_list.size() - 1}
+
+
 ## The label solver's view of the field (BattleFX.units_geo / blocked / field, world px), rebuilt
 ## before every popup: each living unit's body core and HP plate (plus `keep`, a unit going down
 ## this moment), the HUD rects labels keep clear of, and the visible field under the banners.
@@ -1455,7 +1597,7 @@ func _layout_ctx(keep := -1) -> void:
 			also.append(hr)
 		if u.acting and u.move_dest() != u.home:
 			also.append(Rect2(hr.position + u.move_dest() - u.home, hr.size))   # where its lunge is taking it
-		geo.append({"uid": u.uid, "body": dr, "bar": u.plate_rect(), "head": LabelLayout.head_of(dr), "also": also})
+		geo.append({"uid": u.uid, "body": dr, "bar": u.plate_rect(), "head": LabelLayout.head_of(dr), "also": also, "back": u.is_crystal})
 	fx.units_geo = geo
 	var to_world := _world_xf().affine_inverse()
 	var vis := hud.get_viewport_rect()
@@ -1521,12 +1663,13 @@ func _on_heal(ev: Dictionary) -> void:
 	if _instant:
 		return
 	var src := int(ev.get("src", -1))
-	var drain := src == dst
+	# a heal on oneself from a heal ability (Oren's Mend on Oren) is a heal, not a drain
+	var drain := src == dst and not String(_cur_action.get("anim", "")).begins_with("heal")
 	fx.sprite_fx(&"heal_glow", T.position + Vector2(0, -20), false, Color.WHITE, 1.0)
 	fx.light(T.chest(), Pal.LIFE4, 1, 0.5, 0.6)
 	fx.particles(T.chest(), 10, Pal.LIFE4, 18.0, 30.0, 0.8, -10.0, 1, 4.0)
 	if not drain:
-		fx.pillar(T.position.x, T.position.y, 6.0, 0.4, Pal.LIFE4)
+		_beam_on(T, 0.6 if String(_cur_action.get("kind", "")) == "ability" else 0.45, Pal.LIFE3, Pal.LIFE4.lerp(Pal.INK10, 0.45))
 	T.flash(Pal.LIFE4, 0.6)
 	var delay := _stagger(dst)
 	_layout_ctx()
@@ -1642,13 +1785,25 @@ func _begin_result() -> void:
 	elif crystal_uid >= 0 and w != player_side:
 		end_subtitle = "%d of 4 fragments chipped  ·  they become Glimmers" % fragments
 	if w >= 0:
+		# the survivors step forward to the centre front; the fallen fade back (critic r11 fix 5:
+		# the winners huddled in a corner while the centre was all corpses)
+		var win: Array = []
 		for u in units:
-			if u.side == w and u.alive:
-				u.victory_hop = true
-				fx.light(u.position + Vector2(0, -12), u.side_color, 2, 0.55, 3.0)
-				fx.pillar(u.position.x, u.position.y, 8.0, 0.8, u.side_color)
-				fx.particles(u.chest(), 24, Pal.AMBER6, 40.0, 50.0, 1.4, -15.0, 1, 5.0)
+			if u != null and u.side == w and u.alive and not u.is_crystal:
+				win.append(u)
+		win.sort_custom(func(p, q) -> bool: return p.position.x < q.position.x)
+		for k in win.size():
+			var u = win[k]
+			var dest := Vector2(roundf(320.0 + (k - (win.size() - 1) * 0.5) * VICTORY_GAP), VICTORY_Y)
+			u.plan_move(Unit.Move.STAY, sim_t, sim_t, sim_t, sim_t, u.home)   # any lunge ends where it stands
+			u.walk_to(dest, VICTORY_WALK)
+			u.victory_hop = true
+			fx.light(dest + Vector2(0, -12), u.side_color, 2, 0.55, 3.0)
+			fx.particles(dest + Vector2(0, -20), 24, Pal.AMBER6, 40.0, 50.0, 1.4, -15.0, 1, 5.0)
+		for u in units:
+			if u != null and not u.alive and not u.is_crystal:
+				u.fade_back = true
 		stage.victory_light = 1.0
 	_cur_action = {}
-	hud.screen_flash(Pal.INK10 if w == player_side else Pal.BLOOD2, 0.4)
+	hud.screen_flash(Pal.INK10 if w == player_side else Pal.BLOOD2, 0.2)   # light: the band and its words read from the first frame
 	_fade_target = 0.0 if w == player_side else _fade_target
