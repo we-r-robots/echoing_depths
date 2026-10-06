@@ -22,6 +22,7 @@ var seed_value := 5
 var _kind := ""
 var _at := 0
 var _done := false
+var awakenings := 0
 
 
 func _init() -> void:
@@ -70,9 +71,6 @@ func _process(_d: float) -> bool:
 					(s as RunEncounter).choose(0)
 				elif wait == 60:
 					(s as RunEncounter)._on_continue()
-		"decision":
-			if s is RoadScreen and wait == 20:
-				(s as RoadScreen).decided.emit(0)
 		"formation":
 			if s is FormationSetup and wait == 20:
 				(s as FormationSetup).confirm()
@@ -82,9 +80,21 @@ func _process(_d: float) -> bool:
 		"battle":
 			if wait == 120 and s != null:
 				s.call("skip")
-		"road":
-			if s is RoadScreen and wait == 20:
-				(s as RoadScreen).proceed.emit()
+		"hub":   # Awaken a ready hero through the camp's hero detail, then Continue
+			if s is RunHub:
+				var hub := s as RunHub
+				if wait == 20:
+					for i in hub.view.get("party", []).size():
+						if bool(hub.view["party"][i].get("awaken_new", false)):
+							hub.open_details(i, true)
+							awakenings += 1
+							break
+				elif wait == 40 and hub.detail != null:
+					hub.detail._on_advance()
+				elif wait == 60 and hub.detail != null:
+					hub.detail.close()
+				elif wait == 80:
+					hub.proceed.emit()
 		"results":
 			if s is ResultsScreen and wait == 20:
 				(s as ResultsScreen).proceed.emit()
@@ -109,8 +119,8 @@ func visited_count(k: String) -> int:
 
 func _finish() -> bool:
 	var ok := flow.visited.has("lanternrest") and counter.errors.is_empty()
-	print("visited %d screens; lanternrest %s; %d engine errors; meta runs %d" % [flow.visited.size(),
-		flow.visited.has("lanternrest"), counter.errors.size(), int(GameState.meta.get("runs", 0))])
+	print("visited %d screens; lanternrest %s; %d engine errors; meta runs %d; Awakenings from camp %d" % [flow.visited.size(),
+		flow.visited.has("lanternrest"), counter.errors.size(), int(GameState.meta.get("runs", 0)), awakenings])
 	for e in counter.errors.slice(0, 20):
 		print("  error: ", e)
 	OS.remove_logger(counter)

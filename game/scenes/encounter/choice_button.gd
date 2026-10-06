@@ -18,6 +18,7 @@ var hero: Dictionary
 var hero_index := -1
 var strong := false
 var awakens := false
+var awaken_tag: Control = null   # the "Can Awaken" mark (with its tooltip), when this choice Awakens
 var grid: AlignGrid
 var _shimmer := -1.0
 var _t := 0.0
@@ -28,9 +29,8 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	hero = h
 	hero_index = idx
 	strong = EncounterDB.is_rare(c) and EncounterDB.effective_shift(h["pos"], c) == EncounterDB.shift_of(c)
-	var thr := int(EncounterDB.rules().get("advance_threshold", 3))
 	var lv := int(h["level"])
-	awakens = lv < thr and lv + 1 >= thr
+	awakens = EncounterDB.awakens_after(h)
 	theme_type_variation = &"ChoiceButton"
 	custom_minimum_size = Vector2(width, H)
 	size = custom_minimum_size
@@ -92,18 +92,26 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 		shift_text = ", ".join(parts)
 	l2.add_child(_label(shift_text, Pal.INK9 if eff != Vector2i.ZERO else Pal.INK8, true))
 	# an Awakening always sits in ONE place on every row (critic r6: it moved between lines): line 1,
-	# right-aligned against the mini grid, glyph + word; when the action's title leaves no room for
-	# the word, the glyph alone holds the same spot (the word is in the grid's tooltip)
+	# right-aligned against the mini grid, glyph + words; the longest that fits ("Can Awaken",
+	# "Awakens", the glyph alone). It explains itself (playtest 1): tap or hover for "<Hero> can
+	# Awaken after this".
 	if awakens:
-		var word_w := UIText.width("Awakens", UIText.BOLD, UIText.BODY)
 		var right := float(grid_x_of(width)) - 4.0
 		var title_end := 42.0 + UIText.width(what.text, UIText.SERIF, UIText.TITLE) + 4.0
-		var with_word := right - (9.0 + 3.0 + word_w) >= title_end
-		var tw := (9.0 + 3.0 + word_w) if with_word else 9.0
+		var word := ""
+		for w: String in ["Can Awaken", "Awakens"]:
+			if word == "" and right - (9.0 + 3.0 + UIText.width(w, UIText.BOLD, UIText.BODY)) >= title_end:
+				word = w
+		var tw := (9.0 + 3.0 + UIText.width(word, UIText.BOLD, UIText.BODY)) if word != "" else 9.0
 		var tag := _row(Vector2(roundf(right - tw), 12 + roundf(UIText.ascent(UIText.SERIF, UIText.TITLE) - UIText.ascent(UIText.BOLD, UIText.BODY))), 3)
 		tag.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
-		if with_word:
-			tag.add_child(_label("Awakens", Pal.AMBER6, true))
+		if word != "":
+			tag.add_child(_label(word, Pal.AMBER6, true))
+		awaken_tag = tag
+		# the tag's own tooltip (a 16 px hit area at least; touch reaches it with a tap)
+		tag.mouse_filter = Control.MOUSE_FILTER_STOP
+		tag.custom_minimum_size = Vector2(maxf(tw, 16.0), 16.0)
+		Tip.attach(tag, "Awakening", awaken_hint(String(h["name"])), Pal.AMBER6)
 	if c.has("recruit"):
 		l2.add_child(_spacer(4))
 		l2.add_child(_label("+ %s joins" % c["recruit"]["name"], Pal.LIFE4, true))
@@ -127,7 +135,7 @@ func _detail(c: Dictionary, h: Dictionary, lv: int, eff: Vector2i, s: Vector2i) 
 	var out: PackedStringArray = []
 	out.append("Gains a memory: Lv %d to %d." % [lv, lv + 1])
 	if awakens:
-		out.append("Awakens: ready to advance to a new class.")
+		out.append(awaken_hint(String(h["name"])))
 	if eff == Vector2i.ZERO:
 		out.append("No move: already at the grid's edge.")
 	else:
@@ -143,6 +151,11 @@ func _detail(c: Dictionary, h: Dictionary, lv: int, eff: Vector2i, s: Vector2i) 
 		out.append("%s joins the party." % c["recruit"]["name"])
 	out.append("Grid: solid cell now, ring after.")
 	return " ".join(out)
+
+
+## What the "Can Awaken" mark means (its tooltip and the grid's).
+static func awaken_hint(hero_name: String) -> String:
+	return "%s can Awaken after this. At camp, Awaken into the class of the region %s stands in, or keep growing." % [hero_name, hero_name]
 
 
 ## The mini grid's left edge in a row `width` wide.

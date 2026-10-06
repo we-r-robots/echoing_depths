@@ -18,6 +18,8 @@ const RunTuning = preload("res://core/run/run_tuning.gd")
 const GameData = preload("res://core/game_data.gd")
 
 const FORMAT := "echoing_depths.meta"
+## Run saves replay actions under the run's rules; version 2: Awakening at 2 memories from the camp.
+const RUN_SAVE_VERSION := 2
 const DEFAULT_TEAM := "The Lanternrest Company"
 const TEAM_MAX := 32
 
@@ -289,7 +291,8 @@ static func set_team(name: String, crest_id: String) -> void:
 ## the options and the list of player actions; continuing replays them.
 
 static func save_run(seed_value: int, options: Dictionary, actions: Array) -> void:
-	_write(run_path, {"format": "echoing_depths.run", "seed": seed_value, "options": options, "actions": actions})
+	_write(run_path, {"format": "echoing_depths.run", "version": RUN_SAVE_VERSION, "seed": seed_value,
+		"options": options, "actions": actions})
 
 
 static func has_saved_run() -> bool:
@@ -306,6 +309,9 @@ static func load_run() -> Dictionary:
 	var d := _read(run_path)
 	if d.is_empty():
 		return {}
+	if int(d.get("version", 1)) != RUN_SAVE_VERSION:   # older rules: the replay would not match
+		clear_saved_run()
+		return {}
 	var run: RefCounted = Run.new()
 	var opts: Dictionary = d.get("options", {})
 	run.call("start_run", int(d.get("seed", 1)), opts)
@@ -317,7 +323,8 @@ static func load_run() -> Dictionary:
 	return {"run": run, "seed": int(d["seed"]), "options": opts, "actions": actions}
 
 
-## Applies one recorded action: ["choose", i] / ["formation", slots] / ["fight"] / ["advance"].
+## Applies one recorded action: ["choose", i] / ["formation", slots] / ["fight"] / ["advance"] /
+## ["awaken", hero] / ["hold", hero].
 static func replay(run: RefCounted, a: Array) -> Dictionary:
 	match String(a[0]):
 		"choose":
@@ -331,6 +338,10 @@ static func replay(run: RefCounted, a: Array) -> Dictionary:
 			return run.call("resolve_fight")
 		"advance":
 			return run.call("advance")
+		"awaken":
+			return run.call("awaken", int(a[1]))
+		"hold":
+			return run.call("hold_back", int(a[1]))
 	return {"error": "unknown action %s" % str(a)}
 
 

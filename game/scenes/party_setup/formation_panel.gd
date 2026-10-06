@@ -29,7 +29,7 @@ var _sig := ""
 var _flash := 0.0
 var _details_btn: Button
 var _was_open := false
-## Extra foot height for a second button over Confirm (the road's review mode adds Back).
+## Extra foot height for a second button over Confirm (the camp's review mode adds Back).
 var extra_foot := 0
 ## Why Confirm is disabled (set by FormationSetup), shown on the note line; "" when it isn't.
 var confirm_note := "":

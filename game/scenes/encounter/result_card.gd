@@ -30,7 +30,7 @@ var _frame: ColorRect
 var _adv: Label
 var _grid: AlignGrid
 var _reveal: Array[Control] = []
-var _thr := 3
+var _thr := 2
 
 
 func setup(h: Dictionary, b: Dictionary, choice: Dictionary, width: int) -> void:
@@ -44,7 +44,7 @@ func setup(h: Dictionary, b: Dictionary, choice: Dictionary, width: int) -> void
 	var shift: Vector2i = h["pos"] - b["pos"]
 	capped = shift != EncounterDB.shift_of(choice)
 	strong = EncounterDB.is_rare(choice) and not capped
-	_thr = int(EncounterDB.rules().get("advance_threshold", 3))
+	_thr = int(EncounterDB.rules().get("advance_threshold", 2)) if String(h.get("tier", "base")) == "base" else 0
 	var panel := PanelContainer.new()
 	panel.theme_type_variation = &"RarePanel" if strong else &"PanelContainer"
 	panel.size = size
@@ -83,7 +83,7 @@ func setup(h: Dictionary, b: Dictionary, choice: Dictionary, width: int) -> void
 	_lv_new.visible = false
 	_pips = Control.new()
 	_pips.position = Vector2(mx, 53)
-	_pips.set_meta("filled", mini(int(b["level"]), _thr))
+	_pips.set_meta("filled", mini(EncounterDB.memories_of(b), _thr))
 	_pips.set_meta("glow", 0.0)
 	var thr := _thr
 	var pips := _pips
@@ -101,8 +101,8 @@ func setup(h: Dictionary, b: Dictionary, choice: Dictionary, width: int) -> void
 			if on:
 				pips.draw_rect(Rect2(i * 9 + 2, 1, 2, 1), Pal.CRYSTAL5))
 	_add(_pips)
-	var left := _thr - int(h["level"])
-	_adv = _text(("%d more to Awaken" % left) if left > 0 else "Ready to Awaken", Vector2(mx, 61),
+	var left := _thr - EncounterDB.memories_of(h)
+	_adv = _text(("%d more to Awaken" % left) if left > 0 else ("Can Awaken" if _thr > 0 else ""), Vector2(mx, 61),
 		Pal.AMBER6 if left <= 0 else Pal.INK7)
 	_adv.modulate.a = 0.0
 	# shift: one word per line so nothing runs into the grid labels
@@ -188,7 +188,7 @@ func play(delay := 0.7) -> void:
 		_lv_arrow.visible = true
 		_lv_new.visible = true
 		_lv_new.add_theme_color_override("font_color", UIText.legible(Pal.INK10))
-		_pips.set_meta("filled", mini(int(hero["level"]), _thr))
+		_pips.set_meta("filled", mini(EncounterDB.memories_of(hero), _thr))
 		_pips.set_meta("glow", 1.0)
 		_pips.queue_redraw()
 		_frame.color = Pal.CRYSTAL5

@@ -1,9 +1,10 @@
 class_name Flow
 extends Control
 ## The playable flow: title -> Lanternrest (the village hub; the game starts there) -> the Vault
-## entrance starts a new run (or continues the saved one) -> draft -> the run's nodes (encounters, advancement
-## decisions, formation setup, the PvP splash, battles, floor guardians, the Crystal) -> results
-## -> back to Lanternrest. Settings from the title.
+## entrance starts a new run (or continues the saved one) -> draft -> the run's nodes (encounters,
+## formation setup, the PvP splash, battles, floor guardians, the Crystal), with the camp (RunHub:
+## hero details, formation, Awakenings) after every node -> results -> back to Lanternrest.
+## Settings from the title.
 ##
 ## The run itself is core's (core/run/run.gd); each screen is its own scene and this controller
 ## only routes between them, records the player's actions (a run is deterministic from its seed,
@@ -88,16 +89,10 @@ func _next() -> void:
 			_open("draft", v)
 		"choice":
 			_open("encounter", v)
-		"decision":
-			_open("decision", v)
 		"fight":
 			_open("formation", v)
-		"outcome":
-			var last: Dictionary = v.get("last", {})
-			if String(last.get("type", "")) == "fight":
-				_open("road", v)
-			else:
-				_advance()   # the encounter screen already showed this node's outcome
+		"outcome", "decision":   # the camp between nodes (a decision step only with advance_prompt)
+			_open("hub", v)
 		"ended":
 			_finish_run()
 
@@ -145,9 +140,18 @@ func on_encounter_done() -> void:
 	_next()
 
 
-func on_decided(i: int) -> void:
-	_act(["choose", i])
-	_next()
+## The camp: Continue, Formation, or an Awakening / Hold Back for hero i (the run's API; the camp
+## stays open and refreshes).
+func on_hub(action: String, i := -1) -> void:
+	match action:
+		"continue":
+			_advance()
+		"formation":
+			_open_overlay_formation()
+		"awaken", "hold":
+			var res := _act([action, i])
+			if not bot and screen is RunHub and not res.has("error"):
+				(screen as RunHub).refresh()
 
 
 ## Formation confirmed before a fight (the setup screen applied run.set_formation): resolve the
@@ -172,19 +176,7 @@ func on_splash_done(result: Dictionary) -> void:
 
 
 func on_battle_done() -> void:
-	var v: Dictionary = run.call("current_node")
-	if String(v["step"]) == "outcome":
-		_open("road", v)
-	else:
-		_next()
-
-
-func on_road(action: String) -> void:
-	match action:
-		"continue":
-			_advance()
-		"formation":
-			_open_overlay_formation()
+	_next()
 
 
 func on_results_done() -> void:
@@ -283,14 +275,12 @@ func _open(kind: String, data: Dictionary) -> void:
 				screen = null
 				on_encounter_done())
 			screen = s
-		"decision":
-			var s := RoadScreen.open(self, data)
-			s.decided.connect(on_decided)
-			screen = s
-		"road":
-			var s := RoadScreen.open(self, data)
-			s.proceed.connect(on_road.bind("continue"))
-			s.arrange.connect(on_road.bind("formation"))
+		"hub":
+			var s := RunHub.open(self, run)
+			s.proceed.connect(on_hub.bind("continue"))
+			s.arrange.connect(on_hub.bind("formation"))
+			s.awaken_chosen.connect(func(i: int) -> void: on_hub("awaken", i))
+			s.hold_chosen.connect(func(i: int) -> void: on_hub("hold", i))
 			screen = s
 		"formation":
 			var s := FormationSetup.open(self, run)
@@ -323,13 +313,16 @@ func _open(kind: String, data: Dictionary) -> void:
 			screen = s
 
 
-## Formation review from the road (no fight follows): on top of the road screen.
+## Formation review from the camp (no fight follows): on top of the camp.
 func _open_overlay_formation() -> void:
 	visited.append("formation_review")
 	if bot:
 		return
 	var s := FormationSetup.open(self, run, {"mode": "review"})
-	s.confirmed.connect(func(res: Dictionary) -> void: on_formation(res, true))
+	s.confirmed.connect(func(res: Dictionary) -> void:
+		on_formation(res, true)
+		if screen is RunHub:
+			(screen as RunHub).refresh())
 	_overlay = s
 
 
@@ -381,8 +374,11 @@ func bot_step(stop_at := "") -> bool:
 			run.call("choose", pick)
 			on_encounter_chosen(pick)
 			on_encounter_done()
-		"decision":
-			on_decided(0)
+		"hub":   # Awaken every hero who can (a player answering the badge), then Continue
+			for i in (run.call("party_view") as Array).size():
+				if bool(run.call("party_view")[i].get("awaken_new", false)):
+					on_hub("awaken", i)
+			on_hub("continue")
 		"formation":
 			var slots: Array = []
 			for h: Dictionary in run.call("party_view"):
@@ -394,8 +390,6 @@ func bot_step(stop_at := "") -> bool:
 			on_splash_done(d["result"])
 		"battle":
 			on_battle_done()
-		"road":
-			on_road("continue")
 		"results":
 			on_results_done()
 		"lanternrest":

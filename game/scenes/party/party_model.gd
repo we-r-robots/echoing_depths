@@ -84,7 +84,7 @@ static func trail(h: Dictionary) -> Array:
 
 
 static func threshold() -> int:
-	return int(EncounterDB.rules().get("advance_threshold", 3))
+	return int(EncounterDB.rules().get("advance_threshold", 2))
 
 
 static func max_level(h: Dictionary) -> int:
@@ -93,12 +93,16 @@ static func max_level(h: Dictionary) -> int:
 
 ## Memories absorbed in the current tier (a memory is +1 level).
 static func memory_count(h: Dictionary) -> int:
-	if tier(h) == "base" and h.has("memories"):
+	if tier(h) == "base" and h.get("memories", null) is Array:
 		return (h["memories"] as Array).size()
+	if tier(h) == "base" and (h.get("memories", null) is int or h.get("memories", null) is float):
+		return int(h["memories"])
 	return maxi(int(h.get("level", 1)) - 1, 0)
 
 
 static func ready_to_advance(h: Dictionary) -> bool:
+	if h.has("awaken_ready"):   # the run says (core/run/run.gd party_view)
+		return bool(h["awaken_ready"])
 	return tier(h) == "base" and memory_count(h) >= threshold()
 
 
@@ -122,7 +126,11 @@ static func class_for_region(base: String, region: String) -> String:
 
 
 ## What Advancing would produce right now (core lookup: corner first, then its quadrant).
+## A run hero carries the run's answer ("awaken_class": the region's class, or the nearest authored
+## one while the region's class is not written yet).
 static func advance_target(h: Dictionary) -> String:
+	if String(h.get("awaken_class", "")) != "":
+		return String(h["awaken_class"])
 	return Alignment.advanced_class_for(base_class(h), effective(h))
 
 
@@ -290,4 +298,6 @@ static func advanced_copy(h: Dictionary) -> Dictionary:
 	o["memories_before"] = o.get("memories", [])
 	o["memories"] = []
 	o["held_back"] = false
+	o["awaken_ready"] = false
+	o["awaken_class"] = ""
 	return o

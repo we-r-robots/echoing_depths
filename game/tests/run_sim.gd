@@ -2,7 +2,7 @@ extends SceneTree
 ## Simulated playthroughs of whole runs with a bot.
 ##   godot --path game --headless -s res://tests/run_sim.gd -- --seed=N [--n=200] [--policy=greedy|random]
 ## Prints the readable log of the run for seed N, then aggregate stats over N runs (seeds N..N+n-1)
-## played in order against one Echo pool (fresh: user://run_sim_pool.json, seeded with generated
+## played in order against one Echo pool (fresh: user://sandbox/run_sim_pool.json, seeded with generated
 ## Echoes; every finished run adds its snapshot, as in the real game).
 
 const Run = preload("res://core/run/run.gd")
@@ -23,7 +23,7 @@ func _init() -> void:
 			n = maxi(1, int(a.trim_prefix("--n=")))
 		elif a.begins_with("--policy="):
 			policy = a.trim_prefix("--policy=")
-	var path := "user://run_sim_pool.json"
+	var path := "user://sandbox/run_sim_pool.json"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	var pool: RefCounted = EchoPool.open(path)
 	var t0 := Time.get_ticks_msec()

@@ -28,6 +28,21 @@ static func rules() -> Dictionary:
 	return _rules
 
 
+## Memories a hero holds in its current tier: the "memories" count when given (the run's heroes),
+## else level - 1 (a hero starts at level 1; each memory is +1 level).
+static func memories_of(h: Dictionary) -> int:
+	var m: Variant = h.get("memories", null)
+	if m is int or m is float:
+		return int(m)
+	return maxi(0, int(h.get("level", 1)) - 1)
+
+
+## True when one more memory makes this base hero able to Awaken (rules "advance_threshold").
+static func awakens_after(h: Dictionary) -> bool:
+	var thr := int(rules().get("advance_threshold", 2))
+	return String(h.get("tier", "base")) == "base" and memories_of(h) + 1 == thr
+
+
 static func get_encounter(id: String) -> Dictionary:
 	if not _cache.has(id):
 		var d: Variant = load_json(DIR + id + ".json")
@@ -130,6 +145,9 @@ static func bind_choices(e: Dictionary, party: Array, limit := 4) -> Array:
 static func apply_choice(hero: Dictionary, choice: Dictionary) -> Dictionary:
 	var before := {"level": hero["level"], "pos": hero["pos"]}
 	hero["level"] = int(hero["level"]) + 1
+	if hero.get("memories", null) is int:
+		before["memories"] = hero["memories"]
+		hero["memories"] = int(hero["memories"]) + 1
 	hero["pos"] = clamp_pos(hero["pos"] + shift_of(choice))
 	return before
 

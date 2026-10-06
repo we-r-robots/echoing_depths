@@ -1,6 +1,6 @@
 class_name FlowUI
 extends RefCounted
-## Small builders shared by the flow screens (title, road, splash, results, Lanternrest,
+## Small builders shared by the flow screens (title, camp, splash, results, Lanternrest,
 ## settings). Everything uses the shared theme (ui/theme.tres) variations and named sizes, so
 ## these screens match the draft, setup and encounter screens.
 

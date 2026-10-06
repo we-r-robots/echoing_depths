@@ -10,6 +10,7 @@ extends Control
 ##   s.chosen.connect(func(index, res): ...)   # after run.choose(index)
 ##   s.finished.connect(func(): ...)           # Continue; the screen frees itself
 ## Standalone it plays a demo node from a seeded run (picks the first choice after 3 s).
+## `-- --demo=awaken`: a node where a choice lets its hero Awaken, with that mark's tooltip open.
 
 signal chosen(index: int, res: Dictionary)
 signal finished
@@ -41,6 +42,7 @@ var _where: Label
 var _done := false
 var _t := 0.0
 var _over: Control
+var _tip_shown := false
 
 
 static func open(parent: Node, r: RefCounted) -> RunEncounter:
@@ -76,11 +78,31 @@ func _ready() -> void:
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--depth="):
 				depth = int(a.substr(8))
-		run = demo_run(11, depth)
+		run = demo_awaken_run() if _demo_awaken() else demo_run(11, depth)
 	node = run.call("current_node")
 	_build()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
+
+
+static func _demo_awaken() -> bool:
+	return "--demo=awaken" in OS.get_cmdline_user_args()
+
+
+## A demo run stopped at an encounter where a choice would let a hero with 3+ party members Awaken.
+static func demo_awaken_run() -> RefCounted:
+	for sd in range(11, 60):
+		for depth in [2, 3, 5]:
+			var r := demo_run(sd, depth)
+			var v: Dictionary = r.call("current_node")
+			if String(v["step"]) != "choice" or v["party"].size() < 3:
+				continue
+			for c: Dictionary in v["choices"]:
+				var hi := int(c.get("hero_index", -1))
+				if hi >= 0 and EncounterDB.awakens_after(_hero_for_button(v["party"][hi])) \
+						and String(c.get("label", "")).length() <= 16:   # room for the words beside it
+					return r
+	return demo_run(11, 4)
 
 
 func _art_for(enc: Dictionary, kind: String) -> Dictionary:
@@ -191,11 +213,14 @@ func _build_chips() -> void:
 		_chips.append(chip)
 
 
-## The encounter screen's hero format: base class (portrait, colour), level, grid position.
+## The encounter screen's hero format: base class (portrait, colour), level, grid position, and
+## the tier and memories (toward Awakening: the run counts them, level - 1 only at base tier).
 static func _hero_for_button(h: Dictionary) -> Dictionary:
 	var al: Array = h.get("alignment", [0, 0])
+	var tier := String(h.get("tier", "base"))
 	return {"name": h.get("name", ""), "class": String(h.get("base", h.get("class", ""))),
-		"level": int(h.get("level", 1)), "pos": Vector2i(int(al[0]), int(al[1]))}
+		"level": int(h.get("level", 1)), "pos": Vector2i(int(al[0]), int(al[1])), "tier": tier,
+		"memories": int(h.get("memories", 0)) if tier == "base" else maxi(0, int(h.get("level", 1)) - 1)}
 
 
 ## The run's choice view in the encounter screen's format (shift as {good, law}).
@@ -274,11 +299,12 @@ func _result_lines(res: Dictionary, after: Dictionary, on_card := false) -> Arra
 		out.append(["Found: %s" % item_name(String(res["item"])), Pal.AMBER6])
 	if res.has("lore"):
 		out.append(["Found: %s" % String(res["lore"]).replace("_", " ").capitalize(), Pal.VIOLET4])
-	match String(after.get("step", "")):
-		"fight":
-			out.append(["A fight! Arrange your party next.", Pal.BLOOD4])
-		"decision":
-			out.append(["%s is ready to advance." % String(after.get("hero_name", "")), Pal.AMBER6])
+	if res.has("memory"):
+		var hi := int(res["memory"]["hero_index"])
+		if hi < party.size() and bool(party[hi].get("awaken_new", false)):
+			out.append(["%s can Awaken now (at camp)." % String(party[hi]["name"]), Pal.AMBER6])
+	if String(after.get("step", "")) == "fight":
+		out.append(["A fight! Arrange your party next.", Pal.BLOOD4])
 	return out
 
 
@@ -321,7 +347,18 @@ func _layout() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
-	if demo and not _done and _t > 3.0:
+	if demo and _demo_awaken():
+		if _t > 1.0 and not _tip_shown:
+			_tip_shown = true
+			var best: Control = null   # the mark with its words, else any
+			for b in _choices.get_children():
+				if b is EncounterChoiceButton and (b as EncounterChoiceButton).awaken_tag != null:
+					var tag := (b as EncounterChoiceButton).awaken_tag
+					if best == null or tag.get_child_count() > best.get_child_count():
+						best = tag
+			if best != null:
+				Tip.show_for(best)
+	elif demo and not _done and _t > 3.0:
 		var cs: Array = node.get("choices", [])
 		if not cs.is_empty():
 			choose(int(cs[0]["index"]))

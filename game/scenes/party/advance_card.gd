@@ -65,7 +65,7 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(W, H)
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	_btn_adv = ActionButton.new("Advance")
+	_btn_adv = ActionButton.new("Awaken")
 	_btn_adv.position = Vector2(22, H - 34)
 	_btn_adv.size = Vector2(92, 26)
 	_btn_adv.primary = true
@@ -157,7 +157,7 @@ func _draw_advance(r: Rect2) -> void:
 	_box(r, Pal.AMBER5, lit)
 	var x := r.position.x + 5
 	var y := r.position.y
-	PartyDraw.text(self, Vector2(x, y + 2), "ADVANCE", Pal.AMBER6 if lit else Pal.AMBER5, PartyDraw.BOLD)
+	PartyDraw.text(self, Vector2(x, y + 2), "AWAKEN", Pal.AMBER6 if lit else Pal.AMBER5, PartyDraw.BOLD)
 	var lv := "new class from Lv 1"   # (critic r2: "Lv 4 → 1" read like a loss)
 	PartyDraw.text(self, Vector2(r.position.x, y + 2), lv, Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, r.size.x - 6, HORIZONTAL_ALIGNMENT_RIGHT)
 	var adv := PartyModel.advanced_copy(hero)

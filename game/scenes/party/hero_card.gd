@@ -80,7 +80,7 @@ func _ready() -> void:
 	_sprite.scale = Vector2(2, 2)
 	_clip.add_child(_sprite)
 	_advance = Button.new()
-	_advance.text = "Advance"
+	_advance.text = "Awaken"
 	_advance.position = Vector2(94, 84)
 	_advance.theme_type_variation = &"PrimaryButton"   # the card's one main action
 	_advance.custom_minimum_size = Vector2(60, 24)
@@ -110,7 +110,7 @@ func set_hero(h: Dictionary) -> void:
 	_build_equip_chips()
 	var ready := PartyModel.ready_to_advance(h)
 	_advance.visible = ready
-	_advance.text = "Advance"   # (held back: the HELD tag beside it says so; "Advance now" pushed it off the card)
+	_advance.text = "Awaken"   # (held back: the HELD tag beside it says so; "Awaken now" pushed it off the card)
 	_advance.size = Vector2(maxi(60, PartyDraw.text_w(_advance.text, PartyDraw.BOLD, UIText.NUMBER) + 28), 24)
 	queue_redraw()
 
@@ -135,7 +135,7 @@ func _build_tips() -> void:
 	var th := PartyModel.threshold()
 	var n := PartyModel.memory_count(hero)
 	var base_tier := PartyModel.tier(hero) == "base"
-	var body := "%d of %d memories toward advancing. Each encounter choice gives the hero who acts one memory; at %d the hero can Advance to a new class." % [mini(n, th), th, th]
+	var body := "%d of %d memories toward Awakening. Each encounter choice gives the hero who acts one memory; at %d the hero can Awaken into a new class." % [mini(n, th), th, th]
 	var mem: Array = hero.get("memories_before", []) + hero.get("memories", [])
 	# one well per memory taken (its tooltip names the shift), then the empty wells still to fill
 	for i in maxi(mem.size(), th if base_tier else 0):
@@ -155,7 +155,7 @@ func _build_tips() -> void:
 		Tip.attach(_class_tip, PartyModel.class_name_of(String(hero["class"])),
 			"An advanced class. Its level stars fill as it grows. Legendary gate: sealed (a Legendary class needs a sacrifice).", Pal.AMBER6)
 	var a := PartyModel.ability_of(String(hero["class"]))
-	var note := "Replaced by the new class's ability on advancing." if PartyModel.tier(hero) == "base" else "This advanced class's ability."
+	var note := "Replaced by the new class's ability on Awakening." if PartyModel.tier(hero) == "base" else "This advanced class's ability."
 	_ability_tip = _tip_area(Rect2(6, ABILITY_Y - 3, W - 12, 20))
 	Tip.attach(_ability_tip, String(a.get("name", "")), PartyModel.ability_desc(a) + " " + note, Pal.c(info["color"]))
 

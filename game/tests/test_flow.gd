@@ -44,7 +44,7 @@ func test_bot_plays_title_to_lanternrest_and_meta_is_saved() -> void:
 	while flow.bot_step("title") and n < 2000:
 		n += 1
 	var seen := flow.visited
-	for k in ["title", "draft", "encounter", "formation", "battle", "splash", "road", "results", "lanternrest"]:
+	for k in ["title", "draft", "encounter", "formation", "battle", "splash", "hub", "results", "lanternrest"]:
 		check(seen.has(k), "the flow opened the %s screen" % k)
 	eq(String(flow.pending.get("kind", "")), "title", "after Lanternrest the flow is back at the title")
 	check(bool(flow.run.call("is_over")), "the run ended")
@@ -175,3 +175,91 @@ func test_lanternrest_tile_labels_and_icons_fit() -> void:
 			"%s icon %s sits inside its %s tile with 4 px to spare" % [nm, r, T])
 		check(r.end.x + 4 <= TrainingGroundsPanel.TILE_TEXT_X, "%s icon clears the name" % nm)
 		check(absf(r.position.y - (T.y - r.end.y)) <= 1.0, "%s icon is centred vertically" % nm)
+
+
+func test_camp_after_every_node_and_awakening_from_it() -> void:
+	_fresh()
+	var flow: Flow = Flow.new()
+	flow.bot = true
+	flow.start_new_run(5151)
+	var hubs := 0
+	var awakened := 0
+	var n := 0
+	while not flow.pending.is_empty() and n < 3000:
+		n += 1
+		var p: Dictionary = flow.pending
+		if String(p["kind"]) == "results":
+			break
+		if String(p["kind"]) == "hub":
+			hubs += 1
+			eq(String(flow.run.call("current_node")["step"]), "outcome", "the camp opens on a node's outcome")
+			for h: Dictionary in flow.run.call("party_view"):
+				if bool(h["awaken_new"]):
+					awakened += 1
+		flow.bot_step("results")
+	check(hubs >= 10, "the camp opened after every node (%d)" % hubs)
+	check(awakened > 0, "heroes Awakened from the camp (%d)" % awakened)
+	check(not flow.visited.has("decision"), "no forced decision prompt")
+	var acts: Array = flow.actions.filter(func(a: Array) -> bool: return String(a[0]) == "awaken")
+	eq(acts.size(), awakened, "each Awakening is a recorded action")
+	flow.free()
+	_done()
+
+
+func test_saved_run_replays_awakenings() -> void:
+	_fresh()
+	var flow: Flow = Flow.new()
+	flow.bot = true
+	flow.start_new_run(5252)
+	var n := 0
+	while n < 400 and flow.actions.filter(func(a: Array) -> bool: return String(a[0]) == "awaken").size() < 1:
+		flow.bot_step("results")
+		n += 1
+	var before: Dictionary = flow.run.call("current_node")
+	var flow2: Flow = Flow.new()
+	flow2.bot = true
+	flow2.continue_run()
+	eq(var_to_str(flow2.run.call("party_view")), var_to_str(before["party"]), "the Awakening replays from the save")
+	# a save from older rules (no version) is dropped, never replayed wrong
+	var d := GameState._read(GameState.run_path)
+	d.erase("version")
+	GameState._write(GameState.run_path, d)
+	check(GameState.load_run().is_empty(), "an old-format save is discarded")
+	flow.free()
+	flow2.free()
+	_done()
+
+
+func test_tests_never_use_the_player_files() -> void:
+	GameState.use_default_paths()
+	for p: String in [GameState.settings_path, GameState.meta_path, GameState.run_path, GameState.pool_path]:
+		check(p.begins_with("user://sandbox/"), "default path here is the sandbox: %s" % p)
+	check(String(GameState.run_options()["pool_path"]).begins_with("user://sandbox/"), "runs started here use the sandbox pool")
+
+
+func test_awakens_mark_explains_itself() -> void:
+	eq(EncounterDB.memories_of({"level": 1}), 0, "level 1: no memories yet")
+	check(EncounterDB.awakens_after({"level": 2, "class": "mage"}), "the 2nd memory Awakens (level 2 -> 3)")
+	check(not EncounterDB.awakens_after({"level": 1, "class": "mage"}), "the 1st does not")
+	check(not EncounterDB.awakens_after({"level": 2, "memories": 1, "tier": "advanced"}), "an Awakened hero never shows it")
+	var btn := EncounterChoiceButton.new()
+	var root := Control.new()
+	root.add_child(btn)
+	btn.setup({"id": "x", "class": "mage", "label": "Ask", "shift": {"good": 0, "law": 1}},
+		{"name": "Wren", "class": "mage", "level": 2, "memories": 1, "tier": "base", "pos": Vector2i(0, 0)}, 0, 276)
+	check(btn.awakens and btn.awaken_tag != null, "the row carries the Awaken mark")
+	var tip: Dictionary = btn.awaken_tag.get_meta("tip", {})
+	check(String(tip.get("body", "")).begins_with("Wren can Awaken after this"), "its tooltip says who and when")
+	check(btn.awaken_tag.mouse_filter == Control.MOUSE_FILTER_STOP, "touch reaches the tooltip")
+	root.free()
+
+
+func test_camp_detail_hero_format() -> void:
+	var h := {"name": "Vael", "class": "fighter", "base": "fighter", "tier": "base", "level": 3, "memories": 2,
+		"trail": [[0, 1], [1, 0]], "trail_before": [], "held": false, "awaken_ready": true, "awaken_new": true,
+		"awaken_class": "paladin", "alignment": [1, 1], "items": {}, "slot": [0, 1]}
+	var d := RunHub.detail_hero(h)
+	eq(PartyModel.memory_count(d), 2, "hero detail counts the run's memories")
+	check(PartyModel.ready_to_advance(d), "ready in hero detail")
+	eq(PartyModel.advance_target(d), "paladin", "hero detail Awakens into the run's class")
+	eq(String(PartyModel.advanced_copy(d)["class"]), "paladin", "the preview matches the run")

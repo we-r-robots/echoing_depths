@@ -13,12 +13,14 @@ var _level: Label
 var grid: AlignGrid
 var _glow := 0.0
 var _pips_shown := 0
-var _threshold := 3
+var _threshold := 2
+var _base := true
 
 
 func setup(h: Dictionary) -> void:
 	hero = h
-	_threshold = int(EncounterDB.rules().get("advance_threshold", 3))
+	_threshold = int(EncounterDB.rules().get("advance_threshold", 2))
+	_base = String(h.get("tier", "base")) == "base"
 	custom_minimum_size = Vector2(W, H)
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -45,12 +47,13 @@ func setup(h: Dictionary) -> void:
 	grid.from_pos = h["pos"]
 	grid.to_pos = h["pos"]
 	add_child(grid)
-	set_level(int(h["level"]))
+	set_level(int(h["level"]), EncounterDB.memories_of(h))
 
 
-func set_level(lv: int) -> void:
+## Level and memories (default level - 1) for the pips toward Awakening.
+func set_level(lv: int, memories := -1) -> void:
 	_level.text = "Lv %d" % lv
-	_pips_shown = mini(lv, _threshold)
+	_pips_shown = mini(memories if memories >= 0 else lv - 1, _threshold)
 	queue_redraw()
 
 
@@ -71,9 +74,9 @@ func _draw() -> void:
 		var g := Pal.CRYSTAL5
 		g.a = _glow
 		draw_rect(Rect2(-1, -1, 28, 28), g, false, 1.0)
-	# memory pips toward the advancement threshold
+	# memory pips toward the advancement threshold (base heroes; an Awakened one is past it)
 	var x := 30 + 22
-	for i in _threshold:
+	for i in (_threshold if _base else 0):
 		var r := Rect2(x + i * 5, 15, 4, 4)
 		draw_rect(r, Pal.INK1)
 		draw_rect(r.grow(-1), Pal.CRYSTAL4 if i < _pips_shown else Pal.INK4)

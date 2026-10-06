@@ -168,7 +168,7 @@ func open_advancement() -> void:
 	_align.grid.focus_region = target
 	var reach := AdvanceCard.hold_reach(h)
 	_align.grid.reach_cell = reach["cell"] if not reach.is_empty() else null
-	_message_override = "Advance takes the class where %s stands now." % h["name"]
+	_message_override = "Awakening takes the class where %s stands now." % h["name"]
 	queue_redraw()
 
 
@@ -234,15 +234,15 @@ func _describe(h: Dictionary) -> String:
 		return "%s is a %s; Legendary needs a sacrifice." % [name, PartyModel.class_name_of(String(h["class"]))]
 	if PartyModel.ready_to_advance(h):
 		if h.get("held_back", false):
-			return "%s is held back and can advance at any rest." % name
-		return "%s is ready to advance." % name
+			return "%s is held back and can still Awaken at camp." % name
+		return "%s can Awaken now." % name
 	var off := PartyModel.relic_offset(h)
 	var left := PartyModel.threshold() - PartyModel.memory_count(h)
 	if off != [0, 0]:
 		var relic := PartyModel.item(String(h["items"].get("relic", "")))
 		return "The %s moves %s %s on the grid." % [relic.get("name", "Relic"), name,
 			"one step" if absi(int(off[0])) + absi(int(off[1])) == 1 else "two steps"]
-	return "%s needs %d more memor%s to advance." % [name, left, "y" if left == 1 else "ies"]
+	return "%s needs %d more memor%s to Awaken." % [name, left, "y" if left == 1 else "ies"]
 
 
 func _process(delta: float) -> void:
