@@ -1,25 +1,26 @@
 extends "res://tests/test_case.gd"
-## The advanced classes the user approved in round 1 (docs/design/class-verdicts-round1.md): the
-## roster and its regions, the fallback for regions with no approved class, save migration, and
-## every new ability as a deterministic sim.
+## The advanced classes the user approved in rounds 1 and 2 (docs/design/class-verdicts-round1.md,
+## -round2.md): the roster and its regions, the fallback for regions with no approved class, save
+## migration, and every round-1 ability as a deterministic sim (round 2: tests/test_classes_r2.gd).
 
 const CombatSim = preload("res://core/combat_sim.gd")
 const GameData = preload("res://core/game_data.gd")
 const Alignment = preload("res://core/alignment.gd")
 const Echo = preload("res://core/echo.gd")
+const LegendGate = preload("res://core/run/legend_gate.gd")
 
 const FAST := {"start_charge_spread": 0, "start_charge_bonus": 100}   # everyone starts at 99 charge
 
-## base -> region -> class: exactly the APPROVED regions (live classes kept where the region is
-## PICK ONE or the live class was voted maybe: Paladin, Duelist).
+## base -> region -> class: exactly the APPROVED regions (rounds 1-3). Every region has one now.
 const ROSTER := {
-	"fighter": {"LG": "paladin", "LE": "shackler", "CE": "berserker", "LE*": "iron_marshal", "CG*": "echoblade"},
-	"rogue": {"CE": "cutpurse", "CE*": "fadewalker", "CG": "duelist", "LE": "assassin", "LE*": "nightshade",
-		"LG*": "unseen_warden"},
+	"fighter": {"N": "halberdier", "LG": "lightsworn", "CG": "bladebreaker", "LE": "shackler", "CE": "berserker",
+		"LE*": "iron_marshal", "CG*": "echoblade", "CE*": "ravager", "LG*": "aegisbearer"},
+	"rogue": {"N": "saboteur", "LG": "nightwatch", "CE": "cutpurse", "CE*": "fadewalker", "CG": "duelist",
+		"LE": "assassin", "LE*": "nightshade", "LG*": "unseen_warden", "CG*": "informant"},
 	"healer": {"LG": "cleric", "N": "threadmender", "LG*": "lumenward", "CG": "rekindler", "LE": "tithekeeper",
-		"CG*": "wickburner", "LE*": "confessor", "CE*": "gravecaller"},
+		"CE": "bloodletter", "CG*": "wickburner", "LE*": "confessor", "CE*": "gravecaller"},
 	"mage": {"CG": "stormwake", "N": "archmage", "CG*": "starcaller", "LG": "lampwright", "CE": "warlock",
-		"LE": "runebinder", "LG*": "chronist", "CE*": "wildfire"},
+		"LE": "runebinder", "LG*": "chronist", "CE*": "wildfire", "LE*": "enshriner"},
 }
 
 
@@ -82,28 +83,59 @@ func test_roster_is_exactly_the_approved_regions() -> void:
 			eq(Alignment.region_class(b, reg), String(ROSTER[b][reg]), "%s %s -> %s" % [b, reg, ROSTER[b][reg]])
 	eq(n, total, "no unapproved advanced class in data")
 	check(not GameData.has_class("necromancer"), "Necromancer is gone (the user dropped it)")
-	eq(String(GameData.get_class_def("shackler")["name"]), "Shackler", "Shackler keeps a stable id; its name is data only")
+	check(not GameData.has_class("paladin"), "Paladin is retired (round 2: Lightsworn replaces it)")
+	eq(String(GameData.get_class_def("shackler")["name"]), "Warden of Chains", "renamed in round 2; the id stays shackler")
+	eq(String(GameData.get_class_def("shackler")["ability"]), "shackle", "and it keeps its pull ability")
 
 
-func test_unwritten_regions_fall_back_to_the_nearest_approved_region() -> void:
-	# PROVISIONAL: nearest region by grid steps from the hero's cell; ties -> nearer the base's start
-	eq(Alignment.advanced_class_for("fighter", [0, 1]), "paladin", "Fighter N (start): LG and LE tie at 1 step -> data order (LG)")
-	eq(Alignment.advanced_class_for("fighter", [0, -1]), "berserker", "Fighter N, Freedom side -> CE 1 step")
-	eq(Alignment.advanced_class_for("fighter", [1, -1]), "paladin", "Fighter CG: LG, CE, CG* tie at 2 -> LG is nearest the start")
-	eq(Alignment.advanced_class_for("fighter", [2, 2]), "paladin", "Fighter LG* -> LG")
-	eq(Alignment.advanced_class_for("fighter", [-2, -2]), "berserker", "Fighter CE* -> CE")
-	eq(Alignment.advanced_class_for("rogue", [0, 0]), "cutpurse", "Rogue N -> CE (the start's region)")
-	eq(Alignment.advanced_class_for("rogue", [2, -2]), "duelist", "Rogue CG* -> CG")
-	eq(Alignment.advanced_class_for("rogue", [1, 1]), "duelist", "Rogue LG: CG, LE, LG* tie at 2; CG and LE tie on the start -> data order")
-	eq(Alignment.advanced_class_for("healer", [-1, -1]), "threadmender", "Healer CE (pick one) -> N 1 step")
-	eq(Alignment.advanced_class_for("healer", [-2, -1]), "threadmender", "Healer CE edge: N and CE* tie at 1 -> N is nearer the start")
-	eq(Alignment.advanced_class_for("healer", [-2, -2]), "gravecaller", "Healer CE* -> its own class")
-	eq(Alignment.advanced_class_for("mage", [-2, 2]), "runebinder", "Mage LE* (open) -> LE")
-	check(Alignment.is_fallback("mage", [-2, 2]) and not Alignment.is_fallback("mage", [-1, 1]), "is_fallback marks stand-ins")
+func test_no_region_falls_back_any_more() -> void:
+	# Round 3: every region has an approved class. The nearest-region fallback stays in the code only
+	# as a safety net, and no cell of any base uses it.
+	eq(Alignment.advanced_class_for("fighter", [0, 1]), "halberdier", "Fighter N (start) has its own class now")
+	eq(Alignment.advanced_class_for("fighter", [2, 2]), "aegisbearer", "Fighter LG* -> Aegisbearer")
+	eq(Alignment.advanced_class_for("fighter", [-2, -2]), "ravager", "Fighter CE* -> its own class (Ravager)")
+	eq(Alignment.advanced_class_for("rogue", [2, -2]), "informant", "Rogue CG* -> Informant")
+	eq(Alignment.advanced_class_for("rogue", [0, 0]), "saboteur", "Rogue N has its own class now")
+	eq(Alignment.advanced_class_for("rogue", [1, 1]), "nightwatch", "Rogue LG has its own class now")
+	eq(Alignment.advanced_class_for("healer", [-1, -1]), "bloodletter", "Healer CE has its own class now")
+	eq(Alignment.advanced_class_for("mage", [-2, 2]), "enshriner", "Mage LE* has its own class now")
+	check(not Alignment.is_fallback("mage", [-2, 2]) and not Alignment.is_fallback("healer", [-1, -1]), "filled regions are not stand-ins")
+	var stand_ins := 0
+	for b: String in ROSTER:
+		for g in range(-2, 3):
+			for l in range(-2, 3):
+				if Alignment.is_fallback(b, [g, l]):
+					stand_ins += 1
+	eq(stand_ins, 0, "no cell of any base uses a stand-in")
 	for b: String in ROSTER:
 		for g in range(-2, 3):
 			for l in range(-2, 3):
 				check(Alignment.advanced_class_for(b, [g, l]) != "", "%s at [%d,%d] always advances" % [b, g, l])
+
+
+func test_paladin_saves_migrate_to_lightsworn() -> void:
+	# Round 2: Paladin retired; every saved reference loads as Lightsworn (Echoes, pools, monuments
+	# through migrate_heroes; legend memories through the canonical id).
+	var raw := {"format": Echo.FORMAT, "version": 2, "data_version": 1, "name": "Old", "meta": {},
+		"heroes": [{"name": "Brannoc", "class": "paladin", "level": 3, "items": {}, "alignment": [1, 1], "slot": [0, 1]},
+			{"name": "Pell", "class": "fighter", "level": 1, "items": {}, "alignment": [0, 1], "slot": [0, 2]}]}
+	var res := Echo.from_dict(raw)
+	check(res.has("echo"), "an Echo naming the retired Paladin still loads: %s" % str(res.get("error", "")))
+	eq(String(res["echo"]["heroes"][0]["class"]), "lightsworn", "Paladin -> Lightsworn")
+	var res1 := Echo.from_dict({"format": Echo.FORMAT, "version": 1, "data_version": 1, "name": "Older", "meta": {},
+		"heroes": [{"name": "B", "class": "paladin", "level": 1, "items": {}, "alignment": [1, 1], "slot": [0, 1]},
+			{"name": "C", "class": "cleric", "level": 1, "items": {}, "alignment": [1, 1], "slot": [1, 1]}]})
+	eq(String(res1["echo"]["heroes"][0]["class"]), "lightsworn", "a v1 Echo migrates too")
+	eq(GameData.canonical_class("paladin"), "lightsworn", "canonical id")
+	var monument := {"heroes": [{"class": "paladin"}, {"class": "necromancer"}, {"class": "rogue"}]}
+	eq(GameData.migrate_heroes(monument["heroes"]), 2, "a monument's Paladin and Necromancer migrate")
+	eq(String(monument["heroes"][0]["class"]), "lightsworn", "in place")
+	eq(String(GameData.get_class_def("lantern_saint")["advances_from"]), "lightsworn", "Lantern Saint's parent is Lightsworn")
+	check(GameData.get_class_def("lantern_saint").has("provisional"), "... marked PROVISIONAL in data")
+	eq(Alignment.legendary_class_for("lightsworn"), "lantern_saint", "the Legendary lookup follows")
+	eq(String(LegendGate.encounter_for("lightsworn").get("id", "")), "legend_lightsworn", "the legend's memory moved")
+	eq(String(LegendGate.encounter_for("paladin").get("id", "")), "legend_lightsworn", "an old id finds it too")
+	check(GameState.RUN_SAVE_VERSION >= 4, "run saves from before round 2 are dropped (the replay would differ)")
 
 
 func test_necromancer_saves_migrate_to_gravecaller() -> void:
@@ -135,7 +167,11 @@ func test_every_new_ability_has_label_tooltip_and_icon() -> void:
 		var st: Dictionary = GameData.Statuses.STATUSES[id]
 		check(EffectIcons.ICONS.has(String(st["icon"])), "status %s has an icon" % id)
 		check(String(st["short"]).length() <= 20, "status %s short label" % id)
-	check(GameData.get_action("grave_bolt").has("provisional"), "Gravecaller's fallback is marked PROVISIONAL in data")
+	check(GameData.get_action("grave_bolt").has("provisional"), "Gravecaller's full-front fallback is marked PROVISIONAL in data")
+	check(GameData.get_action("enshrine").has("provisional") and GameData.get_class_def("enshriner").has("provisional"),
+		"the Reliquarist's seal rules are marked PROVISIONAL in data")
+	eq(String(GameData.get_class_def("enshriner")["name"]), "Reliquarist", "round 3: Enshriner renamed Reliquarist (id kept)")
+	check(GameData.get_action("read_the_orders").has("provisional"), "the Informant's split and fallback are PROVISIONAL in data")
 	check(String(GameData.get_action("brand_of_flame")["name"]).contains("Flame"), "Confessor's brand is flame-themed")
 
 
@@ -162,8 +198,9 @@ func test_shackler_drags_the_back_foe_forward() -> void:
 		eq(int(next["target"]), back, "melee now meets the pulled unit")
 
 
-func test_iron_marshal_drives_edge_adjacent_allies() -> void:
-	var a := party([hero("iron_marshal", 0, 1, 2), hero("rogue", 0, 2), hero("mage", 1, 1), hero("healer", 1, 3)])
+func test_iron_marshal_drives_every_adjacent_ally() -> void:
+	# round 2 (q-6): "adjacent", diagonals included; a unit two rows away is not adjacent
+	var a := party([hero("iron_marshal", 0, 1, 2), hero("rogue", 0, 2), hero("mage", 1, 0), hero("healer", 1, 3)])
 	var b := party([hero("stone_sentinel", 0, 1, 6), hero("stone_sentinel", 0, 2, 6)])
 	var r := _sim(2, a, b)
 	var act := _ability_of(r, 0)
@@ -177,16 +214,17 @@ func test_iron_marshal_drives_edge_adjacent_allies() -> void:
 		if ev["type"] == "damage" and String(ev["primary"].get("id", "")) == "cost":
 			paid[int(ev["dst"])] = true
 	var rogue := uid_at(r, 0, 0, 2)
-	var mage := uid_at(r, 0, 1, 1)
+	var mage := uid_at(r, 0, 1, 0)
 	var healer := uid_at(r, 0, 1, 3)
-	check(driven.has(rogue) and driven.has(mage) and not driven.has(healer), "edge-adjacent allies only (%s)" % str(driven.keys()))
+	check(driven.has(rogue) and driven.has(mage) and not driven.has(healer),
+		"the edge neighbour and the diagonal one, not the far one (%s)" % str(driven.keys()))
 	check(paid.has(rogue) and paid.has(mage) and not paid.has(0), "each driven ally pays a little HP, not the Marshal")
-	var eff: Dictionary = GameData.get_action("drive_on")["effects"][0]
-	eq(String(eff["adjacency"]), "edge", "the adjacency set is a data field (edge as written; 'all' = each adjacent)")
+	for e: Dictionary in GameData.get_action("drive_on")["effects"]:
+		eq(String(e["adjacency"]), "all", "adjacency 'all' (diagonals included)")
 
 
 func test_iron_marshal_alone_strikes_instead() -> void:
-	var a := party([hero("iron_marshal", 0, 0, 2), hero("mage", 1, 3)])
+	var a := party([hero("iron_marshal", 0, 0, 2), hero("mage", 1, 2)])
 	var r := _sim(3, a, duo(hero("fighter", 0, 0)))
 	eq(String(_ability_of(r, 0)["action"]), "marshal_strike", "no ally beside it: the fallback strike")
 
@@ -382,12 +420,12 @@ func test_wickburner_burns_its_hp_to_heal_the_others() -> void:
 
 func test_confessor_brands_against_healing() -> void:
 	var a := party([hero("fighter", 0, 1, 3), hero("confessor", 1, 1, 2)])
-	var b := party([hero("fighter", 0, 1), hero("cleric", 1, 1, 3)])
+	var b := party([hero("fighter", 0, 1, 5), hero("cleric", 1, 1, 3)])
 	var r := _sim(16, a, b)
 	var act := _ability_of(r, 1)
-	eq(String(act["action"]), "brand_of_flame", "Brand of Flame fires")
-	var br := _first(r, "status", func(ev: Dictionary) -> bool: return ev["status"] == "heal_block")
-	eq(int(br["uid"]), int(act["target"]), "the struck foe is branded")
+	eq(String(act["action"]), "brand_of_flame", "the Retribution Flame (id brand_of_flame) fires")
+	var br := _first(r, "status", func(ev: Dictionary) -> bool: return ev["status"] == "heal_invert")
+	eq(int(br["uid"]), int(act["target"]), "the struck foe is branded: its heals burn it")
 
 
 func test_gravecaller_raises_a_weaker_husk() -> void:
@@ -409,11 +447,12 @@ func test_gravecaller_raises_a_weaker_husk() -> void:
 	eq(String(sp["unit"]["basic"]["id"]), String(src["basic"]["id"]), "it fights with the fallen unit's basic action")
 
 
-func test_gravecaller_with_no_fallen_hits_the_weakest_foe() -> void:
-	var a := party([hero("fighter", 0, 1, 3), hero("gravecaller", 1, 1, 2)])
+func test_gravecaller_with_a_full_front_hits_the_weakest_foe() -> void:
+	# PROVISIONAL: no free front slot for any husk -> Grave Bolt
+	var a := party([hero("fighter", 0, 0, 3), hero("fighter", 0, 1, 3), hero("rogue", 0, 2, 3), hero("gravecaller", 0, 3, 2)])
 	var r := _sim(18, a, party([hero("fighter", 0, 1, 3), hero("mage", 1, 3)]))
-	var act := _ability_of(r, 1)
-	eq(String(act["action"]), "grave_bolt", "PROVISIONAL fallback: Grave Bolt")
+	var act := _ability_of(r, 3)
+	eq(String(act["action"]), "grave_bolt", "PROVISIONAL full-front fallback: Grave Bolt")
 
 
 # ------------------------------------------------------------------ Mage

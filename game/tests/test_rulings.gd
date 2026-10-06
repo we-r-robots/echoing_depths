@@ -112,25 +112,61 @@ func test_ruling4_fading_builds_no_charge() -> void:
 	check(ticks > 100, "Fading ticks sampled (%d)" % ticks)
 
 
-func test_ruling4_no_charge_while_own_ability_effect_is_active() -> void:
-	# Nightshade's poison lasts 6 s: Nightshade gains no charge while it is on the foe.
+func test_ruling4_statuses_on_others_no_longer_lock_charge() -> void:
+	# Playtest fix (2026-10-06): Nightshade keeps charging while its poison is on a foe; only its own
+	# standing summons (or a flagged self-applied sustain status) lock a unit's charge.
 	var a := party([hero("nightshade", 0, 1, 2), hero("mage", 1, 3)])
 	var b := party([hero("stone_sentinel", 0, 1, 5), hero("stone_sentinel", 0, 2, 5)])
 	var r := CombatSim.simulate(8, a, b, {"tuning": FAST})
 	var on := false
-	var checked := 0
+	var gained := 0
 	for ev: Dictionary in r["events"]:
 		if ev["type"] == "status" and ev["status"] == "poison" and int(ev["src"]) == 0:
 			on = true
 		elif ev["type"] == "status_end" and ev["status"] == "poison":
 			on = false
-		elif ev["type"] == "charge" and int(ev["uid"]) == 0 and on:
+		elif ev["type"] == "charge" and int(ev["uid"]) == 0 and on and int(ev["delta"]) > 0:
+			gained += 1
+	check(gained > 0, "Nightshade gains charge while its poison is active (%d)" % gained)
+	for id: String in GameData.Statuses.STATUSES:
+		check(not bool(GameData.Statuses.STATUSES[id].get("locks_charge", false)), "no approved status locks charge yet (%s)" % id)
+
+
+func test_ruling4_lumenward_charges_on_hit_while_its_shields_hold() -> void:
+	var a := party([hero("fighter", 0, 1, 3), hero("lumenward", 0, 2, 2)])
+	var b := party([hero("fighter", 0, 2, 3), hero("rogue", 0, 1, 3)])
+	# a long shield the Lumenward put on its ally with its ability (owned by it, as Lumen Ward's are)
+	var r := CombatSim.simulate(12, a, b, {"tuning": FAST, "start_statuses": [{"side": 0, "slot": [0, 1], "status": "shield",
+		"amount": 500, "dur_ms": 30000, "src_side": 0, "src_slot": [0, 2], "from_ability": true}]})
+	var shields := {}
+	var hit_gain := 0
+	for ev: Dictionary in r["events"]:
+		if ev["type"] == "status" and ev["status"] == "shield" and int(ev["src"]) == 1:
+			shields[int(ev["uid"])] = true
+		elif ev["type"] == "status_end" and ev["status"] == "shield":
+			shields.erase(int(ev["uid"]))
+		elif ev["type"] == "charge" and int(ev["uid"]) == 1 and ev["reason"] == "hit" and int(ev["delta"]) > 0 and not shields.is_empty():
+			hit_gain += 1
+	check(hit_gain > 0, "a Lumenward hit while its shields are up gains charge (%d)" % hit_gain)
+
+
+func test_ruling4_summoner_gains_no_charge_while_its_echo_stands() -> void:
+	var a := party([hero("echoblade", 0, 1, 2), hero("mage", 1, 3)])
+	var b := party([hero("stone_sentinel", 0, 1, 6), hero("stone_sentinel", 1, 1, 6)])
+	var g := [{"side": 0, "slot": [0, 1], "status": "shield", "amount": 99999, "dur_ms": 60000},
+		{"side": 0, "slot": [1, 3], "status": "shield", "amount": 99999, "dur_ms": 60000}]
+	var r := CombatSim.simulate(4, a, b, {"tuning": FAST, "start_statuses": g})
+	var echo := -1
+	var checked := 0
+	for ev: Dictionary in r["events"]:
+		if ev["type"] == "spawn" and ev["summon"] == "echo":
+			echo = int(ev["uid"])
+		elif ev["type"] == "ko" and int(ev["uid"]) == echo:
+			echo = -1
+		elif ev["type"] == "charge" and int(ev["uid"]) == 0 and echo >= 0:
 			checked += 1
-			check(int(ev["delta"]) <= 0, "no charge for Nightshade while its poison is active (%s)" % ev["reason"])
-	var poisoned := false
-	for ev: Dictionary in of_type(r, "status"):
-		poisoned = poisoned or ev["status"] == "poison"
-	check(poisoned, "Nightshade poisoned a foe")
+			check(int(ev["delta"]) <= 0, "no charge for the Echoblade while its echo stands")
+	check(true, "echo charge checked (%d)" % checked)
 
 
 func test_ruling5_no_stun_diminishing_returns() -> void:

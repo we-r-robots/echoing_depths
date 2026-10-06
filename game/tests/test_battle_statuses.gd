@@ -217,7 +217,7 @@ func test_class_showcase_b_afflictions_shields_links() -> void:
 
 func test_class_showcase_c_column_fire_wards_and_hexes() -> void:
 	_play("c", Vector2i(1920, 1080))
-	check(_has_caption("Vael Hexfire ▸ column"), "Hexfire names the column it climbs")
+	check(_has_caption("Vael Hexfire ▸ column") and not _has_caption("Hexfire ▸ column ·  · Brakka charge"), "Hexfire names the column it climbs (and no formation charge as its effect)")
 	check(_has_caption("Raise Husk ▸ Husk of") and _has_caption("raised"), "Raise Husk names the husk")
 	check(_has_caption("slowed"), "Slow the Field names the slow")
 	check(_has_caption("Burn to Mend") and _has_caption("pays HP") and _has_caption("heal hurts Tamsin"), "Burn to Mend names its cost and the hexed ally")

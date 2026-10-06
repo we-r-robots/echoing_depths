@@ -25,7 +25,7 @@ All numbers are placeholders and live in `core/data/*.gd` (plain const Dictionar
 | `data/items.gd` | Weapons, armor (flat stats), relics (stats + alignment offset) |
 | `data/formations.gd` | Formation shapes (buff + debuff each) and composition buffs |
 | `data/memories.gd` | Crystal of Remembrance: the Crystal's tuning and the authored memories (chapter, lore, behaviour) |
-| `data/statuses.gd` | Timed statuses (stun, blind, sap/boon, slow, poison, burn, regen, shield, hidden, heal block, heal inversion, charge seal, link): names, short labels, tooltips, icons, stacking rules, tick rates |
+| `data/statuses.gd` | Timed statuses (stun, blind, sap/boon, slow, poison, burn, regen, shield, hidden, heal block, heal inversion, charge seal, link; round 2: disarm, sabotage, riposte, watch, enshrine, seal immunity): names, short labels, tooltips, icons, stacking rules, tick rates |
 
 Load scripts with `preload` (no `class_name` globals are registered):
 
@@ -133,6 +133,34 @@ units hurt (tests and tools only; set after `fight_start`, whose snapshots show 
 this section: exact field set, types and enumerated values. If the two ever disagree, that test fails.
 
 **Schema changelog** (for consumers):
+- *Latest: separate ability timer, round 3, narrowed charge lock (2026-10-06).* **Abilities run on
+  their own timer:** a unit whose charge reaches 100 casts its ability at the next action boundary
+  (right after the current action resolves, after any due status ticks and follow-ups), ahead of
+  every waiting basic action; several full bars fire in the order they filled, then higher Spd, then
+  lower uid. The cast does **not** spend or reset the ATB gauge: in the cast's
+  `action_start.gauges` the caster's entry is its real fill (a basic turn still shows 1.0 and resets
+  to 0). A stunned or sealed unit's ability waits until it is free. `charge.queue` now counts the
+  other units already at full charge. `Tuning.COMBAT.full_charge_jumps_queue` is retired.
+  **Battle scene:** `_on_action_start` should not zero the actor's gauge for `kind: "ability"`, and a
+  `ready` charge event should no longer fill the gauge bar. Round 3: classes `aegisbearer`,
+  `informant`; `enshriner` is displayed "Reliquarist"; the Confessor's ability (id
+  `brand_of_flame`, name "Retribution Flame") now applies `heal_invert` (displayed "Retribution
+  flame") to the foe that last hurt its side. A shield with `taunt` (Aegisbearer) draws melee: no
+  new event, the `action_start.target` is the Aegisbearer.
+- *Latest: round-2 classes (2026-10-06, class-verdicts-round2.md).* No new event types. New status
+  ids **`disarm`**, **`sabotage`**, **`riposte`**, **`watch`**, **`enshrine`**, **`seal_immune`**;
+  `status_end.reason` gains **`"triggered"`** (a Riposte stance spent on a parry, a watch that caught
+  an attacker); `miss.reason` gains **`"parry"`** (the Duelist parried the hit: no `damage` event;
+  its counter follows at the same `t` as a `damage` event from the Duelist with action
+  `"riposte_counter"`, always a crit); `skip.reason` gains **`"disarm"`** (a disarmed unit's turn
+  passes without a basic attack). A Nightwatch's catch is a `damage` (action `"watch_strike"`) plus a
+  `stun` `status`, at the same `t` as the hit it caught. Both reactions come from a unit that is not
+  the acting one, inside another unit's action. Ravager's Whirlwind lands its ally hits and
+  Bloodletting lands its heals 0.15 s after the action's impact (effect `delay_ms`). A nameless husk
+  (Gravecaller, nobody fallen) is a `spawn` with `summon: "husk"`, `raised: -1`, unit `class`
+  `"nameless_husk"` and `class_name` `"Nameless Husk"` (base class `"fighter"`: no art of its own).
+  Class `paladin` is gone (saved Paladins load as `lightsworn`); `shackler`'s display name is
+  "Warden of Chains".
 - *Latest: timed statuses, approved advanced classes, rulings (2026-10-06, class-verdicts-round1.md).*
   New events **`status`**, **`status_end`**, **`miss`**, **`skip`**, **`absorb`**, **`move`**,
   **`gauge`**, **`revive`** (below). Damage kind **`"status"`** (poison/burn ticks, hexed heals, HP
@@ -433,10 +461,12 @@ Fields: `uid`, `charge` (new value 0..100), `delta` (signed change), `ready` (bo
 `queue` (int: when `ready`, how many fully charged units act before it; 0 = it acts next; always 0
 when not ready), `reason`:
 `"act"` (after a basic action), `"hit"` (took damage), `"effect"` (an ability granted charge), `"drain"` (The Draw took charge away),
-`"spent"` (reset to 0 when the ability fires). **When `ready` becomes true the unit jumps the turn
-queue:** its gauge snaps to full and it acts as soon as the current action ends (fully charged units
-go first, in queue order), and a sudden-death tick waits until it has acted. Show "acts next" only
-for `queue == 0` (that promise is never broken); show "queued" for `queue > 0`.
+`"spent"` (reset to 0 when the ability fires). **When `ready` becomes true the unit casts its ability
+at the next action boundary** (separate ability timer, 2026-10-06), ahead of every waiting basic
+action, in the order units became full (then higher Spd, lower uid); its ATB gauge is untouched and
+keeps filling. A stunned or sealed unit waits until it is free. `queue` = how many other units are
+already full: show "casts next" for `queue == 0` and "queued" for `queue > 0`. An ability cast
+grants no `act` charge.
 **Cascade cap:** charge gained from hits *during an ability* stops at 99, so one ability's hits never
 ready another; the unit readies on its next hit or action.
 
@@ -461,7 +491,7 @@ A status lands on a unit, or an application stacks onto / refreshes one it alrea
 | Field | Type | Meaning |
 |---|---|---|
 | `uid` | int | the unit that has it |
-| `status` | String | id in `data/statuses.gd`: `stun`, `blind`, `sap`, `boon`, `slow`, `poison`, `burn`, `regen`, `shield`, `hidden`, `heal_block`, `heal_invert`, `charge_seal`, `link` |
+| `status` | String | id in `data/statuses.gd`: `stun`, `blind`, `sap`, `boon`, `slow`, `poison`, `burn`, `regen`, `shield`, `hidden`, `heal_block`, `heal_invert`, `charge_seal`, `link`, `disarm`, `sabotage`, `riposte`, `watch`, `enshrine`, `seal_immune` |
 | `src` | int | who applied it (the unit itself for self-buffs) |
 | `stat` | String | `atk`/`def`/`mag`/`spd` for `sap`/`boon`, else `""` |
 | `value` | float | its size now: stat fraction (−0.3 = −30 %), slow fraction, damage or healing per tick, shield HP, link share |
@@ -474,17 +504,21 @@ Show it as the status's icon on the unit (`EffectIcons.status_icon(id)`, with it
 
 ### `status_end`
 
-Fields: `uid`, `status`, `stat`, `reason`: `"expired"`, `"ko"` (the unit fell), `"broken"` (a used-up
+Fields: `uid`, `status`, `stat`, `reason`: `"expired"`, `"ko"` (the unit fell), `"triggered"` (a
+`riposte` spent on a parry, a `watch` that caught an attacker), `"broken"` (a used-up
 shield, or the other end of a link fell), `"replaced"` (a new link replaced the old one).
 
 ### `miss`
 
-Fields: `src`, `dst`, `action`, `reason`: `"blind"` (a blinded unit's hit missed: no `damage`
+Fields: `src`, `dst`, `action`, `reason`: `"parry"` (the Duelist `dst` parried `src`'s melee hit: no
+`damage`; its critical counter follows at the same `t`), `"blind"` (a blinded unit's hit missed: no `damage`
 event) or `"heal_block"` (a heal on a branded unit did nothing: no `heal` event).
 
 ### `skip`
 
-A stunned unit's turn comes and is lost. Fields: `uid`, `reason` (`"stun"`), `duration` (seconds the
+A stunned unit's turn comes and is lost, or a disarmed unit's turn passes with no basic attack (a
+disarmed unit with a full bar uses its ability instead, with no `skip`). Fields: `uid`, `reason`
+(`"stun"` or `"disarm"`), `duration` (seconds the
 lost turn occupies the timeline, 0.3; then the usual gap). Its gauge resets as if it had acted; its
 charge is kept.
 
@@ -496,7 +530,7 @@ before the hit's `damage` event, which carries only what got through (no `damage
 
 ### `move`
 
-A unit is moved by an ability (Shackler): fields `side`, `uid`, `from` `[col,row]`, `to`
+A unit is moved by an ability (Warden of Chains, id `shackler`): fields `side`, `uid`, `from` `[col,row]`, `to`
 `[col,row]`, `src` (the actor), `effect` (`"pulled"` for the back unit drawn forward, `"pushed"` for
 the front unit sent back). Two `move` events per swap (pulled first). From then on the unit is in its
 new column (melee targeting and the back-row halving follow it); the side's formation stays the one
@@ -541,16 +575,18 @@ Area abilities are a big primary hit plus a smaller splash on the rest; no actio
 4–5 numbers at once.
 
 **Timeline:** gauge fills at `Spd × 9` units/ms (max 100 000): Spd 10 fills an empty gauge in
-1.11 s of running time. Starting gauges are seeded 30–65 %. Nobody acts before 0.6 s. Ties:
-fully charged first, then fullest gauge, then higher Spd, then lower uid. The gauge resets to 0 on acting.
+1.11 s of running time. Starting gauges are seeded 30–65 %. Nobody acts before 0.6 s. A full gauge
+gives a basic action (ties: fullest gauge, then higher Spd, then lower uid); the gauge resets to 0.
+Abilities are on their own timer (below): they never use or reset the gauge.
 
 **Charge:** 0–100. Start = class `start_charge` (20–40) + `start_charge_bonus` (25) ± a seeded
 `start_charge_spread` (25), clamped to 0–99, so first abilities are spread over the fight.
 `+charge_on_act × charge_act_scale (0.25)` after each basic action (class rates differ: 30–50 before
 scaling); `+charge_on_hit × charge_hit_scale (0.8) × %maxHP lost` when damaged (a "hurt" trigger);
-both scaled by `charge_pct` buffs. At 100 the unit jumps the turn queue and its next action is the
-class ability, which resets charge to 0 (`full_charge_jumps_queue`). Abilities end up ~27 % of
-actions; ~88 % of units fire at least once per fight.
+both scaled by `charge_pct` buffs. At 100 the unit casts its ability at the next action boundary,
+ahead of every basic action, which resets charge to 0 and leaves its gauge alone (user rule,
+2026-10-06; `full_charge_jumps_queue` retired). Disarm blocks only basic actions; a charge seal
+stops charge gain but never cancels a full bar.
 
 **Targeting** (per action `target` selector; per effect `to`):
 
@@ -563,6 +599,9 @@ actions; ~88 % of units fire at least once per fight.
 | `random_enemy` | seeded random |
 | `most_charged_enemy` / `highest_hp_enemy` | most charge / most current HP (never the Crystal; ties → lower uid) |
 | `column_bottom` | the bottom unit of the enemy back column (the front if the back is empty) |
+| `strongest_front_enemy` | in the column melee would hit, the foe with the highest Atk or Mag (whichever of its two is larger, current values); ties → more current HP, then lower uid (Bladebreaker) |
+| `strongest_sealable_enemy` | the same "strongest" rule over every foe, skipping units already sealed or crystal-worn (`seal_immune`) (Reliquarist) |
+| `last_attacker_enemy` | the foe that last dealt damage (attack or status tick) to a unit on this side, if it can be picked; else the strongest foe (Confessor) |
 | `random_ally` | seeded random living ally (self included) |
 | `all_enemies` / `all_allies` / `self` | as named |
 
@@ -576,7 +615,10 @@ would hit), `front_enemies` (the column melee would hit), `front_random`, `rando
 `all_enemies`, `all_allies`, `lowest_hp_ally`, `self`; and (advanced classes) `adjacent_allies`
 (the effect's `adjacency`: `"edge"` or `"all"`), `column_allies`, `other_allies`,
 `primary_neighbours` (edge-adjacent to the primary on its side, both columns), `most_charged_enemy`,
-`highest_hp_enemy`, `random_ally`, `column_sweep` (Hexfire). `lowest_hp_ally` passes over a branded
+`highest_hp_enemy`, `random_ally`, `column_sweep` (Hexfire); round 2: `primary_behind` (the foe in
+the back column of a front primary's row, Halberdier), `strongest_front_enemy`,
+`strongest_sealable_enemy`. An effect's `delay_ms` lands it that long after the action's impact
+(Whirlwind's ally hits, Bloodletting's heals). `lowest_hp_ally` passes over a branded
 (heal-blocked) ally while anyone else can be picked.
 
 **Statuses** (`data/statuses.gd`): timed effects on units, applied by an ability effect
@@ -598,9 +640,15 @@ damage and refreshes the duration), `replace` (link). Sap and boon keep one inst
 | `shield` | absorbs damage (attacks, status damage, shares) before HP; `amount`, or `power × heal_scale × Mag`. The Fading and HP costs go straight through |
 | `hidden` | no single-target selector picks it (melee, back-first, lowest/highest HP, most charged, random, draws, covering fire); area and splash still hit it. Melee skips a hidden front unit to the nearest visible front unit and reaches the back column only when no visible front unit stands (ruling 1) |
 | `heal_block` | heals on it do nothing (`miss` reason `heal_block`) |
-| `heal_invert` | heals on it deal that much status damage instead |
+| `heal_invert` | heals on it deal that much status damage instead (displayed "Retribution flame": the Confessor's brand) |
 | `charge_seal` | it gains no charge |
 | `link` | it and its `partner` split every hit either takes (`link_share` 0.5 goes to the partner, primary id `link`); ends on both when either falls |
+| `disarm` | it makes no basic attacks: each turn without a full bar is a `skip` (reason `disarm`), so it builds no charge from acting. Hits still charge it, and a full bar still fires its ability (Bladebreaker) |
+| `sabotage` | its **side's** formation behaviour stops while any living unit of that side has it (the behaviour id reads `"sabotaged"`; the shape's stat bonus and its costs, such as draws, stay; a Lighthouse taunt goes dark). Restored when the last one ends (Saboteur) |
+| `riposte` | the next melee hit on it **from the acting unit** is parried (`miss` reason `parry`, no damage) and answered at once with the `riposte_counter` action's effects (a sure crit) on the attacker; the status ends `"triggered"`. If it expires, its `then` follow-up (`riposte_lunge`) plays (Duelist) |
+| `watch` | the next hit **by the acting foe** on an ally edge-adjacent to it (`adjacency`) is caught: the status ends `"triggered"`, and the watcher plays `watch_strike`'s effects on the attacker (a hit plus a 2 s `stun`). One catch per watch (Nightwatch) |
+| `enshrine` | **PROVISIONAL rules, q-9.** Sealed in crystal: its gauge is frozen and it never acts; no attack, area, splash, share, link, heal, status or status tick reaches it (its existing statuses keep their timers); the formation loses it (out of the shape: behaviour checks skip it, Keeper's Ring counts one fewer front unit). (a) it still counts as standing, (b) the Fading still erodes it, (d) it counts as not visible for melee targeting (as hidden, ruling 1). A follow-up action due while sealed is lost. On release it becomes `seal_immune` (Reliquarist) |
+| `seal_immune` | (c) crystal-worn: it can't be sealed again for `seal_immune_ms` (8 s, PROVISIONAL); applied when an `enshrine` ends, owned by nobody |
 
 **Status damage is non-physical** (ruling 2, user 2026-10-06): damage kind `"status"`, never halved
 by the back column at either end, never a crit, not raised by the Fading's damage multiplier. It
@@ -637,40 +685,51 @@ the region's class; in a region with no approved class it returns the approved c
 **nearest region by grid steps** from the hero's cell (ties: the region nearer the base's start
 cell, then the order N, LG, CG, LE, CE, LG\*, CG\*, LE\*, CE\*). **PROVISIONAL** (2026-10-06)
 until the user approves a class for every region; `is_fallback(base, pos)` marks the stand-ins (the
-run records them as `placeholder`).
+run records them as `placeholder`). After round 3 **every region has an approved class**, so no cell
+uses the fallback (it stays as a safety net; `tests/test_classes.gd` checks no cell falls back).
 
-**Advanced classes (round 1, `docs/design/class-verdicts-round1.md`).** Only APPROVED regions have a
-class; PICK ONE regions and regions whose live class was voted maybe keep the live class (Paladin,
-Duelist); everything else falls back as above.
+**Advanced classes (rounds 1-3, `docs/design/class-verdicts-round1.md`, `-round2.md`; round 3 from
+the lead's relay of the user's review).** Every region has an approved class.
 
-| Base | Region → class |
-|---|---|
-| Fighter | LG Paladin · LE Shackler · CE Berserker · LE\* Iron Marshal · CG\* Echoblade (N, CG, LG\*, CE\* fall back) |
-| Rogue | CE Cutpurse · CE\* Fadewalker · CG Duelist · LE Assassin · LE\* Nightshade · LG\* Unseen Warden (N, LG, CG\* fall back) |
-| Healer | LG Cleric · N Threadmender · LG\* Lumenward · CG Rekindler · LE Tithekeeper · CG\* Wickburner · LE\* Confessor · CE\* Gravecaller (CE falls back) |
-| Mage | CG Stormwake · N Archmage · CG\* Starcaller · LG Lampwright · CE Warlock · LE Runebinder · LG\* Chronist · CE\* Wildfire (LE\* falls back) |
+| Base | Region → class | Open (stand-in) |
+|---|---|---|
+| Fighter | N Halberdier · LG Lightsworn · CG Bladebreaker · LE Warden of Chains (id `shackler`) · CE Berserker · LG\* Aegisbearer · LE\* Iron Marshal · CG\* Echoblade · CE\* Ravager | none |
+| Rogue | N Saboteur · LG Nightwatch · CG Duelist · LE Assassin · CE Cutpurse · LG\* Unseen Warden · CG\* Informant · LE\* Nightshade · CE\* Fadewalker | none |
+| Healer | N Threadmender · LG Cleric · CG Rekindler · LE Tithekeeper · CE Bloodletter · LG\* Lumenward · CG\* Wickburner · LE\* Confessor · CE\* Gravecaller | none |
+| Mage | N Archmage · LG Lampwright · CG Stormwake · LE Runebinder · CE Warlock · LG\* Chronist · CG\* Starcaller · LE\* Reliquarist (id `enshriner`) · CE\* Wildfire | none |
 
 Ability mechanics (numbers in `data/abilities.gd`):
 
 | Class | Ability | What the sim does |
 |---|---|---|
-| Shackler | Shackle | hits the front foe, then the foe behind it (same row, back column) is pulled forward and the struck foe pushed back (`move` ×2). The id stays `shackler`; the display name is data only |
-| Iron Marshal | Drive On | each ally adjacent to it (effect field `adjacency`: `"edge"` as written, `"all"` = each adjacent) gets a full gauge (`gauge`) and pays 6 % max HP (`damage` kind `status`, primary `cost`, never below 1 HP). No ally beside it: Marshal's Blow |
+| Halberdier | Long Reach | hits the front foe (1.8) and the foe in the back column of its row (`to: "primary_behind"`, 1.4; physical, so halved in the back column). Nobody behind: one hit |
+| Lightsworn | Aegis Strike (Paladin's ability name) | hits the front foe (1.7) and gives the lowest-HP ally a `shield` for 6 s, sized from the Lightsworn's **Def** (`"scale": "def"`: 1.6 × heal_scale × Def). Replaces the retired Paladin |
+| Bladebreaker | Break Blade | hits the strongest front foe (`strongest_front_enemy`, 1.4) and `disarm`s it for 6 s |
+| Ravager | Whirlwind | hits every foe in the front column (1.5) and, 0.15 s later, every ally around it (`adjacency: "all"`, diagonals included; 1.5). With nobody beside it (Strays) only foes are hurt |
+| Warden of Chains (`shackler`) | Shackle | hits the front foe, then the foe behind it (same row, back column) is pulled forward and the struck foe pushed back (`move` ×2). Renamed from Shackler in round 2 (q-5); the id stays `shackler` |
+| Iron Marshal | Drive On | each ally around it (`adjacency: "all"`, diagonals included; round-2 q-6) gets a full gauge (`gauge`), +20 charge, and pays 3 % max HP (`damage` kind `status`, primary `cost`, never below 1 HP). No ally around it: Marshal's Blow (2.3) |
+| Aegisbearer | Raise the Aegis | a large `shield` on itself (3.0 × heal_scale × **Def**, 6 s) marked `taunt`: while it holds and the Aegisbearer stands in the front column, every foe's melee (and dash) attack hits it |
+| Informant | Read the Orders | foresees the next enemy ability: the foe with the most charge (full bars in the order they filled, else the sooner turn; stunned or sealed foes skipped), its targets on our side read from the current state without the RNG. Each of those allies gets a `shield`; the total (6.5 × heal_scale × Mag) is **split evenly** among them (PROVISIONAL). If that foe's charge is below 70, or its targets are random, the weakest ally gets the whole shield (PROVISIONAL). No damage of its own beyond its basic stab |
+| Saboteur | Cut the Ropes | hits the front foe (1.6), then every foe gets `sabotage` for 4 s: their formation behaviour stops (op `"sabotage"`; skipped when the foes have no behaviour) |
+| Duelist | Riposte (round-2 rework) | takes guard: `riposte` on itself for 3.5 s. The next melee hit on it is parried and answered with a sure-crit counter (1.9); if nobody swings in time, it lunges at the front foe (`riposte_lunge`, 2.0, a follow-up like Unseen Arrest's) |
+| Nightwatch | Keep Watch | `watch` on itself for 6 s: the next foe to hit an edge-adjacent ally is struck (1.3) and stunned (2 s). With no ally beside it: Night Blow |
+| Bloodletter | Bloodletting | a light magic hit on every foe (0.5), then 0.15 s later heals every ally an even share of **40 %** of the damage it dealt (op `"drain_heal"`, `pct`; healing rules apply). The drain starts conservative (user: "might be too strong") |
+| Reliquarist (id `enshriner`) | Reliquary (id `enshrine`) | keeps the strongest sealable foe (`strongest_sealable_enemy`) in a crystal reliquary: `enshrine` 5 s (rules above, PROVISIONAL; playtesting will settle them). Nobody sealable: Shrine Shard (1.8 magic). Renamed from Enshriner in round 3 |
 | Echoblade | Call Echo | an echo (40 % HP, its stats, basic Strike only, never charges) in the empty front slot nearest its row (`spawn`, `summon: "echo"`). Front column full: Echo Strike |
 | Cutpurse | Pilfer | hits the most charged foe and moves up to 30 of its charge to itself (`charge` reason `drain` on the foe) |
 | Fadewalker | Vanishing Cut | hits the weakest foe, then `hidden` for 2 s |
 | Nightshade | Slow Venom | `poison` on the healthiest foe for 6 s (stacks ×3) |
-| Unseen Warden | Unseen Arrest | `hidden` for 1.5 s; when it ends, a follow-up action (also `kind: "ability"`, no charge spent): `stun` 2.5 s on the most charged foe, `blind` 4 s on the units edge-adjacent to it |
+| Unseen Warden | Unseen Arrest | `hidden` for 1.5 s; when it ends, a follow-up action (also `kind: "ability"`, no charge spent): `stun` 3 s on the most charged foe, `blind` 4 s on the units edge-adjacent to it |
 | Threadmender | Bind Lives | `link` the healthiest and the weakest ally for 5 s. Fewer than two: Smite |
 | Lumenward | Lumen Ward | a small heal on every ally; healing past full HP becomes a `shield` of that size (user tweak) |
 | Rekindler | Rekindle | the first fallen ally (its slot free) stands again at 30 % HP, once per fight (`revive`); otherwise Kindle Mend (heal the weakest + smite) |
-| Tithekeeper | Tithe | the healthiest ally pays 12 % max HP (primary `tithe`), the weakest is healed 1.6× that |
+| Tithekeeper | Tithe | the healthiest ally pays 12 % max HP (primary `tithe`), the weakest is healed 2.0× that |
 | Wickburner | Burn to Mend | pays 12 % of its max HP (primary `cost`), heals every other ally |
-| Confessor | Brand of Flame | hits the weakest foe and brands it: `heal_block` 5 s (flame-themed, user note) |
-| Gravecaller | Raise Husk | the most recently fallen unit of either side (not a summon, not raised before) returns on the Gravecaller's side as a husk in an empty front slot: 50 % of its HP/Atk/Def/Mag, 75 % Spd, its basic action only (`spawn`, `summon: "husk"`, `raised`). **PROVISIONAL**: with nobody fallen (or no free front slot) it casts Grave Bolt (hits the weakest foe) until the user decides (ruling 7) |
+| Confessor | Retribution Flame (id `brand_of_flame`) | round 3: brands the foe that last hurt its side (`last_attacker_enemy`; else the strongest foe) with a 1.4 magic hit and `heal_invert` for 5 s: every heal it receives burns it instead |
+| Gravecaller | Raise Husk | the most recently fallen unit of either side (not a summon, not raised before) returns on the Gravecaller's side as a husk in an empty front slot: 50 % of its HP/Atk/Def/Mag, 75 % Spd, its basic action only (`spawn`, `summon: "husk"`, `raised`). With nobody fallen (round-2 q-3) a **nameless husk** of the Vault's long-dead rises instead: fixed HP 30, Atk 8, Def 4, Mag 2, Spd 6, Claw (below a raised level-1 Mage, the weakest raised hero), `raised: -1`. **PROVISIONAL**: with no free front slot it casts Grave Bolt (hits the weakest foe) |
 | Stormwake | Chain Storm | three separate magic hits on random foes |
-| Starcaller | Draw a Star | one random gift to a random ally: Atk, Mag or Spd +30 % (`boon`, 6 s), a `shield`, or +40 charge |
-| Lampwright | Column Ward | `shield` on every ally in its column |
+| Starcaller | Draw a Star | one random gift to a random ally: Atk, Mag or Spd +40 % (`boon`, 6 s), a `shield` (2.6), or +50 charge |
+| Lampwright | Column Ward | `shield` (2.4) on every ally in its column |
 | Runebinder | Rune Seal | hits the most charged foe and `charge_seal`s it for 4 s |
 | Chronist | Slow the Field | `slow` (40 %) on every foe for 5 s |
 | Wildfire | Wildfire | hits a random foe and sets it burning (`burn` 6 s); every 2 s the fire jumps to an unburnt foe beside it |
@@ -686,20 +745,39 @@ lost even if summons stand; they're never `survivors` and don't enter the Fading
 tiebreak). They do stand in a front slot, so they shield the back column from melee.
 
 **Rulings 4 (fight end and charge):** a unit at 1 HP is standing, so a side with any standing unit
-has not lost. A unit gains **no charge while an effect of its own ability is in play** (a status it
-applied with its ability, on anyone, or its summon still standing). The Fading builds no charge.
-Charge from status-damage ticks stops at 99, like an ability's hits (the unit readies on its next
-hit or action). A stunned unit that was fully charged acts as soon as the stun ends.
+has not lost. **Charge lock (narrowed, playtest fix 2026-10-06):** a unit gains no charge while (a)
+a summon it called still stands (Echoblade's echo, Gravecaller's husks), or (b) a status it put on
+itself with its ability is flagged `locks_charge` in `data/statuses.gd` (a "can't fall" / sustain
+window; none is approved, so only the hook exists). Statuses it puts on others (shields, DoTs,
+stuns, blinds, seals, links, brands) no longer lock its charge. The Fading builds no charge.
+**Cascade cap (exact rule):** charge a unit gains from *being hit* while an ability is resolving
+(any unit's ability: its primary hit, splash, cleave, area or multi-hit) or from a status tick
+stops at 99, so those hits never make anyone full; they do still charge it, up to 99, and it
+becomes full on its next hit or basic action. Hits from basic actions charge normally. A stunned
+unit that is fully charged casts as soon as the stun ends.
+
+**Balance gate (user rule, 2026-10-06):** an advanced class is stronger than its base class
+(advanced classes are sidegrades to each other, not to the base). `tests/test_class_gate.gd`:
+every base's advanced budget is clearly above the base's own stat total (≥ 1.2× level-1, ≥ 1.1×
+growth), and in a paired swap test (same random fight, party, slot, level 2, opponent and seed; 80
+fights in the suite, `tests/class_gate_report.gd` for more) every advanced class wins at least
+**5 percentage points** more often than its base.
 
 **Stat budget (ruling 8):** every advanced class of a base spends the same level-1 total and growth
 total, `Σ stat × weight` with HP weighted 1/5 (`Classes.BUDGET_WEIGHTS`): Fighter 104 / 10.0, Rogue
 95 / 8.2, Healer 89 / 7.5, Mage 84 / 7.5 (`Classes.BUDGET`, the mean of each base's live classes
 before the rule). Crit and charge rates are identity, not budget. Paladin, Berserker, Duelist,
-Assassin, Archmage and Warlock were normalised to it.
+Assassin, Archmage and Warlock were normalised to it; the round-2 classes (Halberdier, Lightsworn,
+Bladebreaker, Ravager, Saboteur, Nightwatch, Bloodletter, Enshriner/Reliquarist; round 3: Aegisbearer,
+Informant) were built on it. Base totals for comparison: Fighter 73 / 8.1, Rogue 67 / 6.6, Healer
+61 / 5.9, Mage 59 / 5.7.
 
-**Renamed classes:** `Classes.CLASS_RENAMES` (`necromancer` → `gravecaller`) is applied to every
+**Renamed classes:** `Classes.CLASS_RENAMES` (`necromancer` → `gravecaller`; round 2: `paladin` →
+`lightsworn`) is applied to every
 loaded Echo (`Echo._migrate`, so pools too), to Monument heroes in meta, and through
-`GameData.canonical_class`; run saves from older rules are dropped (`RUN_SAVE_VERSION` 3).
+`GameData.canonical_class` (and the legend's-memory lookup, so `legend_lightsworn` serves an old
+Paladin); run saves from older rules are dropped (`RUN_SAVE_VERSION` 4). The Lantern Saint's parent
+is now Lightsworn: **PROVISIONAL** until the user confirms (`provisional` in its class data).
 
 **Monster groups** (`PartyGen.monster_group(rng, depth)`): 3 monsters below depth 6, else 4, all at
 level `3 + (depth − 1) / 3`: shallow groups are a real fight for a mid-run party, deep ones out-power it.

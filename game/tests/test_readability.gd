@@ -68,8 +68,8 @@ func test_monster_targets() -> void:
 	_check_targets(_measure(true), "monsters")
 
 
-func test_full_charge_jumps_queue() -> void:
-	# After a "ready" charge event, the charged unit's ability is the next action that
+func test_full_charge_casts_at_the_next_boundary() -> void:
+	# Abilities run on their own timer (2026-10-06): after a "ready" charge event, the charged unit's ability is the next action that
 	# starts (unless another unit was already charged and queued first).
 	# Statuses (2026-10-06): a stunned charged unit loses its turn (others act meanwhile); charge
 	# drained away un-readies a unit; an ability's follow-up half (Unseen Arrest) is not a turn.
@@ -90,7 +90,7 @@ func test_full_charge_jumps_queue() -> void:
 					elif int(ev["charge"]) < 100:
 						queue.erase(int(ev["uid"]))
 				"status", "status_end":
-					if ev["status"] == "stun":
+					if ev["status"] == "stun" or ev["status"] == "enshrine":   # stunned or sealed: it waits
 						stunned[int(ev["uid"])] = ev["type"] == "status"
 				"ko":
 					queue.erase(int(ev["uid"]))
@@ -381,10 +381,12 @@ func test_heal_never_announced_empty() -> void:
 				var j := k + 1
 				while j < evs.size() and evs[j]["type"] != "action_start" and evs[j]["type"] != "sudden_death":
 					# HP restored, a fallen ally rekindled, overflow turned into a shield (Lumen Ward), or
-					# a heal visibly blocked by a brand (miss: heal_block)
+					# a heal visibly blocked by a brand (miss: heal_block), or burning a unit under the
+					# Confessor's retribution flame (damage with primary heal_invert)
 					healed = healed or evs[j]["type"] in ["heal", "revive"] \
 						or (evs[j]["type"] == "status" and evs[j]["status"] == "shield") \
-						or (evs[j]["type"] == "miss" and evs[j]["reason"] == "heal_block")
+						or (evs[j]["type"] == "miss" and evs[j]["reason"] == "heal_block") \
+						or (evs[j]["type"] == "damage" and String(evs[j]["primary"].get("id", "")) == "heal_invert")
 					j += 1
 				if not healed:
 					check(false, "fight %d: a heal was announced but healed nothing" % i)

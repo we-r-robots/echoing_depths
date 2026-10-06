@@ -59,7 +59,7 @@ func test_backstab_lowest_hp() -> void:
 	var backstabs := 0
 	var into_back := 0
 	for seed_value in 20:
-		var r := CombatSim.simulate(seed_value, party([hero("rogue", 0, 0, 6), hero("paladin", 0, 1, 4)]),
+		var r := CombatSim.simulate(seed_value, party([hero("rogue", 0, 0, 6), hero("lightsworn", 0, 1, 4)]),
 			party([hero("hollow_rat", 0, 0, 2), hero("fading_wisp", 1, 2, 2), hero("memory_wraith", 1, 3, 2)]))
 		var hp := {}
 		var col := {}

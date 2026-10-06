@@ -64,6 +64,11 @@ const VICTORY_WALK := 0.7
 const HOLD_MAX := 0.6
 const HOLD_ANIM_SPEED := 2.0
 const INTRO_LEN := 2.6
+## The board stands this far lower than the camera's centre (world px; the background follows the
+## offset), so the tallest units in row 0 (a Stone Sentinel's crown) clear the HUD's top band and row
+## 3's HP bars its bottom band at 640x360 (round 17: the HUD never covers the board). The camera never
+## pushes vertically and the shake moves the board at most 1 px up or down, for the same reason.
+const BOARD_DY := -7.0
 const ABILITY_FREEZE := 0.3
 const SHADOWS := {"s": preload("res://assets/sprites/env/shadow_s.png"),
 	"m": preload("res://assets/sprites/env/shadow_m.png"), "l": preload("res://assets/sprites/env/shadow_l.png")}
@@ -173,6 +178,7 @@ var fragments := 0
 var _seek_to := -1.0
 var _tip_demo := -1
 var _status_tip_at := -1.0    # demo arg --status-tip=S: open the first status row's tooltip at sim S
+var _unit_tip_at := -1.0      # demo arg --unit-tip=S: open a unit's card (the first one with a status) at sim S
 var _pending_moves: Array = []
 var _move_lit_until := -1.0
 var _ko_settle := 0.0
@@ -217,6 +223,7 @@ func _ready() -> void:
 	_meta = JSON.parse_string(FileAccess.get_file_as_string(META_PATH))
 	stage = $WorldLayer/World/View/Stage
 	stage.setup()
+	cam.offset = Vector2(0.0, BOARD_DY)
 	fx.setup($HUD/Pops, world_to_ui)
 	status_fx = StatusScript.new()
 	status_fx.name = "Statuses"
@@ -257,6 +264,8 @@ func _start_demo() -> void:
 		_seek_to = float(args["from"])
 	if args.has("status-tip"):
 		_status_tip_at = float(args["status-tip"])
+	if args.has("unit-tip"):
+		_unit_tip_at = float(args["unit-tip"])
 	if args.has("shape"):
 		var sid := String(args["shape"])
 		var d: Array = Demo.SHAPE_DEMOS.get(sid, [1, "pvp", 0])
@@ -534,11 +543,23 @@ func _frame(delta: float) -> void:
 	status_fx.field = fx.field
 	status_fx.shown = _state == State.PLAY or (_state == State.END and _end_hold > 0.0)
 	status_fx.tick(delta * speed, sim_t)
+	# the acting unit is marked on the board (its foot plate lights), which replaces the rosters'
+	# highlighted row (round 17: the rosters are gone)
+	var actor := int(_cur_action.get("uid", -1)) if _state == State.PLAY else -1
+	for u in units:
+		if u != null:
+			u.set_marked(u.uid == actor and u.alive)
 	if _status_tip_at >= 0.0 and sim_t >= _status_tip_at and _state == State.PLAY:
 		var tc: Control = status_fx.first_tip()
 		if tc != null:
 			Tip.show_for(tc)
 			_status_tip_at = -1.0
+	if _unit_tip_at >= 0.0 and sim_t >= _unit_tip_at and _state == State.PLAY:
+		for u in units:
+			if u != null and u.alive and not u.statuses.is_empty() and status_fx.card_of(u.uid) != null and status_fx.card_of(u.uid).visible:
+				Tip.show_for(status_fx.card_of(u.uid))
+				_unit_tip_at = -1.0
+				break
 	hud.tick(vdt)
 	_update_camera(delta)
 
@@ -548,21 +569,21 @@ func _update_camera(delta: float) -> void:
 	if _cur_action.has("uid") and _state == State.PLAY:
 		var a = units[int(_cur_action["uid"])]
 		if a.acting:
-			target = Vector2(clampf((a.position.x - 320.0) * 0.05, -3, 3), clampf((a.position.y - 200.0) * 0.05, -3, 3))
+			target = Vector2(clampf((a.position.x - 320.0) * 0.05, -3, 3), 0.0)
 			var tg := int(_cur_action.get("target", -1))
 			if spectacle_level > 0 and String(_cur_action.get("kind", "")) == "ability" and tg >= 0 and tg < units.size():
 				var mid: Vector2 = (a.position + units[tg].position) * 0.5 - Vector2(320, 180)
 				var lim := 4.0 * spectacle_level   # bg_vault.png has an 8 world px margin
-				target = Vector2(clampf(mid.x * 0.25, -lim, lim), clampf(mid.y * 0.25, -lim, lim))
-	_cam_push = _cam_push.move_toward(Vector2.ZERO, delta * 8.0)
+				target = Vector2(clampf(mid.x * 0.25, -lim, lim), 0.0)
+	_cam_push = Vector2(_cam_push.x, 0.0).move_toward(Vector2.ZERO, delta * 8.0)
 	target += _cam_push
 	_cam_off = _cam_off.lerp(target, clampf(delta * 4.0, 0.0, 1.0))
 	var sh := Vector2.ZERO
 	if _shake > 0.0:
 		_shake_t += delta
 		_shake = maxf(0.0, _shake - delta * 14.0)
-		sh = Vector2(roundf(sin(_shake_t * 71.0) * _shake), roundf(cos(_shake_t * 53.0) * _shake * 0.6))
-	cam.offset = Vector2(roundf(_cam_off.x), roundf(_cam_off.y)) + sh
+		sh = Vector2(roundf(sin(_shake_t * 71.0) * _shake), clampf(roundf(cos(_shake_t * 53.0) * _shake * 0.6), -1.0, 1.0))
+	cam.offset = Vector2(roundf(_cam_off.x), 0.0) + sh + Vector2(0.0, BOARD_DY)
 	stage.place_bg(Vector2(view.size), -cam.offset * Layout.ZOOM)
 
 
@@ -1340,8 +1361,11 @@ func _on_action_start(ev: Dictionary) -> void:
 				var leave := minf(imp + 0.22, t_end - 0.06)   # linger at the target, home by the next action
 				fx.trail(a.chest(), tgt.chest(), a.side_color)
 				var hop := anim.begins_with("slam")
+				# a hop never lifts the unit into the HUD's top band (a tall Sentinel in row 0)
+				var band_top: float = (_world_xf().affine_inverse() * Vector2(0.0, hud.band_top())).y
+				var hop_h := clampf(22.0 if anim == "slam_big" else 14.0, 0.0, maxf(0.0, a.home_rect().position.y - band_top - 2.0))
 				a.plan_move(Unit.Move.HOP if hop else Unit.Move.LUNGE, t0, arrive, leave, t_end + 0.08, dest,
-					22.0 if anim == "slam_big" else 14.0, anim != "melee")
+					hop_h, anim != "melee")
 			else:
 				a.plan_move(Unit.Move.STAY, t0, t0, t0, t_end, a.home)
 			a.schedule_anim(&"attack", maxf(t0, imp - a.impact_offset("attack")))
@@ -1466,6 +1490,14 @@ func _beam_on(T, dur: float, col: Color, hi: Color) -> void:
 static func _steals(aid: String) -> bool:
 	for e: Dictionary in (Abilities.ACTIONS.get(aid, {}) as Dictionary).get("effects", []):
 		if String(e.get("op", "")) == "steal_charge":
+			return true
+	return false
+
+
+## The ability itself hands out charge (Draw a Star's gift), not a formation behaviour during it.
+static func _gives_charge(aid: String) -> bool:
+	for e: Dictionary in (Abilities.ACTIONS.get(aid, {}) as Dictionary).get("effects", []):
+		if String(e.get("op", "")) in ["charge", "boon_random"]:
 			return true
 	return false
 
@@ -1856,7 +1888,7 @@ func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: St
 				var cr := String(e.get("reason", ""))
 				if cr == "drain" and _steals(aid):
 					stolen += -int(e.get("delta", 0))
-				elif cr == "effect" and int(e.get("delta", 0)) > 0 and int(e["uid"]) != actor:
+				elif cr == "effect" and int(e.get("delta", 0)) > 0 and int(e["uid"]) != actor and _gives_charge(aid):
 					gifts.append(e)
 			"damage":
 				# status damage the action deals (a hexed heal, an HP cost): named, not "strikes"
@@ -1950,8 +1982,10 @@ func _layout_ctx(keep := -1) -> void:
 	var vis := hud.get_viewport_rect()
 	var a: Vector2 = to_world * vis.position
 	var b: Vector2 = to_world * vis.end
-	var top: float = (to_world * Vector2(0.0, hud.BANNER_H + 4.0)).y
-	fx.field = Rect2(a.x + 2.0, top, b.x - a.x - 4.0, b.y - top)
+	# labels stay on the board, between the HUD's top and bottom bands
+	var top: float = (to_world * Vector2(0.0, hud.band_top() + 1.0)).y
+	var bot: float = (to_world * Vector2(0.0, hud.band_bottom() - 1.0)).y
+	fx.field = Rect2(a.x + 2.0, top, b.x - a.x - 4.0, bot - top)
 	var bl: Array = _hud_world_rects(to_world)
 	# the Crystal's integrity bar is HUD too: no label covers it
 	if crystal_uid >= 0 and crystal_uid < units.size() and units[crystal_uid].alive:

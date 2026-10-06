@@ -9,9 +9,10 @@ const TYPES := ["fight_start", "formation", "formation_proc", "formation_move", 
 	"spawn", "status", "status_end", "miss", "skip", "absorb", "move", "gauge", "revive"]
 const TOS := ["primary", "primary_adjacent", "primary_column", "primary_column_rest", "other_enemies", "melee_enemy", "all_enemies", "front_enemies", "front_random",
 	"random_enemy", "self", "all_allies", "lowest_hp_ally", "adjacent_allies", "column_allies", "other_allies", "primary_neighbours",
-	"most_charged_enemy", "highest_hp_enemy", "random_ally", "column_sweep"]
+	"most_charged_enemy", "highest_hp_enemy", "random_ally", "column_sweep", "primary_behind"]
 const SELECTORS := ["melee", "back_first", "lowest_hp_enemy", "random_enemy", "lowest_hp_ally", "self", "all_enemies", "all_allies",
-	"most_charged_enemy", "highest_hp_enemy", "random_ally", "column_bottom"]
+	"most_charged_enemy", "highest_hp_enemy", "random_ally", "column_bottom", "strongest_front_enemy",
+	"strongest_sealable_enemy", "last_attacker_enemy"]
 
 
 ## Actions that are an ability's second half (a status's "then"): shown as an ability, no charge spent.

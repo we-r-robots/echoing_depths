@@ -36,7 +36,7 @@ A run moves through three phases:
 - **Stats (JRPG-lite):** HP, Atk, Def, Mag, Spd.
   - Physical damage compares Atk against Def.
   - Magic damage compares Mag against Mag. *(Tentative: Mag covers both magic damage and magic resistance.)*
-- **Charge-based abilities:** Each hero has a charge meter that builds when they act and when they take damage. When full, the hero's next action uses their ability instead of a basic attack. Charge rates differ by class.
+- **Charge-based abilities:** Each hero has a charge meter that builds when they act and when they take damage. When full, the hero casts their ability at the very next action boundary, ahead of any waiting basic attack; abilities and basic attacks run on separate timers, so the cast doesn't use up the attack gauge (user rule, 2026-10-06). Charge rates differ by class.
 - **One ability per tier:** Each hero has one active ability, replaced when they advance (Base → Advanced → Legendary).
 - **Ending a fight:** A fight ends when one side has no heroes standing. Damage escalates after a set time (sudden death) to prevent stalemates.
 
@@ -76,12 +76,13 @@ Meaningful choices happen between "All 4 Advanced" and "Full party maxed." Below
 - A **Vault Heart memory:** bonus Lumari lore from the final chamber. It deepens the story but is not required to follow the main plot.
 
 ## Statuses and Rulings (2026-10-06)
-- **Timed statuses** are built (`game/core/data/statuses.gd`): stun, blind, sap and boon, slow, poison, burn, regen, shield, hidden, heal block, heal inversion, charge seal and damage link. Each has a duration, a source and a stacking rule.
+- **Timed statuses** are built (`game/core/data/statuses.gd`): stun, blind, sap and boon, slow, poison, burn, regen, shield, hidden, heal block, heal inversion, charge seal and damage link; round 2 adds disarm (no basic attacks), sabotage (the side's formation behaviour stops), riposte (a parry stance), watch (a guard over the allies beside it), enshrine (sealed in crystal) and seal immunity. Each has a duration, a source and a stacking rule.
 - **Status damage is non-physical:** the back-column halving never applies to it.
 - **Hidden units:** melee skips a hidden front unit to the nearest visible front unit, and reaches the back column only when no visible front unit stands. Area attacks still hit hidden units.
 - **Fight end:** a unit at 1 HP is standing, so its side has not lost. Summons never count as standing.
-- **Charge:** a unit gains no charge while its own ability's effect is in play. The Fading's damage builds no charge.
-- **Summons** (Echoblade's echo, Gravecaller's husks) don't count toward formation shapes.
+- **Charge:** a unit gains no charge while a summon it called still stands (narrowed after playtest, 2026-10-06: statuses it puts on others no longer stop its charge). The Fading's damage builds no charge. Hits taken during an ability charge a unit only up to 99, so one ability never readies another.
+- **Summons** (Echoblade's echo, Gravecaller's husks, nameless husks included) don't count toward formation shapes.
+- **Sealed units** (Enshriner, PROVISIONAL): a unit sealed in crystal still counts as standing and still takes the Fading's damage, can't be sealed again for a while after release, and counts as not visible for melee targeting.
 - **Stun:** no diminishing returns yet; playtest first.
 
 ## Open Questions

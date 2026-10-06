@@ -19,7 +19,8 @@ const COMBAT := {
 	"charge_hit_scale": 0.8,         # global multiplier on class charge_on_hit
 	"start_charge_bonus": 25,         # added to every class start_charge
 	"start_charge_spread": 25,       # each unit starts at class start_charge +/- this (seeded)
-	"full_charge_jumps_queue": true, # reaching full charge fills the gauge: the unit acts next
+	# (retired 2026-10-06: full_charge_jumps_queue. Abilities now run on their own timer: a full bar
+	# casts at the next action boundary, ahead of basic actions, and leaves the ATB gauge alone.)
 
 	# --- damage ---
 	"damage_scale": 1.8,              # power * scale * A * A / (A + D)
