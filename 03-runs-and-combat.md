@@ -76,12 +76,13 @@ Meaningful choices happen between "All 4 Advanced" and "Full party maxed." Below
 - A **Vault Heart memory:** bonus Lumari lore from the final chamber. It deepens the story but is not required to follow the main plot.
 
 ## Statuses and Rulings (2026-10-06)
-- **Timed statuses** are built (`game/core/data/statuses.gd`): stun, blind, sap and boon, slow, poison, burn, regen, shield, hidden, heal block, heal inversion, charge seal and damage link. Each has a duration, a source and a stacking rule.
+- **Timed statuses** are built (`game/core/data/statuses.gd`): stun, blind, sap and boon, slow, poison, burn, regen, shield, hidden, heal block, heal inversion, charge seal and damage link; round 2 adds disarm (no basic attacks), sabotage (the side's formation behaviour stops), riposte (a parry stance), watch (a guard over the allies beside it), enshrine (sealed in crystal) and seal immunity. Each has a duration, a source and a stacking rule.
 - **Status damage is non-physical:** the back-column halving never applies to it.
 - **Hidden units:** melee skips a hidden front unit to the nearest visible front unit, and reaches the back column only when no visible front unit stands. Area attacks still hit hidden units.
 - **Fight end:** a unit at 1 HP is standing, so its side has not lost. Summons never count as standing.
 - **Charge:** a unit gains no charge while its own ability's effect is in play. The Fading's damage builds no charge.
-- **Summons** (Echoblade's echo, Gravecaller's husks) don't count toward formation shapes.
+- **Summons** (Echoblade's echo, Gravecaller's husks, nameless husks included) don't count toward formation shapes.
+- **Sealed units** (Enshriner, PROVISIONAL): a unit sealed in crystal still counts as standing and still takes the Fading's damage, can't be sealed again for a while after release, and counts as not visible for melee targeting.
 - **Stun:** no diminishing returns yet; playtest first.
 
 ## Open Questions

@@ -56,20 +56,38 @@ At the threshold, the player can choose to suppress a hero's Advancement. The he
 - **Variants:** A hero's exact cell within a region adds a lean modifier (e.g. Lawful lean, Good lean). These come from a shared modifier system rather than being designed cell by cell.
 - **Total:** 9 classes per base class, or 36 across 4 base classes.
 
-### Approved Advanced Classes (round 1, 2026-10-06)
-The user approves every class personally (`docs/design/class-verdicts-round1.md`; abilities in `docs/design/advanced-class-options.md`). Built so far, one per approved region (codes: `LG` Mercy+Order, `CG` Mercy+Freedom, `LE` Cruelty+Order, `CE` Cruelty+Freedom, `N` neutral cross, `*` corner):
+### Approved Advanced Classes (rounds 1 and 2, 2026-10-06)
+The user approves every class personally (`docs/design/class-verdicts-round1.md` and `class-verdicts-round2.md`; abilities in `docs/design/advanced-class-options.md` and `class-options-round2.md`). Built so far, one per approved region (codes: `LG` Mercy+Order, `CG` Mercy+Freedom, `LE` Cruelty+Order, `CE` Cruelty+Freedom, `N` neutral cross, `*` corner):
 
-| Base (start) | Approved region → class | No approved class yet |
+| Base (start) | Approved region → class | No approved class yet (stand-in) |
 |---|---|---|
-| Fighter (N) | LG Paladin, LE Shackler (name to change), CE Berserker, LE★ Iron Marshal, CG★ Echoblade | N, CG, LG★, CE★ |
-| Rogue (CE) | CE Cutpurse, CE★ Fadewalker, CG Duelist, LE Assassin, LE★ Nightshade, LG★ Unseen Warden | N, LG, CG★ |
-| Healer (LG) | LG Cleric, N Threadmender, LG★ Lumenward, CG Rekindler, LE Tithekeeper, CG★ Wickburner, LE★ Confessor, CE★ Gravecaller | CE (pick one: Bloodletter or Hexmender) |
-| Mage (CG) | CG Stormwake, N Archmage, CG★ Starcaller, LG Lampwright, CE Warlock, LE Runebinder, LG★ Chronist, CE★ Wildfire | LE★ |
+| Fighter (N) | N Halberdier, LG Lightsworn, CG Bladebreaker, LE Warden of Chains, CE Berserker, LE★ Iron Marshal, CG★ Echoblade, CE★ Ravager | LG★ (Lightsworn stands in) |
+| Rogue (CE) | N Saboteur, LG Nightwatch, CG Duelist, LE Assassin, CE Cutpurse, LE★ Nightshade, LG★ Unseen Warden, CE★ Fadewalker | CG★ (Duelist stands in) |
+| Healer (LG) | N Threadmender, LG Cleric, CG Rekindler, LE Tithekeeper, CE Bloodletter, LG★ Lumenward, CG★ Wickburner, LE★ Confessor, CE★ Gravecaller | none |
+| Mage (CG) | N Archmage, LG Lampwright, CG Stormwake, LE Runebinder, CE Warlock, LG★ Chronist, CG★ Starcaller, LE★ Enshriner, CE★ Wildfire | none |
 
-- Paladin (Fighter LG, a pick-one region) and Duelist (Rogue CG, voted maybe) stay as they are until the user decides.
-- The Necromancer was dropped; the Gravecaller holds the Healer's far corner, and saved Necromancers load as Gravecallers.
-- **PROVISIONAL:** a hero who advances in a region with no approved class gets the approved class of the nearest region by grid steps from its cell (ties: the region nearer its base's starting cell). This stands in until every region has an approved class.
-- **PROVISIONAL:** the Gravecaller's behaviour when nobody has fallen yet is "hits the weakest foe", until the user decides.
+Round-2 abilities, as the player reads them:
+
+| Class | Ability |
+|---|---|
+| Halberdier | Hits the front foe and the foe behind it in the same row. |
+| Lightsworn | Aegis Strike: hits the front foe and gives the lowest-HP ally a shield. |
+| Bladebreaker | Disarms the strongest front foe for a few seconds: no basic attacks, so no charge from acting, but it still charges from damage and can still use a full bar. |
+| Ravager | Whirlwind: hits every foe in the front column and every ally around it (diagonals included), hard. At home in Strays. |
+| Warden of Chains | Its chains drag the foe behind the front foe forward (the former Shackler; same ability). |
+| Iron Marshal | Drive On now reaches every adjacent ally, diagonals included. |
+| Saboteur | Hits the front foe and stops the foes' formation behaviour for a few seconds (their stat bonus stays). |
+| Duelist | Riposte: parries the next melee hit on it and answers with a critical counter; lunges at the front foe if nobody swings in time. |
+| Nightwatch | Keeps watch: the next foe to hit an ally beside it is struck and stunned (once). |
+| Bloodletter | Hits every foe lightly and heals all allies from the damage (a share of 40 % to start). |
+| Gravecaller | Raises the fallen as before; with nobody fallen, a nameless husk of the Vault's long-dead, weaker than any raised hero. |
+| Enshriner | Seals the strongest foe (highest Atk or Mag) in crystal for a few seconds: it can't act or be hit, and its formation loses it. The name will change. |
+
+- The Paladin retired in round 2; the Lightsworn holds its region and keeps its ability name. Saved Paladins (Echoes, pools, monuments) load as Lightsworn. The Necromancer was dropped in round 1; saved Necromancers load as Gravecallers.
+- **PROVISIONAL:** the Lantern Saint (Legendary) now advances from the Lightsworn. The user hasn't confirmed this parent.
+- **PROVISIONAL:** a hero who advances in a region with no approved class gets the approved class of the nearest region by grid steps from its cell (ties: the region nearer its base's starting cell). Only Fighter LG★ and Rogue CG★ still use it.
+- **PROVISIONAL:** the Gravecaller with no free front slot strikes the weakest foe (Grave Bolt) instead of raising a husk.
+- **PROVISIONAL (Enshriner, q-9):** (a) a sealed unit still counts as standing, so sealing the last foe can't win; (b) the Fading still damages a sealed unit; (c) a unit just freed from a seal can't be sealed again for 8 s; (d) a sealed front unit counts as not visible for melee targeting, so melee reaches past it (as with hidden units, ruling 1). Nothing else reaches a sealed unit: no hit, heal, status or status tick.
 
 ### Stat Budget (ruling 8)
 Each base class has one stat budget for its advanced classes: they differ only in how it is spread. Total = HP ÷ 5 + Atk + Def + Mag + Spd at level 1, and the same sum of the per-level growth.
@@ -81,7 +99,7 @@ Each base class has one stat budget for its advanced classes: they differ only i
 | Healer | 89 | 7.5 |
 | Mage | 84 | 7.5 |
 
-The budgets are the averages of each base's live advanced classes before the rule; Paladin, Berserker, Duelist, Assassin, Archmage and Warlock were adjusted to them. Crit chance and charge rates are class identity and sit outside the budget.
+The budgets are the averages of each base's live advanced classes before the rule; Paladin, Berserker, Duelist, Assassin, Archmage and Warlock were adjusted to them, and the round-2 classes were built on them. Crit chance and charge rates are class identity and sit outside the budget.
 
 ### Corner Rarity
 Rarity comes from each corner's distance from the class's fixed starting position. For a Healer starting at (+1, +1), with a threshold of 3 and single-axis steps:
@@ -90,7 +108,7 @@ Rarity comes from each corner's distance from the class's fixed starting positio
 |---|---|---|
 | (+2, +2) | 2 | Reachable normally |
 | (+2, −2) and (−2, +2) | 4 | Rare: needs a strong shift or holding back |
-| (−2, −2) | 6 | Super rare (e.g. Necromancer): needs both |
+| (−2, −2) | 6 | Super rare (e.g. Gravecaller): needs both |
 
 - The far corner's class is the super-rare class for that base class.
 - **Extreme classes may be impossible or near impossible to reach without meta progression.** Starting traits from the Adventurers' Guild provide the push. This is an intentional exception to the rule that advanced classes are not gated behind meta progression. The required meta progression should be light.

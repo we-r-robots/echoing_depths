@@ -2327,7 +2327,7 @@ func _steal_charge(u: Unit, tgt: Unit, amount: int, t: int) -> void:
 	_gain_charge(u, amt, "effect", t)
 
 
-## Shackler: pulls the foe standing behind `tgt` (same row, back column) forward into the front
+## Warden of Chains (id shackler): pulls the foe standing behind `tgt` (same row, back column) forward into the front
 ## column, pushing `tgt` back; if `tgt` fell to the hit, the back unit steps into its empty slot.
 ## The side's formation stays the one detected at fight start (as Hold the door). Two "move"
 ## events (the pulled unit first).
