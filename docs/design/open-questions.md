@@ -14,3 +14,10 @@ Updated 2026-10-05 after the user's answers (recorded in class-roster-draft.md 4
 9. **The mist:** when does each side thin, and what's behind it?
 10. **Empty plots:** should they hint at what could be built ("room for something the village remembers" today)?
 11. **Starting identity:** the 6 generic starting names, and whether all 3 free crests are offered at the start.
+
+## Playtest fixes (built 2026-10-05, 25b45ae; placeholders in use)
+12. **Difficulty jumped:** with fuller parties and Awakening at 2 memories, a greedy bot's run victory went from 21% to 59% (Crystal 58% → 75%; floor guardians 84/91/89/45% on floors 1–4). Retune guardians and the Crystal now, or wait for the class roster and the Crystal rework?
+13. **Unwritten regions:** a hero in a region with no class yet Awakens into the nearest written class (a neutral-cross Fighter becomes a Paladin, marked NEW). OK until the roster is approved?
+14. **Codex:** discovered classes aren't saved yet, so every Awakening reads NEW and unknown regions read "???". Build a saved codex?
+15. **Names:** "Lantern Camp" (the hub between nodes), "The lanterns are lit" (its heading), and "Hold Back" (from the spec). Keep or rename?
+16. **Declining recruits:** a player who keeps saying no still sees a recruit offer every 2–3 encounters but stays small. Intended?
