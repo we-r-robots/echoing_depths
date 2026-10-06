@@ -1,4 +1,4 @@
-# QUEUED: every formation part counts (start after classes-r2 merges)
+# BUILT on branch formation-parts (2026-10-06): every formation part counts
 
 User decision 2026-10-06 (05-formations.md, BUILD.md): a partly connected side fights with every connected part that forms a shape. Playtest case: Vael F1 + Ash F2 (Kindred) and Brakka B3 + Corin B4 (Vigil) got "No formation"; now both pairs count.
 

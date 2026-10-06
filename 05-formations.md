@@ -15,6 +15,23 @@ Each side has 2 columns (F = front, B = back) and 4 rows. Melee hits the front c
 
 Diagrams below show columns as `F B`, rows top to bottom. `■` is a hero, `·` is an empty slot. A shape can sit at any height in the grid.
 
+## Parts: How a Side's Formation Is Read
+*Implemented 2026-10-06 (code: `Formation.effective()` in game/core/formation.gd; data format in game/core/README.md).*
+1. Split the placed heroes into **edge-connected parts**. A lone hero is not a part.
+2. **No two heroes touch at all:** the side is **Strays** (one formation over everyone). Nothing else below applies.
+3. Judge each part on its own:
+   - an **unlocked shape** counts as itself;
+   - a **locked shape**, or a part that matches no shape, counts as its **largest unlocked shape inside it** (ties go to the shape listed first in this document), on those heroes only;
+   - a part with no unlocked shape inside gives nothing.
+4. Every counting part gets its own bonus, cost, roles and behaviour, on its own heroes only. A behaviour never reaches across parts: e.g. Kindred's charge goes only to the other Kindred hero, and a Lamplight guardian only covers its own back partner.
+5. Heroes in no counting part get nothing (the setup board marks them NO SHAPE).
+6. **Unformed** (no formation) only when no part counts.
+7. A Saboteur's cut ropes and the Keeper's dimmed lantern stop the behaviour of **every** part on that side. Stat bonuses and costs stay.
+
+Example (the playtest case): Vael front row 1 + Ash front row 2 = **Kindred**; Brakka back row 3 + Corin back row 4 = **Vigil**. The side fights as Kindred + Vigil: Vael and Ash get Front Def +10% and Shoulder to shoulder; Brakka and Corin get Mag +10% and Covering fire.
+
+Echoes recorded before this rule (Echo v1/v2) keep the old whole-side rule, so they replay exactly as recorded.
+
 ## Dominoes (2 heroes)
 | Shape | Layout | Bonus | Behaviour | Cost |
 |---|---|---|---|---|
@@ -50,7 +67,7 @@ Heroes deliberately spread out so that no two stand side by side (edge-adjacent)
 
 ## Training Grounds: Unlocking Formations
 Any shape can be formed from the first run, but a shape's bonus and behaviour only apply once it is **unlocked at the Training Grounds** in Lanternrest. This matches the original meta-progression spec ("adds formations").
-- **A locked shape falls back to its largest unlocked part:** if some heroes in it form a smaller unlocked shape (e.g. a locked Seawall containing an unlocked Tidebreak), the side fights as that smaller shape, and the screens state exactly which shape and bonus apply. If no unlocked part fits, it is **Unformed** (no bonus, no cost).
+- **A locked shape falls back to its largest unlocked part:** if some heroes in it form a smaller unlocked shape (e.g. a locked Seawall containing an unlocked Tidebreak), the side fights as that smaller shape, and the screens state exactly which shape and bonus apply. If no unlocked part fits, that part gives nothing; when no part of the side counts, it is **Unformed** (no bonus, no cost). This is judged per connected part (see "Parts" above).
 - **Unlocked from the start:** the three dominoes and their direct tromino growth (Kindred, Vigil, Lamplight, Tidebreak, Choir), so early runs already have real choices.
 - **Unlocked with Shards:** the remaining trominoes and the tetrominoes, as a tree that follows how shapes grow (e.g. Tidebreak leads to Seawall and Keeper's Ring).
 - **Fairness:** per the meta principles (variety, not power), every shape has a cost, so unlocks widen options rather than add raw power. An Echo fights with the unlocks its player had when it was recorded.

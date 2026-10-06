@@ -61,7 +61,7 @@ func test_mirrored_variants_are_the_same_shape() -> void:
 func test_strays() -> void:
 	eq(Formation.detect([[0, 0], [0, 2]])["id"], "strays", "a gap in the column")
 	eq(Formation.detect([[0, 0], [1, 1]])["id"], "strays", "diagonal is not edge-connected")
-	eq(Formation.detect([[0, 0], [0, 1], [1, 3]])["id"], "strays", "a pair plus a loner matches no shape (state: unformed)")
+	eq(Formation.detect([[0, 0], [0, 1], [1, 3]])["id"], "strays", "a pair plus a loner is no single shape (state: partial)")
 	eq(Formation.detect([[0, 0], [0, 3], [1, 1], [1, 2]])["id"], "strays", "scattered four")
 
 
@@ -77,8 +77,8 @@ func test_formation_states() -> void:
 	fx = st.call([[0, 0], [1, 1], [0, 2], [1, 3]], u)
 	check(fx["state"] == "strays" and fx["effective"]["id"] == "strays" and fx["sub_cells"].is_empty(), "no two adjacent: Strays")
 	fx = st.call([[0, 0], [0, 1], [1, 3]], u)
-	check(fx["state"] == "unformed" and fx["effective"]["id"] == "unformed" and (fx["effective"]["bonus"] as Array).is_empty(),
-		"a pair plus a loner: Unformed (no bonus, no cost)")
+	check(fx["state"] == "partial" and fx["effective"]["id"] == "kindred" and fx["sub_cells"] == [[0, 0], [0, 1]],
+		"a pair plus a loner: the pair counts as Kindred, the loner gets nothing (every part counts)")
 	fx = st.call([[0, 0], [0, 1], [0, 2], [0, 3]], u)
 	check(fx["state"] == "locked_fallback" and fx["shape"]["id"] == "seawall" and fx["effective"]["id"] == "tidebreak" and fx["locked"],
 		"locked Seawall falls back to its largest unlocked part, Tidebreak")

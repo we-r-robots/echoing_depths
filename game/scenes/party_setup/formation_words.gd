@@ -53,23 +53,48 @@ const UNFORMED := {"id": "unformed", "name": "No formation", "size": 0, "cells":
 	"behaviour": {}, "cost": {"text": "", "mods": []}}
 
 
-## The formation state of these cells (user decision 2026-10-05, core implements it later):
-##   active          a shape, unlocked: it fights as itself
+## The formation state of these cells (core Formation.effective; user decisions 2026-10-05 and
+## 2026-10-06 "every formation part counts"):
+##   active          one shape, unlocked, the whole side: it fights as itself
 ##   strays          no two heroes stand side by side: the Strays formation (always unlocked)
-##   unformed        partly joined but not a shape: no bonus, no cost
+##   unformed        no connected part yields a shape: no bonus, no cost
 ##   locked_fallback a locked shape: it fights as its largest unlocked smaller shape inside it
 ##   locked_unformed a locked shape with no unlocked part inside: no formation
-## Returns {"shape": geometric shape (or STRAYS / UNFORMED), "effective": what fights,
-##          "sub_cells": cells of the effective shape ([] for strays / unformed), "state": ...,
-##          "locked": bool (the geometric shape is a locked shape)}; {} shape for < 2 cells.
+##   partial         one connected part counts, some heroes stand apart (they get nothing)
+##   parts           two or more connected parts count, each on its own heroes ("parts" lists them;
+##                   "effective" is a summary named "Kindred + Vigil" with no effects of its own)
+## Returns {"shape": geometric shape (or STRAYS / UNFORMED / the parts summary), "effective": what
+##          fights, "sub_cells": cells of every counting shape ([] for strays / unformed),
+##          "state": ..., "locked": bool, "parts": [{state, shape, effective, sub_cells, cells,
+##          locked}, ...]}; {} shape for < 2 cells.
 ## Delegates to core Formation.effective (the sim's own rule), so the screen always matches the fight.
 static func evaluate(cells: Array, unlocked: Array) -> Dictionary:
 	if cells.size() < 2:
-		return {"shape": {}, "effective": {}, "sub_cells": [], "state": "none", "locked": false}
+		return {"shape": {}, "effective": {}, "sub_cells": [], "state": "none", "locked": false, "parts": []}
 	var hs: Array = []
 	for c: Array in cells:
 		hs.append({"slot": [int(c[0]), int(c[1])]})
 	return Formation.effective({"heroes": hs, "unlocked_formations": unlocked})
+
+
+## Tag on a hero who stands in no counting part (it gets no bonus and no cost).
+const LEFT_OUT_TAG := "NO SHAPE"
+
+
+## True when this result fights with at least one shape (a whole shape, or parts of the side).
+static func forms(ev: Dictionary) -> bool:
+	return String(ev.get("state", "")) in ["active", "partial", "parts"]
+
+
+## Placed cells whose hero stands in no counting part (only when the side is split into parts).
+static func left_out(ev: Dictionary, cells: Array) -> Array:
+	var out: Array = []
+	if not String(ev.get("state", "")) in ["partial", "parts", "locked_fallback"]:
+		return out
+	for c: Array in cells:
+		if Formation.part_of(ev, c) < 0:
+			out.append(c)
+	return out
 
 
 ## Bonus mods as plain-word lines: "Front heroes: Def +45%". Same scope and value are merged:

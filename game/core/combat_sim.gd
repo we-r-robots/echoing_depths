@@ -235,7 +235,7 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 		u.charge = clampi(u.charge + _rng.int_range(-spread, spread), 0, _charge_max - 1)
 	var volley: Array = []
 	for u in _units:   # Choir / Lumari Chorus: the back row starts with fuller gauges
-		var b: Dictionary = _beh[u.side]
+		var b: Dictionary = _beh_of(u)
 		if String(b["id"]) == "opening_volley" and u.col == 1 and u.in_shape:
 			u.gauge = mini(int(_gauge_max * 0.95), u.gauge + int(_gauge_max * float(b["gauge"])))
 			volley.append(u)
@@ -260,7 +260,7 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 			for _c_entry in u.contribs.get("hp_pct", []):
 				_proc(u, "hp_pct", "start", 0)   # one cue per side/source (rate-limited)
 		for u: Unit in volley:
-			_beh_cue(u, "start", 0, -1, float(_beh[u.side]["gauge"]))
+			_beh_cue(u, "start", 0, -1, float(_beh_of(u)["gauge"]))
 	# tests and tools: units that start hurt, and statuses already on units (core/README.md "Options")
 	for sh: Dictionary in options.get("start_hp", []):
 		var hu := _unit_at(int(sh["side"]), sh["slot"])
@@ -273,6 +273,9 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 			src = _unit_at(int(ss.get("src_side", ss["side"])), ss["src_slot"])
 		if dst != null and src != null:
 			_add_status(dst, String(ss["status"]), src, ss, 0, "", bool(ss.get("from_ability", false)))
+	if not (options.get("start_statuses", []) as Array).is_empty():
+		for s in 2:   # a starting "sabotage" stops that side's formation behaviour, as Cut the Ropes does
+			_refresh_sabotage(s)
 	if _crystal != null:
 		_release_memory(0, "start")
 
@@ -412,12 +415,15 @@ func _build_crystal_side(opts: Dictionary) -> Dictionary:
 		"bonus": [], "behaviour": {"id": "none", "name": "Crystal", "text": "It never acts. Memories surface from it as it cracks."},
 		"cost": {"text": "", "mods": []}}
 	_shape[1] = chamber
-	_beh[1] = chamber["behaviour"]
-	_bid[1] = "none"
+	_pshape[1] = []
+	_pbeh[1] = []
+	_pbid[1] = []
+	_puses[1] = []
+	_base_bid[1] = "none"
 	return {"side": 1, "name": "Crystal of Remembrance",
 		"formation": {"id": "crystal_chamber", "name": "Crystal of Remembrance", "shape": "crystal_chamber",
 			"shape_name": "Crystal of Remembrance", "state": "none", "sub_cells": [], "locked": false, "buffs": [], "debuffs": [],
-			"behaviour": {"id": "none", "name": "Crystal", "text": chamber["behaviour"]["text"]}, "cost": ""},
+			"behaviour": {"id": "none", "name": "Crystal", "text": chamber["behaviour"]["text"]}, "cost": "", "parts": []},
 		"compositions": []}
 
 
@@ -492,12 +498,11 @@ func _spawn_memory(id: String, t: int, reason: String) -> void:
 			"summon": "", "summoner": -1, "raised": -1})
 	match String(u.mem["id"]):
 		"mirror":   # copies the heroes' formation: guarding shapes make her sturdy, attacking ones sharp
-			_mirror = "guard" if GUARD_BEHAVIOURS.has(_bid[0]) else "strike"
-		"dim_lantern":
-			if _dimmed_beh.is_empty() and _bid[0] != "none":
-				_dimmed_beh = {0: _beh[0], 1: _bid[0]}
-				_beh[0] = {"id": "dimmed", "name": "Dimmed", "text": "The Keeper has dimmed the lantern."}
-				_bid[0] = "dimmed"
+			_mirror = "guard" if GUARD_BEHAVIOURS.has(_primary_bid(0)) else "strike"
+		"dim_lantern":   # dims every part of the heroes' formation
+			if _dimmed_beh.is_empty() and _side_bid(0) != "none":
+				_dimmed_beh = {"ovr": _ovr[0]}
+				_ovr[0] = {"id": "dimmed", "name": "Dimmed", "text": "The Keeper has dimmed the lantern."}
 
 
 ## Each 25% of integrity lost breaks a fragment; fragments 1-3 release a memory, the 4th frees the Shard.
@@ -723,6 +728,54 @@ func _build_side(side: int, party: Dictionary) -> Dictionary:
 			"behaviour": {"id": beh_def["id"], "name": beh_def["name"], "text": beh_def["text"]},
 			"cost": String(shape["cost"]["text"]), "parts": parts_ev},
 		"compositions": comp_ev}
+
+
+## The behaviour id a unit fights with right now: its part's, unless the side is dimmed or
+## sabotaged (every part stops); "none" for units in no part (summons, memories, left-out heroes).
+func _bid_of(u: Unit) -> String:
+	if u.part < 0:
+		return "none"
+	if not (_ovr[u.side] as Dictionary).is_empty():
+		return String(_ovr[u.side]["id"])
+	return String(_pbid[u.side][u.part])
+
+
+func _beh_of(u: Unit) -> Dictionary:
+	if u.part < 0:
+		return {"id": "none", "name": "", "text": ""}
+	if not (_ovr[u.side] as Dictionary).is_empty():
+		return _ovr[u.side]
+	return _pbeh[u.side][u.part]
+
+
+## The shape a unit's part fights as (the side summary for units in no part).
+func _part_shape(u: Unit) -> Dictionary:
+	return _pshape[u.side][u.part] if u.part >= 0 else _shape[u.side]
+
+
+## A side's behaviour summary: the override while dimmed / sabotaged, else "none" (no part), the one
+## part's behaviour id, or "parts" (several parts).
+func _side_bid(side: int) -> String:
+	if not (_ovr[side] as Dictionary).is_empty():
+		return String(_ovr[side]["id"])
+	return _base_bid[side]
+
+
+## The behaviour of a side's biggest part (first on ties): what the Weaver mirrors.
+func _primary_bid(side: int) -> String:
+	if not (_ovr[side] as Dictionary).is_empty():
+		return String(_ovr[side]["id"])
+	var best := -1
+	var best_n := 0
+	for i in (_pbid[side] as Array).size():
+		var n := 0
+		for u: Unit in _sides[side]:
+			if u.part == i:
+				n += 1
+		if n > best_n:
+			best_n = n
+			best = i
+	return "none" if best < 0 else String(_pbid[side][best])
 
 
 static func _scope_applies(m: Dictionary, u: Unit, entry: Array) -> bool:
@@ -951,11 +1004,13 @@ func _do_action(u: Unit, followup := "", cast := false) -> int:
 	elif mid == "dim_lantern" and not _dimmed_beh.is_empty():
 		_mem_cue(u, "turn", _now, -1, 1.0)
 	# Shardpoint: the tip gains charge whenever an ally behind it acts
-	if _bid[u.side] == "shardpoint" and u.col == 1 and u.in_shape:
+	if _bid_of(u) == "shardpoint" and u.col == 1 and u.in_shape:
+		var spb: Dictionary = _beh_of(u)
 		for tip: Unit in _sides[u.side]:
-			if tip.alive and not tip.sealed and tip.roles.has("tip") and tip.col == 0 and tip.charge < _charge_max:
-				if _gain_charge(tip, int(_beh[u.side]["charge"]), "effect", _now):
-					_beh_cue(tip, "charge", _now, u.uid, float(_beh[u.side]["charge"]))
+			if tip.alive and not tip.sealed and tip.part == u.part and tip.roles.has("tip") and tip.col == 0 \
+					and tip.charge < _charge_max:
+				if _gain_charge(tip, int(spb["charge"]), "effect", _now):
+					_beh_cue(tip, "charge", _now, u.uid, float(spb["charge"]))
 	_cur_ability = use_ability or followup != ""
 	_cur_followup = followup != ""
 	if use_ability:
@@ -1048,7 +1103,7 @@ func _apply_effect(u: Unit, a: Dictionary, eff: Dictionary, primary: Unit, t: in
 			continue
 		var targets := _resolve(u, a, to, primary, eff)
 		if op == "damage" and SPLASH.has(to) and not targets.is_empty() and primary != null \
-				and _bid[targets[0].side] == "scattered":
+				and _side_bid(targets[0].side) == "scattered":
 			# Strays: splash only spreads between units standing next to each other (the struck
 			# unit's edge-connected group); scattered units are spared. Cued on the struck primary.
 			var group := _connected_group(primary)
@@ -1372,11 +1427,12 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 	var guarded: Unit = null
 	# Lamplight guardian: the front unit intercepts the first ranged/magic hit on its back partner
 	# (a behaviour, so a Saboteur's cut ropes or the Keeper's dimmed lantern stop it too)
-	if _guard_uses[dst.side] > 0 and _bid[dst.side] == "guardian" and dst.col == 1 and dst.in_shape and not _cur_splash \
+	if dst.part >= 0 and _bid_of(dst) == "guardian" and int(_puses[dst.side][dst.part]) > 0 and dst.col == 1 \
+			and dst.in_shape and not _cur_splash \
 			and (magic or not _cur_melee):
 		for g: Unit in _sides[dst.side]:
-			if g.alive and g.in_shape and g.col == 0 and g.row == dst.row:
-				_guard_uses[dst.side] -= 1
+			if g.alive and g.in_shape and g.part == dst.part and g.col == 0 and g.row == dst.row:
+				_puses[dst.side][dst.part] = int(_puses[dst.side][dst.part]) - 1
 				guarded = dst
 				dst = g
 				break
@@ -1406,10 +1462,10 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 		if dst.col == 1:
 			base *= brm
 			mods.append({"id": "back_row_target", "mult": brm})
-	var beh_src: Dictionary = _beh[src.side]
-	var beh_dst: Dictionary = _beh[dst.side]
-	var bs := _bid[src.side]
-	var bd := _bid[dst.side]
+	var beh_src: Dictionary = _beh_of(src)
+	var beh_dst: Dictionary = _beh_of(dst)
+	var bs := _bid_of(src)
+	var bd := _bid_of(dst)
 	var beh_cues: Array = []
 	if bs == "flank" and src.roles.has("flanker") and src.col == 1 and dst.row == src.row:
 		base *= 1.0 + float(beh_src["dmg"])
@@ -1418,7 +1474,7 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 	if bd == "hearthguard" and dst.roles.has("post") and dst.col == 0:
 		var allies := 0
 		for o: Unit in _sides[dst.side]:
-			if o.alive and o.in_shape and o.col == 1:
+			if o.alive and o.in_shape and o.part == dst.part and o.col == 1:
 				allies += 1
 		if allies > 0:
 			var hg := maxf(0.0, 1.0 - float(beh_dst["per_ally"]) * allies)
@@ -1479,16 +1535,16 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 		pass   # shares only pass on single-target hits (keeps an area attack to one number per unit)
 	elif dst.col == 0 and bd == "brace" and dst.roles.has("middle"):
 		for o: Unit in _sides[dst.side]:
-			if o.alive and o.in_shape and o.col == 0 and absi(o.row - dst.row) == 1:
+			if o.alive and o.in_shape and o.part == dst.part and o.col == 0 and absi(o.row - dst.row) == 1:
 				shares.append([o, maxi(1, int(round(amount * float(beh_dst["share"])))), "brace", float(beh_dst["share"])])
 	elif dst.col == 0 and bd == "share_the_blow" and dst.in_shape:
 		var nxt: Unit = null
 		for o: Unit in _sides[dst.side]:
-			if o.alive and o.in_shape and o.col == 0 and o.row == dst.row + 1:
+			if o.alive and o.in_shape and o.part == dst.part and o.col == 0 and o.row == dst.row + 1:
 				nxt = o
 		if nxt == null:
 			for o: Unit in _sides[dst.side]:
-				if o.alive and o.in_shape and o.col == 0 and o.row == dst.row - 1:
+				if o.alive and o.in_shape and o.part == dst.part and o.col == 0 and o.row == dst.row - 1:
 					nxt = o
 		if nxt != null:
 			shares.append([nxt, maxi(1, int(round(amount * float(beh_dst["share"])))), "share_the_blow", float(beh_dst["share"])])
@@ -1581,7 +1637,7 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 		var bid := bd
 		if bid == "shoulder_to_shoulder" or bid == "covering_fire":
 			for o: Unit in _sides[dst.side]:
-				if o != dst and o.alive and o.in_shape:
+				if o != dst and o.alive and o.in_shape and o.part == dst.part:
 					if bid == "shoulder_to_shoulder" and o.charge < _charge_max:
 						if _gain_charge(o, int(beh_dst["charge"]), "effect", t):
 							_beh_cue(o, "charge", t, dst.uid, float(beh_dst["charge"]))
@@ -1645,11 +1701,11 @@ static func _is_melee(a: Dictionary) -> bool:
 
 ## Keeper's Ring: the keeper can't be targeted by melee while all three front units stand.
 func _ring_protected(o: Unit) -> bool:
-	if not o.roles.has("keeper") or _bid[o.side] != "keepers_ring":
+	if not o.roles.has("keeper") or _bid_of(o) != "keepers_ring":
 		return false   # (single-target selection only: area splash still reaches the keeper)
 	var front := 0
 	for f: Unit in _sides[o.side]:
-		if f.alive and f.in_shape and f.col == 0:
+		if f.alive and f.in_shape and f.part == o.part and f.col == 0:
 			front += 1
 	return front >= 3
 
@@ -1668,7 +1724,7 @@ func _apply_draw(u: Unit, primary: Unit, melee: bool) -> Unit:
 			continue
 		if not melee and o.draw_effect != "taunt":
 			continue
-		if o.draw_effect == "taunt" and (_bid[o.side] == "dimmed" or _bid[o.side] == "sabotaged"):
+		if o.draw_effect == "taunt" and (_bid_of(o) == "dimmed" or _bid_of(o) == "sabotaged"):
 			continue   # the Keeper has dimmed the lantern (or a Saboteur cut the ropes): the post's taunt goes dark
 		if o.draw == 2 or (o.col == primary.col and absi(o.row - u.row) <= absi(primary.row - u.row) + 1):
 			_drawn = [o, o.draw_effect]   # cued on o as it takes the hit
@@ -1681,7 +1737,7 @@ func _apply_draw(u: Unit, primary: Unit, melee: bool) -> Unit:
 func _beh_cue(u: Unit, trigger: String, t: int, related: int, value: float, effect: String = "") -> void:
 	if not _log:
 		return
-	var b: Dictionary = _beh[u.side]
+	var b: Dictionary = _beh_of(u)
 	if effect == "":
 		effect = String(b["id"])
 	var key := "%d|%s" % [u.side, effect]
@@ -1689,7 +1745,7 @@ func _beh_cue(u: Unit, trigger: String, t: int, related: int, value: float, effe
 		return
 	_beh_last[key] = t
 	_proc_at = t
-	var shape: Dictionary = _shape[u.side]
+	var shape: Dictionary = _part_shape(u)
 	_emit(t, {"type": "formation_proc", "side": u.side, "uid": u.uid, "source": "formation:" + String(shape["id"]),
 		"name": String(shape["name"]), "stat": "", "effect": effect, "value": value,
 		"sign": "debuff" if effect == "draws_melee" else "buff",
@@ -1902,20 +1958,19 @@ func _ko(u: Unit, by: int, t: int) -> void:
 	if u.mem_id != "":
 		_fallen_memories += 1
 		if String(u.mem.get("id", "")) == "dim_lantern" and not _dimmed_beh.is_empty():
-			_beh[1 - u.side] = _dimmed_beh[0]   # the lantern relights
-			_bid[1 - u.side] = _dimmed_beh[1]
+			_ovr[1 - u.side] = _dimmed_beh["ovr"]   # the lantern relights
 			_dimmed_beh = {}
 		if not _mem_pending.is_empty():
 			var nxt: Array = _mem_pending.pop_front()
 			_spawn_memory(String(nxt[0]), t, String(nxt[1]))
 	# Vault Door hold the door: the back unit in the fallen front unit's row steps into its slot
-	if u.col == 0 and _bid[u.side] == "hold_the_door" and u.in_shape:
+	if u.col == 0 and _bid_of(u) == "hold_the_door" and u.in_shape:
 		for o: Unit in _sides[u.side]:
-			if o.alive and o.in_shape and o.col == 1 and o.row == u.row:
+			if o.alive and o.in_shape and o.part == u.part and o.col == 1 and o.row == u.row:
 				o.col = 0
 				if _log:
 					_emit(t, {"type": "formation_move", "side": o.side, "uid": o.uid, "from": [1, o.row], "to": [0, o.row],
-						"source": "formation:" + String(_shape[o.side]["id"]), "effect": "hold_the_door", "replaces": u.uid})
+						"source": "formation:" + String(_part_shape(o)["id"]), "effect": "hold_the_door", "replaces": u.uid})
 				break
 
 
@@ -2649,7 +2704,7 @@ func _check_watch(attacker: Unit, struck: Unit, t: int) -> void:
 ## formation behaviour stops while any of them has it. Skipped when the foes have no behaviour.
 func _sabotage(u: Unit, eff: Dictionary, t: int, aid: String, from_ability: bool) -> void:
 	var side := 1 - u.side
-	if _sab_saved[side].is_empty() and (_bid[side] == "none" or _bid[side] == "dimmed"):
+	if _sab_saved[side].is_empty() and (_side_bid(side) == "none" or _side_bid(side) == "dimmed"):
 		return
 	for o: Unit in _sides[side]:
 		if o.alive and not o.inert and not o.sealed:
@@ -2664,13 +2719,11 @@ func _refresh_sabotage(side: int) -> void:
 		if o.alive and not o.statuses.is_empty() and _has_kind(o, "sabotage"):
 			on = true
 			break
-	if on and _sab_saved[side].is_empty() and _bid[side] != "none":
-		_sab_saved[side] = {"beh": _beh[side], "bid": _bid[side]}
-		_beh[side] = {"id": "sabotaged", "name": "Sabotaged", "text": "A Saboteur has cut the ropes: no formation behaviour for now."}
-		_bid[side] = "sabotaged"
+	if on and _sab_saved[side].is_empty() and _side_bid(side) != "none":
+		_sab_saved[side] = {"ovr": _ovr[side]}   # every part of the side stops
+		_ovr[side] = {"id": "sabotaged", "name": "Sabotaged", "text": "A Saboteur has cut the ropes: no formation behaviour for now."}
 	elif not on and not _sab_saved[side].is_empty():
-		_beh[side] = _sab_saved[side]["beh"]
-		_bid[side] = String(_sab_saved[side]["bid"])
+		_ovr[side] = _sab_saved[side]["ovr"]
 		_sab_saved[side] = {}
 
 

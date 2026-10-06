@@ -67,7 +67,7 @@ func test_unlocks_round_trip() -> void:
 	var back: Dictionary = Echo.from_json(Echo.to_json(e))
 	check(not back.has("error"), "parses: %s" % back.get("error", ""))
 	eq(back["echo"]["unlocked_formations"], ["kindred", "seawall"], "unlocks survive JSON")
-	eq(int(back["echo"]["version"]), 2, "Echo v2")
+	eq(int(back["echo"]["version"]), 3, "Echo v3")
 	# the replay fights with the recorded unlocks, identically
 	var foe := PartyGen.demo_rival()
 	eq(JSON.stringify(CombatSim.simulate(4, p, foe)["events"]), JSON.stringify(CombatSim.simulate(4, back["echo"], foe)["events"]),
@@ -85,7 +85,8 @@ func test_v1_echo_loads_with_default_unlocks() -> void:
 	var res := Echo.from_json(v1)
 	check(not res.has("error"), "v1 Echo still loads: %s" % res.get("error", ""))
 	eq(res["echo"]["unlocked_formations"], GameData.Formations.DEFAULT_UNLOCKED, "v1 Echo gets the default unlocked set")
-	eq(int(res["echo"]["version"]), 2, "migrated to v2")
+	eq(int(res["echo"]["version"]), 3, "migrated to v3")
+	eq(String(res["echo"]["formation_rule"]), "single", "a v1 Echo keeps the old one-shape rule")
 
 
 func test_bad_unlocks_rejected() -> void:

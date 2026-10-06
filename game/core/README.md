@@ -69,13 +69,30 @@ Lamplight, Tidebreak, Choir). Strays is always available.
 
 ```
 static func effective(party: Dictionary) -> Dictionary
-# -> {"state": "active"|"strays"|"unformed"|"locked_fallback"|"locked_unformed",
-#     "shape": geometric shape (a SHAPES entry, STRAYS, or UNFORMED),
+# -> {"parts": [part, ...],       # every counting part, ordered by its first cell in slot order
+#     "state": "none"|"strays"|"unformed"|"active"|"locked_fallback"|"locked_unformed"|"partial"|"parts",
+#     "shape": geometric shape (a SHAPES entry, STRAYS, UNFORMED, or the synthetic "parts" entry),
 #     "effective": what fights, "sub_cells": [[col,row], ...], "locked": bool}
+# part = {"state": "active"|"locked_fallback"|"fallback"|"strays", "shape": geometric,
+#         "effective": the shape that fights, "sub_cells": the heroes it applies to,
+#         "cells": the whole connected part, "locked": bool}
 ```
-Cells are read in slot order. A locked shape's fallback is the largest unlocked connected
-sub-shape among its heroes (ties: SHAPES data order, then the first such subset in slot order);
-its bonus, cost, roles and behaviour apply only to those heroes. Fewer than 2 units: `"none"`.
+**Every formation part counts** (user decision 2026-10-06). The placed heroes split into
+edge-connected parts. An unlocked shape counts as itself; a locked shape, or a part matching no
+shape, falls back to its largest unlocked connected sub-shape (ties: SHAPES data order, then the
+first such subset in slot order); a part with no unlocked sub-shape gives nothing. Each part's
+bonus, cost, roles and behaviour apply only to its own `sub_cells`; heroes outside every counting
+part get nothing. Strays only when no two heroes touch (one part over every hero); `unformed`
+only when no part counts. The top-level keys keep their old meaning for one-part cases:
+`active` / `locked_fallback` / `locked_unformed` when one part is the whole side, `partial` when
+the one counting part leaves heroes out (top level = that part), and `parts` for 2+ counting
+parts (top-level `shape`/`effective` = `{id: "parts", name: "Kindred + Vigil"}` with no bonus or
+behaviour of its own; read `parts`). Fewer than 2 units: `"none"`. `Formation.part_of(fx, cell)`
+gives the part index a cell fights in (-1 = none).
+
+A party may carry `"formation_rule": "single"` (Echoes recorded before 2026-10-06, migrated from
+Echo v1/v2): the old rule, where the whole side is one shape or nothing (a partly joined side is
+`unformed`), so old Echoes replay exactly. Missing = `"parts"`.
 
 **Validation** (`GameData.validate_party`, applied by `simulate()` and `Echo.from_*`):
 a side is a *monster side* if every unit is a monster class, otherwise a *player side*.
@@ -173,7 +190,15 @@ this section: exact field set, types and enumerated values. If the two ever disa
   `memory`/`lore`, `chapter` 0, and unit `tier` **`"summon"`**. A fully absorbed hit has no
   `damage` event (only its `absorb`). Hidden units are never single-targeted (melee skips a hidden
   front unit to the nearest visible one, and reaches the back only when no visible front unit stands).
-- *Latest: formation states (05-formations.md, user decision).* `Formation.effective(party)` returns
+- *Latest: every formation part counts (05-formations.md, user decision 2026-10-06).* A partly
+  connected side fights with every connected part that yields a shape, each part's bonus, cost,
+  roles and behaviour on its own heroes (Guardian uses, Brace, Share the blow, Hearthguard,
+  Shoulder to shoulder, Covering fire, Keeper's Ring, Hold the door and Shardpoint only reach
+  units of the same part). A Saboteur's sabotage and the Keeper's dimmed lantern stop every part
+  of the side. `Formation.effective` gains `parts` and the states `partial` / `parts`; the
+  `formation` entry gains **`parts`**. Echo v3 adds `formation_rule` (v1/v2 migrate to
+  `"single"`, the old rule, so they replay identically); run saves are version 5.
+- *Earlier: formation states (05-formations.md, user decision).* `Formation.effective(party)` returns
   `{"state", "shape", "effective", "sub_cells", "locked"}` (contract below). **Strays** = no two
   heroes edge-adjacent (always available); **Unformed** = partly joined, no shape (no bonus, cost or
   behaviour; id `"unformed"`, "No formation"); a **locked** shape falls back to its largest unlocked
@@ -273,9 +298,10 @@ are active, `units` = list of unit snapshots. `formation`:
 |---|---|---|
 | `id`, `name` | String | the shape that **fights** (`"strays"` / "Strays" if scattered or locked) |
 | `shape`, `shape_name` | String | the shape the player **arranged** (geometry) |
-| `state` | String | `active`, `strays`, `unformed`, `locked_fallback`, `locked_unformed` (`none` for the Crystal / a single unit) |
+| `state` | String | `active`, `strays`, `unformed`, `locked_fallback`, `locked_unformed`, `partial` (one counting part, some heroes left out), `parts` (2+ counting parts) (`none` for the Crystal / a single unit) |
 | `sub_cells` | Array | `[col, row]` cells the fighting shape applies to: all cells when active, the sub-shape's cells when `locked_fallback`, `[]` otherwise |
 | `locked` | bool | the arranged shape isn't unlocked (it falls back, see `state`) |
+| `parts` | Array | **every counting part** (`[]` for unformed / none / the Crystal): `{id, name, shape, shape_name, state, sub_cells, cells, uids, locked, buffs, debuffs, behaviour, cost}`, the same fields as above for that part alone, plus `cells` (the whole connected part) and `uids` (its heroes). With two or more parts the top level is the synthetic `"parts"` entry (`state` `"parts"`, name e.g. `"Kindred + Vigil"`, no buffs or behaviour): draw and name each part from here |
 | `buffs` | Array | the bonus: modifiers `{scope, stat, value}` (scope `all`/`front`/`back` or a role: `post`, `tip`, `keeper`, `flanker`, `gap`, `middle`) |
 | `debuffs` | Array | the stat part of the cost (may be empty) |
 | `behaviour` | `{id, name, text}` | the shape's behaviour |
@@ -784,10 +810,11 @@ level `3 + (depth − 1) / 3`: shallow groups are a real fight for a mid-run par
 
 ## Echo snapshots
 
-`Echo.make(party, meta)` → `{"format": "echoing_depths.echo", "version": 2, "data_version", "name",
-"meta", "heroes": [normalised heroes], "unlocked_formations": [...]}` (the Training Grounds unlocks
+`Echo.make(party, meta)` → `{"format": "echoing_depths.echo", "version": 3, "data_version", "name",
+"meta", "heroes": [normalised heroes], "unlocked_formations": [...], "formation_rule"}` (the Training Grounds unlocks
 the player had when it was recorded; an Echo fights with exactly those). v1 Echoes still load and
-get the default unlocked set. `Echo.to_json` writes sorted-key JSON; `Echo.from_json` /
+get the default unlocked set; v1 and v2 Echoes get `formation_rule` `"single"` (the old one-shape rule, so
+they replay as recorded), v3 Echoes record `"parts"` (every formation part counts). `Echo.to_json` writes sorted-key JSON; `Echo.from_json` /
 `from_dict` validate (rules above, on the raw input before anything is normalised), migrate older
 versions (`_migrate` hook), reject newer or non-whole versions, and convert
 JSON floats back to ints, so JSON → Echo → JSON is byte-identical and replays match the live fight.

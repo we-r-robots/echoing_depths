@@ -305,6 +305,8 @@ static func _toast_for(ev: Dictionary) -> String:
 	match String(ev["state"]):
 		"active":
 			return "%s formed" % ev["shape"]["name"]
+		"partial", "parts":   # every connected part that forms a shape counts (2026-10-06)
+			return "%s formed" % ev["effective"]["name"]
 		"strays":
 			return "Strays: nobody side by side"
 		"unformed":
@@ -595,6 +597,7 @@ func _draw_field() -> void:
 			else:
 				_fill_tile(c, Pal.INK2, Pal.INK4, sill)
 	_draw_bonds(sub)
+	_draw_parts(ev)
 	# empty-slot labels: growth (nothing held) or the drop result (held / dragged)
 	for row in 4:
 		for col in 2:
@@ -627,6 +630,23 @@ func _draw_field() -> void:
 		var col := Pal.AMBER6 if toast.ends_with("formed") else Pal.INK9
 		PartyDraw.text(self, Vector2(field.position.x, field.end.y - 18), toast, col, PartyDraw.BOLD, UIText.BODY, true, field.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 
+
+
+## Every counting part outlined on the floor (05-formations.md "Every formation part counts"):
+## when the side splits into parts, each part's tiles get their own outline colour, so two pairs
+## read as two formations. A single whole-side shape keeps the plain lit tiles.
+const PART_COLORS := [Pal.CRYSTAL5, Pal.AMBER5]
+
+
+func _draw_parts(ev: Dictionary) -> void:
+	var parts: Array = ev.get("parts", [])
+	if not String(ev["state"]) in ["partial", "parts"]:
+		return
+	for k in parts.size():
+		var col: Color = PART_COLORS[k % PART_COLORS.size()]
+		for c: Array in parts[k]["sub_cells"]:
+			if hero_at_cell(c) >= 0 and hero_at_cell(c) != _dragging:
+				_outline_tile(c, col, 1)
 
 
 static func _key(c: Array) -> int:
@@ -666,7 +686,7 @@ func _drop_label(c: Array, i: int, occ: int) -> void:
 		return
 	var res := FormationWords.evaluate(placed_cells(moved(i, c)), unlocked)
 	var shape: Dictionary = res["shape"]
-	var good: bool = String(res["state"]) == "active"
+	var good: bool = FormationWords.forms(res)
 	_dashed_tile(c, Pal.CRYSTAL3 if good else Pal.INK5, int(_t * 8.0) % 4)
 	var hovered: bool = _dragging < 0 and _hover is Array and int(_hover[0]) == int(c[0]) and int(_hover[1]) == int(c[1])
 	if hovered and not shape.is_empty():
@@ -768,11 +788,16 @@ func _plate_spot(i: int, f: Vector2, w: float, h: float, taken: Array[Rect2]) ->
 ## Above the sprites: name plates under the feet; role tags (hidden while dragging a preview).
 func _draw_overlay() -> void:
 	var ev := FormationWords.evaluate(placed_cells(), unlocked)
-	var cells: Array = ev["sub_cells"]   # roles belong to the shape that actually fights
-	var sid := String(ev["effective"].get("id", ""))
+	# roles belong to the shape that actually fights: each counting part's own roles
+	var cells: Array = []
 	var roles: Array = []
-	if cells.size() >= 2 and _dragging < 0:
-		roles = FormationWords.Formation.roles(sid, cells)
+	if _dragging < 0:
+		for prt: Dictionary in ev.get("parts", []):
+			var pc: Array = prt["sub_cells"]
+			if pc.size() >= 2:
+				cells.append_array(pc)
+				roles.append_array(FormationWords.Formation.roles(String(prt["effective"]["id"]), pc))
+	var left_out := FormationWords.left_out(ev, placed_cells()) if _dragging < 0 else []
 	var taken: Array[Rect2] = []
 	for i in heroes.size():
 		if not (placement[i] is Array) or i == _dragging:
@@ -782,7 +807,9 @@ func _draw_overlay() -> void:
 		var nm := String(heroes[i].get("name", "?"))
 		var w := PartyDraw.text_w(nm, PartyDraw.BOLD) + 6
 		var tags: Array = []
-		if not roles.is_empty():
+		if FormationWords._cell_in(left_out, c):
+			tags.append(FormationWords.LEFT_OUT_TAG)   # in no counting part: no bonus, no cost
+		elif not roles.is_empty():
 			for k in cells.size():
 				if int(cells[k][0]) == int(c[0]) and int(cells[k][1]) == int(c[1]):
 					for r: String in roles[k]:
@@ -799,7 +826,9 @@ func _draw_overlay() -> void:
 		# to the right and left of that spot, so it clears every sprite
 		if not tags.is_empty():
 			var tw := PartyDraw.text_w(tags[0], PartyDraw.BOLD) + 6
-			PartyDraw.pill(_overlay, Vector2(roundi(plate.get_center().x - tw / 2.0), plate.end.y + 2), tags[0], Pal.CRYSTAL5, Pal.CRYSTAL1, Pal.CRYSTAL3)
+			var out_tag: bool = tags[0] == FormationWords.LEFT_OUT_TAG
+			PartyDraw.pill(_overlay, Vector2(roundi(plate.get_center().x - tw / 2.0), plate.end.y + 2), tags[0],
+				Pal.INK9 if out_tag else Pal.CRYSTAL5, Pal.INK2 if out_tag else Pal.CRYSTAL1, Pal.INK5 if out_tag else Pal.CRYSTAL3)
 
 
 ## Topmost: the floating result tag over the dragged hero, and the demo hand.
@@ -817,7 +846,7 @@ func _draw_top() -> void:
 				nm = String(res["effective"]["name"])
 			elif String(res["state"]) == "locked_unformed":
 				nm = "No formation"
-		var good: bool = String(res["state"]) == "active" and _target is Array
+		var good: bool = FormationWords.forms(res) and _target is Array
 		var lock := false
 		# the result reads in the board's bottom strip (where the toast goes), never over a hero
 		var lead := "If placed:" if _target is Array else ""

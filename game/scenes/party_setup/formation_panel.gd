@@ -4,6 +4,8 @@ extends Control
 ## effect icons (shared EffectIcons / EffectChip; each opens the shared Tip with the full sentence).
 ## Details shows the same sentences in the same order (bonus, behaviour, cost, class bonds) with the
 ## same icons, plus the growth path. A locked shape fights as Strays: said once, here.
+## A side split into parts (05-formations.md "Every formation part counts") lists every counting
+## part's effects, each tooltip named after its part, plus a "stands apart" row for left-out heroes.
 
 const W := 208
 const H := 318
@@ -83,6 +85,8 @@ func _details_title() -> String:
 			return "No formation"
 		"locked_fallback":
 			return "%s, fighting as %s" % [shape.get("name", ""), _ev["effective"].get("name", "")]
+		"partial", "parts":
+			return String(_ev["effective"].get("name", ""))
 	return String(shape.get("name", ""))
 
 
@@ -91,13 +95,20 @@ func _details_entries() -> Array:
 	if _ev.is_empty():
 		return out
 	var shape: Dictionary = _ev["shape"]
-	if bool(_ev["locked"]):
+	var split := String(_ev["state"]) in ["partial", "parts"]
+	if split:
+		for prt: Dictionary in _ev["parts"]:
+			if bool(prt["locked"]):
+				out.append({"effect": {"icon": preload("res://ui/effect_icons/lock.png"), "sign": 0, "kind": "note"},
+					"text": "%s is locked: fighting as %s. %s" % [prt["shape"]["name"], prt["effective"]["name"],
+						FormationWords.unlock_hint(String(prt["shape"]["id"]), unlocked)]})
+	elif bool(_ev["locked"]):
 		var as_text := "fighting as %s." % _ev["effective"]["name"] if String(_ev["state"]) == "locked_fallback" else "no formation."
 		out.append({"effect": {"icon": preload("res://ui/effect_icons/lock.png"), "sign": 0, "kind": "note"},
 			"text": "%s is locked: %s %s" % [shape["name"], as_text, FormationWords.unlock_hint(String(shape["id"]), unlocked)]})
 	for e: Dictionary in _effects:
 		out.append({"effect": e, "text": String(e["text"])})
-	if String(_ev["state"]) in ["strays", "unformed", "locked_unformed"]:
+	if String(_ev["state"]) in ["strays", "unformed", "locked_unformed"] or split:
 		return out
 	var names_of := func(list: Array) -> String:
 		var n: PackedStringArray = []
@@ -148,11 +159,35 @@ func show_cells(c: Array, unlocked_ids: Array, n_placed: int, n_party: int, is_p
 	_locked_effects = []
 	if state in ["unformed", "locked_unformed"]:
 		_effects = [NO_FORMATION] + EffectIcons.formation_effects({}, {}, bonds)
+	elif state in ["partial", "parts"]:
+		# every counting part: its own effects, named after it, on its own heroes
+		var split := state == "parts"
+		for prt: Dictionary in _ev["parts"]:
+			var pe: Dictionary = prt["effective"]
+			for e: Dictionary in EffectIcons.formation_effects(pe, _who(String(pe["id"]), prt["sub_cells"]), []):
+				if split:
+					e["name"] = "%s: %s" % [pe["name"], e["name"]]
+				_effects.append(e)
+		var out_names: Array = []
+		for lc: Array in FormationWords.left_out(_ev, cells):
+			out_names.append(_name_at(lc))
+		if not out_names.is_empty():
+			_effects.append(_left_out_row(out_names))
+		_effects += EffectIcons.formation_effects({}, {}, bonds)
 	elif not eff.is_empty():
 		_effects = EffectIcons.formation_effects(eff, who, bonds)
-	if bool(_ev["locked"]):
+	_locked_name = String(shape.get("name", ""))
+	if state in ["partial", "parts"]:
+		var locked_names: Array = []
+		for prt: Dictionary in _ev["parts"]:
+			if bool(prt["locked"]):
+				locked_names.append(String(prt["shape"]["name"]))
+				_locked_effects += EffectIcons.formation_effects(prt["shape"],
+					_who(String(prt["shape"]["id"]), prt["cells"]), [])
+		_locked_name = " and ".join(locked_names)
+	elif bool(_ev["locked"]):
 		_locked_effects = EffectIcons.formation_effects(shape, EffectIcons.who_of(sid, cells, names), [])
-	var sig := "%s|%s|%s|%s|%s" % [sid, state, str(eff.get("id", "")), str(who), str(bases)]
+	var sig := "%s|%s|%s|%s|%s" % [sid, state, str(eff.get("name", "")), str(who), str(bases)]
 	if sig != _sig:
 		if sid != _sig.get_slice("|", 0):
 			_flash = 1.0
@@ -161,6 +196,32 @@ func show_cells(c: Array, unlocked_ids: Array, n_placed: int, n_party: int, is_p
 	queue_redraw()
 
 
+## Hero names for an effect's "who" (roles of a shape on these cells).
+func _who(shape_id: String, sub: Array) -> Dictionary:
+	var sub_names: Array = []
+	for sc: Array in sub:
+		sub_names.append(_name_at(sc))
+	return EffectIcons.who_of(shape_id, sub, sub_names)
+
+
+func _name_at(c: Array) -> String:
+	for k in cells.size():
+		if int(cells[k][0]) == int(c[0]) and int(cells[k][1]) == int(c[1]) and k < names.size():
+			return String(names[k])
+	return "A hero"
+
+
+## The row for heroes who stand in no counting part: they get nothing.
+static func _left_out_row(out_names: Array) -> Dictionary:
+	var who := " and ".join(out_names)
+	return {"icon": preload("res://ui/effect_icons/cost_capped.png"), "sign": 0, "kind": "note",
+		"title": "%d stand apart" % out_names.size() if out_names.size() > 1 else "%s apart" % out_names[0],
+		"name": "Stands apart",
+		"text": "%s %s in no shape, so no formation bonus or cost applies to %s. Every other connected part fights as its own formation." % [
+			who, "stand" if out_names.size() > 1 else "stands", "them" if out_names.size() > 1 else "this hero"]}
+
+
+var _locked_name := ""
 const GROUPS := [["note", "NO FORMATION", Pal.INK9], ["stat+", "GAINS", Pal.LIFE4], ["behaviour", "BEHAVIOUR", Pal.CRYSTAL4],
 	["cost", "COSTS", Pal.BLOOD4], ["bond", "CLASS BOND", Pal.AMBER5]]
 const NO_FORMATION := {"icon": preload("res://ui/effect_icons/cost_capped.png"), "sign": 0, "kind": "note",
@@ -245,7 +306,7 @@ func _locked_row() -> Dictionary:
 		n += 1
 		lines.append(String(e["text"]))
 	return {"icon": preload("res://ui/effect_icons/lock.png"), "sign": 0, "kind": "note", "_locked": true,
-		"title": "%d locked effects" % n, "name": "%s (locked)" % shape["name"],
+		"title": "%d locked effects" % n, "name": "%s (locked)" % (_locked_name if _locked_name != "" else String(shape["name"])),
 		"text": "Once unlocked at the Training Grounds: " + " ".join(lines)}
 
 
@@ -387,7 +448,7 @@ func _draw_title(shape: Dictionary, locked: bool, strays: bool) -> void:
 		"locked_fallback", "locked_unformed":
 			ncol = Pal.FADE4
 	if _flash > 0.5:
-		ncol = Pal.AMBER7 if state == "active" else Pal.INK10
+		ncol = Pal.AMBER7 if state in ["active", "partial", "parts"] else Pal.INK10
 	var nm := String(shape["name"])
 	if state == "locked_fallback":
 		nm = String(_ev["effective"]["name"])   # the shape that fights is the headline
@@ -395,6 +456,10 @@ func _draw_title(shape: Dictionary, locked: bool, strays: bool) -> void:
 	elif state == "locked_unformed":
 		nm = "No formation"
 		ncol = Pal.INK9
+	elif state in ["partial", "parts"]:
+		nm = String(_ev["effective"]["name"])   # the counting part(s): "Kindred + Vigil"
+	if state == "parts" and PartyDraw.text_w(nm, PartyDraw.SERIF, PartyDraw.SERIF_SIZE) > W - 56 - 6:
+		nm = "%d formations" % (_ev["parts"] as Array).size()   # the line and the rows name each part
 	# the panel's title is its largest text (critic r5: it sat a step under the effect rows)
 	var tsz := TITLE_SIZE if PartyDraw.text_w(nm, PartyDraw.SERIF, TITLE_SIZE) <= W - 56 - 6 else PartyDraw.SERIF_SIZE
 	PartyDraw.text(self, Vector2(56, 5 if tsz == TITLE_SIZE else 8), nm, ncol, PartyDraw.SERIF, tsz)
@@ -424,6 +489,11 @@ func _draw_title(shape: Dictionary, locked: bool, strays: bool) -> void:
 			edge = Pal.INK5
 			line = "%s locked" % shape["name"]
 			line_col = Pal.FADE4
+		"partial", "parts":
+			var n_out := FormationWords.left_out(_ev, cells).size()
+			line = "%d parts" % (_ev["parts"] as Array).size() if state == "parts" else FormationWords.size_word(_ev["effective"])
+			if n_out > 0:
+				line += ", %d apart" % n_out
 	if preview:
 		label = "IF PLACED"
 		fg = Pal.AMBER6

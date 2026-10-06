@@ -55,9 +55,12 @@ const EVENTS := {
 }
 const SIDE := {"side": I, "name": S, "formation": D, "compositions": A, "units": A}
 const FORMATION := {"id": S, "name": S, "shape": S, "shape_name": S,
-	"state": [S, ["active", "strays", "unformed", "locked_fallback", "locked_unformed", "none"]], "sub_cells": A,
+	"state": [S, ["active", "strays", "unformed", "locked_fallback", "locked_unformed", "partial", "parts", "none"]], "sub_cells": A,
 	"locked": B, "buffs": A, "debuffs": A,
-	"behaviour": D, "cost": S}
+	"behaviour": D, "cost": S, "parts": A}
+const FORMATION_PART := {"id": S, "name": S, "shape": S, "shape_name": S,
+	"state": [S, ["active", "strays", "locked_fallback", "fallback"]], "sub_cells": A, "cells": A, "uids": A,
+	"locked": B, "buffs": A, "debuffs": A, "behaviour": D, "cost": S}
 const MODIFIER := {"scope": [S, ["all", "front", "back", "class", "post", "tip", "keeper", "flanker", "gap", "middle"]], "stat": S, "value": F}
 const COMPOSITION := {"id": S, "name": S, "mods": A}
 const UNIT := {"uid": I, "side": I, "name": S, "label": S, "class": S, "class_name": S, "span": [I, [1, 2]], "base_class": S,
@@ -111,6 +114,10 @@ func _check_formation(f: Variant, where: String) -> void:
 	_conform(f, FORMATION, where + ".formation")
 	for m: Variant in (f["buffs"] as Array) + (f["debuffs"] as Array):
 		_conform(m, MODIFIER, where + ".formation modifier")
+	for p: Variant in f["parts"]:
+		_conform(p, FORMATION_PART, where + ".formation part")
+		for m: Variant in (p["buffs"] as Array) + (p["debuffs"] as Array):
+			_conform(m, MODIFIER, where + ".formation part modifier")
 
 
 func _check_event(ev: Dictionary, where: String) -> void:

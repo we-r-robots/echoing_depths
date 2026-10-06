@@ -119,7 +119,7 @@ func _run() -> void:
 			await _walk(cs, res)
 		await _drag_preview(res)
 	get_tree().root.size = old
-	for st: String in ["active", "strays", "unformed", "locked_fallback", "locked_unformed", "bench", "drag preview", "details"]:
+	for st: String in ["active", "strays", "unformed", "locked_fallback", "locked_unformed", "partial", "parts", "bench", "drag preview", "details"]:
 		check(_states_seen.has(st), "the probe walked the %s state" % st)
 	check(_tips_checked > 50, "effect-row tooltips were checked (%d)" % _tips_checked)
 	done = true
