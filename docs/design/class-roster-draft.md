@@ -122,8 +122,18 @@ The other dormant templates (The Last Blade of Veil, The Grey Shepherd, The Debt
 4. **Summons and shapes: undecided.** User idea: in the formation setup screen the player picks the tile a summoner summons to; if two summoners target the same tile and a cast lands while that tile's summon is still alive, the summon levels up instead of being replaced.
 5. **Corners twist the base class's essence** (user, 2026-10-05). A rare corner class takes what the base class *is* and bends it very far, a dark or inverted mastery of the same art, not a generic gimmick. The model is the Healer's Necromancer: the Healer deals in life, mending and giving life; the Necromancer deals in the same art of life and death, twisted. **Only the hardest-to-reach corner holds the extreme, twisted class** (user, 2026-10-05): one per base class (Healer: Necromancer; Rogue: the LG* corner, now Keybearer, which fails the rule and needs rethinking; Mage: the LE* corner, Mnemonist). The other corners are strong leans of their quadrant. The Fighter starts on the neutral line, so two corners tie as hardest (CG* and CE*, 5 steps); the user picks one.
 6. **Legendary sacrifice: undecided.** The user's only idea so far is sacrificing another hero, which may be hard to balance.
-7. **Names:** Legendary names are lore and decided by us (the user and the team), not generated. Players may rename heroes so they "remember" their own story. Suggested reconciliation (pending user OK): the Legendary title stays fixed and the hero's personal name is renamable, e.g. "Brannoc, the Red Tide". Class names in this draft are still up for the user's review.
+7. **Names:** Legendary names are lore and decided by us (the user and the team), not generated. Players may rename heroes so they "remember" their own story. (Superseded below: on unlock the hero takes the Legendary's own name; players may rename it.) Class names in this draft are still up for the user's review.
 8. **No lean variants: every class is unique.** The grid's regions already divide the classes; don't tweak abilities by exact cell.
+
+
+### More user answers (2026-10-05, later)
+- **Scope: advanced classes for the existing 4 base classes first.** Base classes (Fighter, Rogue, Healer, Mage) are intentionally generic; any future base class must stay generic too. (The "start-region classes" Vaultwarden, Cutpurse and Tempest are *advanced* classes for the regions where heroes start, not new base classes.)
+- **Fighter gets two extreme corners** (both tied hardest corners), since the Fighter is general in nature.
+- **Twisted Rogue:** to brainstorm with the user.
+- **Class names in this draft were invented by an agent** and are unreviewed; the user hasn't seen or approved them. Treat every name here as a placeholder.
+- **Legendary cost: none for now.** **Summons don't count toward shapes, for now.**
+- **Legendary names:** a Legendary is a powerful Lumari memory, not the hero you started with, so on unlocking it the hero takes the Legendary's own unique lore name (not the starting hero name). Players may rename a Legendary, and that name stays for the rest of their story.
+- **Balance tuning waits** until more classes are in play.
 
 ## 5. What I'd build first
 1. **Fill the starting regions** so no common hero becomes a placeholder: Vaultwarden (Fighter N), Cutpurse (Rogue CE), Tempest (Mage CG). These are OK/S only.

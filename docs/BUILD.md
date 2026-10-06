@@ -61,5 +61,9 @@ Super Auto Pets is a bar for readability and punch only. Never copy its structur
 - **Story is its own track.** Story progress (the chapter, which Crystal memories appear) is kept apart from Lanternrest's town upgrades: it is never bought or tied to spendable currencies (Glimmers, Shards). The placeholder (one chapter per Crystal victory) stays until story pacing is designed.
 - **Meta prices are a starting point, tuned in playtesting:** shapes cost 1 Shard (3-hero) or 2 Shards (4-hero), crests cost 25 Glimmers, 100 Glimmers form a Shard.
 - **Team name and crests: placeholder.** The default name "The Lanternrest Company" and the 8 crests (Lantern, Crystal and Moon free; Star, Key, Flame, Wave and Tower bought) stay for now. Still undecided: when a player can rename, and whether a run starts with a name plus generic crests and customising is unlocked through meta.
+- **Team identity (later answer):** players choose a team name and a crest from a handful of generic choices at the start; full customisation and **Titles** (added to the team name) unlock through Lanternrest meta progression.
+- **Story progression is a mix of sources:** finding unique encounters where the party remembers something, remembering a Legendary (advances that Legendary's storyline), and winning runs, each advancing the story in its own way. Never bought.
+- **Lanternrest starts sparse:** the lantern, some empty plots, and side areas you can't see yet, revealed as you progress.
+- **Art direction:** keep the current atmosphere (environments, UI, encounters); characters and NPCs will go a different route. No reference yet, so don't invest in character/NPC sprite polish.
 - **Formation setup opens before every fight**, monster fights included.
 - **The PvP splash shows the rival's heroes** (with name and crest). Their formation stays hidden.
