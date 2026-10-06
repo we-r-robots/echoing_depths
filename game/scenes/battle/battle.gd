@@ -172,6 +172,7 @@ var crystal_uid := -1
 var fragments := 0
 var _seek_to := -1.0
 var _tip_demo := -1
+var _status_tip_at := -1.0    # demo arg --status-tip=S: open the first status row's tooltip at sim S
 var _pending_moves: Array = []
 var _move_lit_until := -1.0
 var _ko_settle := 0.0
@@ -254,6 +255,8 @@ func _start_demo() -> void:
 		_tip_demo = int(args["tip"])
 	if args.has("from"):
 		_seek_to = float(args["from"])
+	if args.has("status-tip"):
+		_status_tip_at = float(args["status-tip"])
 	if args.has("shape"):
 		var sid := String(args["shape"])
 		var d: Array = Demo.SHAPE_DEMOS.get(sid, [1, "pvp", 0])
@@ -531,6 +534,11 @@ func _frame(delta: float) -> void:
 	status_fx.field = fx.field
 	status_fx.shown = _state == State.PLAY or (_state == State.END and _end_hold > 0.0)
 	status_fx.tick(delta * speed, sim_t)
+	if _status_tip_at >= 0.0 and sim_t >= _status_tip_at and _state == State.PLAY:
+		var tc: Control = status_fx.first_tip()
+		if tc != null:
+			Tip.show_for(tc)
+			_status_tip_at = -1.0
 	hud.tick(vdt)
 	_update_camera(delta)
 
@@ -1455,6 +1463,13 @@ func _beam_on(T, dur: float, col: Color, hi: Color) -> void:
 	fx.beam(br.get_center().x, T.position.y, minf(br.size.x * 0.5, 12.0), br.position.y, br.size.y + 36.0, dur, col, hi)
 
 
+static func _steals(aid: String) -> bool:
+	for e: Dictionary in (Abilities.ACTIONS.get(aid, {}) as Dictionary).get("effects", []):
+		if String(e.get("op", "")) == "steal_charge":
+			return true
+	return false
+
+
 static func _drains(aid: String) -> bool:
 	for e: Dictionary in (Abilities.ACTIONS.get(aid, {}) as Dictionary).get("effects", []):
 		if e.has("drain"):
@@ -1513,6 +1528,10 @@ func _on_damage(ev: Dictionary) -> void:
 	else:
 		if aid == "smite":
 			_beam_on(T, 0.45, cols[0], cols[1])
+		elif aid == "chain_storm" and S != null:
+			# Stormwake: each of the three strikes is its own bolt from the caster
+			fx.sweep(S.chest() + Vector2(S.facing * 8, -10), c, Pal.CRYSTAL5)
+			fx.light(c, Pal.CRYSTAL4, 1, 0.5, 0.3)
 		fx.ring(c, 2, 11, 0.3, cols[1].lerp(Color.WHITE, 0.4), 1.0)
 		fx.particles(c, 8 + (6 if crit else 0), cols[1], 55.0, 15.0, 0.45, 40.0, 1, 2.0)
 	if is_ab and not _action_first_hit:
@@ -1798,6 +1817,9 @@ func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: St
 	var missed: Array = []
 	var hexed: Array = []
 	var self_cost := false
+	var stolen := 0
+	var gifts: Array = []
+	var stat_of := {}         # sap / boon -> "Mag +30%"
 	var i := _ev_i
 	while i < events.size():
 		var e: Dictionary = events[i]
@@ -1813,6 +1835,8 @@ func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: St
 						order.append(id)
 					if not (by_status[id] as Array).has(int(e["uid"])):
 						(by_status[id] as Array).append(int(e["uid"]))
+					if id == "sap" or id == "boon":
+						stat_of[id] = "%s %+d%%" % [String(StatusScript.STAT_NAME.get(String(e.get("stat", "")), "")), roundi(float(e.get("value", 0.0)) * 100.0)]
 			"gauge":
 				if int(e.get("src", -1)) == actor:
 					gauges.append(int(e["uid"]))
@@ -1828,6 +1852,12 @@ func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: St
 			"miss":
 				if int(e.get("src", -1)) == actor and String(e.get("action", "")) == aid:
 					missed.append(e)
+			"charge":
+				var cr := String(e.get("reason", ""))
+				if cr == "drain" and _steals(aid):
+					stolen += -int(e.get("delta", 0))
+				elif cr == "effect" and int(e.get("delta", 0)) > 0 and int(e["uid"]) != actor:
+					gifts.append(e)
 			"damage":
 				# status damage the action deals (a hexed heal, an HP cost): named, not "strikes"
 				var pr: Variant = e.get("primary", {})
@@ -1866,7 +1896,7 @@ func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: St
 	var ext := int(out.get("extra", 0))
 	for id: String in order:
 		var who: Array = by_status[id]
-		var verb := String(STATUS_VERB.get(id, id))
+		var verb := String(stat_of.get(id, STATUS_VERB.get(id, id)))
 		if id == "link" and who.size() == 2 and who.has(lead):
 			var other := int(who[0]) if int(who[1]) == lead else int(who[1])
 			notes.append("bound to %s" % ("self" if other == actor else units[other].label))
@@ -1878,6 +1908,11 @@ func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: St
 			notes.append("%s %s" % [units[int(who[0])].label, verb])
 		else:
 			notes.append("%d %s" % [who.size(), verb])
+	if stolen > 0:
+		notes.append("steals %d charge" % stolen)
+	for g: Dictionary in gifts:
+		var gu := int(g["uid"])
+		notes.append("%scharge +%d" % ["" if gu == lead else units[gu].label + " ", int(g["delta"])])
 	if self_cost:
 		notes.append("pays HP")
 	for h: int in hexed:
@@ -2004,6 +2039,15 @@ func _on_charge(ev: Dictionary) -> void:
 		return
 	var u = units[uid]
 	u.charge = int(ev.get("charge", u.charge))
+	if String(ev.get("reason", "")) == "drain" and not _instant and _steals(String(_cur_action.get("action", ""))):
+		# Cutpurse's Pilfer: the stolen charge flies from the foe's gem to the thief's
+		var th := int(_cur_action.get("uid", -1))
+		if th >= 0 and th < units.size():
+			var g0: Vector2 = u.plate_pos() + Vector2(16 if u.side == 0 else -16, 5)
+			var g1: Vector2 = units[th].plate_pos() + Vector2(16 if units[th].side == 0 else -16, 5)
+			fx.projectile(g0, g1, sim_t, sim_t + 0.4, Pal.VIOLET3, Pal.VIOLET4, 0, 22.0)
+			fx.ring(g0, 2, 12, 0.4, Pal.VIOLET4, 1.0)
+			u.charge_pulse = 0.6
 	var r := bool(ev.get("ready", false))
 	if r and not u.is_ready and u.alive:
 		u.g_base = 1.0

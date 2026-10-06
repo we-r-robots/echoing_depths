@@ -473,6 +473,14 @@ func _place_tips() -> void:
 			_tips[i].visible = false
 
 
+## The first row's tooltip hit area (demo captures open it), or null.
+func first_tip() -> Control:
+	for c in _tips:
+		if c.visible:
+			return c
+	return null
+
+
 static func tip_effect(e: Dictionary) -> Dictionary:
 	var eff := EffectIcons.status_effect(String(e["id"]))
 	if e["id"] == "sap" or e["id"] == "boon":

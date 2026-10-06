@@ -224,6 +224,8 @@ func test_class_showcase_c_column_fire_wards_and_hexes() -> void:
 	check(_has_caption("Ilse Tithe") and _has_caption("takes from"), "Tithe takes from the healthy ally (not \"strikes\") %s" % [_captions])
 	check(_has_text("hexed heal") and _has_text("tithe"), "a hexed heal and a tithe show as tagged numbers")
 	check(not _has_text("DRAIN"), "no Tithe or Burn to Mend heal is called a drain")
+	check(_has_caption("Brakka Pilfer") and _has_caption("steals"), "Pilfer names the charge it steals")
+	check(_has_caption("Draw a Star") and (_has_caption("+30%") or _has_caption("charge +") or _has_caption("shielded")), "Draw a Star names its gift %s" % [_captions.filter(func(c: String) -> bool: return c.contains("Star"))])
 
 
 func test_class_showcase_phone_width() -> void:
