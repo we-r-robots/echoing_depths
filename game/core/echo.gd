@@ -2,11 +2,14 @@ extends RefCounted
 ## Echo snapshots: a party frozen to a plain Dictionary / JSON string and back.
 ## An Echo is also a valid party for CombatSim.simulate() (it has "heroes").
 ##
-## Echo v2 (v1 Echoes still load: they get the default unlocked set):
+## Echo v3 (v1 Echoes still load with the default unlocked set; v1/v2 Echoes keep the old
+## one-shape formation rule, so they replay exactly as recorded):
 ## {
 ##   "format": "echoing_depths.echo", "version": 1, "data_version": <int>,
 ##   "name": String (<= 32 chars), "meta": Dictionary (free-form: owner, banner, depth...; <= 2048 chars as JSON),
 ##   "unlocked_formations": [String, ...],  # v2: Training Grounds shapes unlocked when recorded
+##   "formation_rule": "parts" | "single",   # v3: "parts" = every connected part counts (2026-10-06);
+##                                           #     "single" = the old whole-side rule (migrated v1/v2)
 ##   "heroes": [ {"name": String (<= 24 chars), "class": String, "level": int,   # 2..4 heroes
 ##                "items": {"weapon": String, "armor": String, "relic": String},  # "" = empty
 ##                "alignment": [int, int],   # underlying grid position
@@ -20,7 +23,7 @@ const GameData = preload("res://core/game_data.gd")
 const Formation = preload("res://core/formation.gd")
 
 const FORMAT := "echoing_depths.echo"
-const VERSION := 2
+const VERSION := 3
 const MAX_JSON_CHARS := 65536
 const MAX_META_CHARS := 2048
 const MAX_PARTY_NAME := 32
@@ -34,7 +37,8 @@ static func make(party: Dictionary, meta: Dictionary = {}) -> Dictionary:
 		heroes.append(_norm_hero(h))
 	return {"format": FORMAT, "version": VERSION, "data_version": GameData.Tuning.DATA_VERSION,
 		"name": str(party.get("name", "")).left(MAX_PARTY_NAME), "meta": meta.duplicate(true), "heroes": heroes,
-		"unlocked_formations": (Formation.unlocked_of(party) as Array).duplicate()}
+		"unlocked_formations": (Formation.unlocked_of(party) as Array).duplicate(),
+		"formation_rule": String(party.get("formation_rule", Formation.RULE_PARTS))}
 
 
 ## Stable JSON (sorted keys, no whitespace).
@@ -87,12 +91,16 @@ static func from_dict(d: Dictionary) -> Dictionary:
 	var raw_errs := GameData.validate_party(raw_party, "player")
 	if not raw_errs.is_empty():
 		return {"error": "; ".join(raw_errs)}
+	var rule: Variant = src.get("formation_rule", Formation.RULE_PARTS)
+	if not (rule is String) or not [Formation.RULE_PARTS, Formation.RULE_SINGLE].has(String(rule)):
+		return {"error": "Echo formation_rule must be \"%s\" or \"%s\"" % [Formation.RULE_PARTS, Formation.RULE_SINGLE]}
 	var heroes: Array = []
 	for h: Dictionary in src["heroes"]:
 		heroes.append(_norm_hero(h))
 	var echo := {"format": FORMAT, "version": VERSION, "data_version": int(dv),
 		"name": String(nm), "meta": _ints(meta), "heroes": heroes,
-		"unlocked_formations": (src.get("unlocked_formations", GameData.Formations.DEFAULT_UNLOCKED) as Array).duplicate()}
+		"unlocked_formations": (src.get("unlocked_formations", GameData.Formations.DEFAULT_UNLOCKED) as Array).duplicate(),
+		"formation_rule": String(rule)}
 	var errs := GameData.validate_party(echo, "player")
 	if not errs.is_empty():
 		return {"error": "; ".join(errs)}
@@ -123,6 +131,9 @@ static func _migrate(d: Dictionary, v: int) -> Dictionary:
 		if v == 1:
 			# v1 had no Training Grounds unlocks: it fights with the default unlocked set
 			out["unlocked_formations"] = (GameData.Formations.DEFAULT_UNLOCKED as Array).duplicate()
+		if v == 2:
+			# v2 and older were recorded under the one-shape rule: keep it so they replay identically
+			out["formation_rule"] = Formation.RULE_SINGLE
 		v += 1
 	out["version"] = VERSION
 	GameData.migrate_heroes(out.get("heroes", null))   # renamed classes (Necromancer -> Gravecaller)

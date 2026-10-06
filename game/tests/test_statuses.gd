@@ -282,18 +282,17 @@ func test_link_shares_damage() -> void:
 	check(shared >= 1, "linked units share hits (%d)" % shared)
 
 
-func test_own_ability_effect_locks_charge() -> void:
-	# ruling 4: while a status unit 0 applied with its ability is active, unit 0 gains no charge
+func test_own_status_on_a_foe_no_longer_locks_charge() -> void:
+	# ruling 4, narrowed by the playtest fix (2026-10-06): a status unit 0 put on a foe with its
+	# ability doesn't stop unit 0 charging (only its standing summons, or a flagged self-applied
+	# sustain status, would)
 	var r := _sim(27, duo(hero("fighter", 0, 0)), duo(hero("fighter", 0, 0)),
 		[_st(1, [0, 0], "slow", 5000, {"value": 0.1, "src_side": 0, "src_slot": [0, 0], "from_ability": true})])
-	for ev: Dictionary in of_type(r, "charge"):
-		if int(ev["uid"]) == 0 and float(ev["t"]) < 5.0:
-			check(int(ev["delta"]) <= 0, "no charge for the caster while its effect is active")
 	var gained := false
 	for ev: Dictionary in of_type(r, "charge"):
-		if int(ev["uid"]) == 0 and float(ev["t"]) > 5.5 and int(ev["delta"]) > 0:
+		if int(ev["uid"]) == 0 and float(ev["t"]) < 5.0 and int(ev["delta"]) > 0:
 			gained = true
-	check(gained, "charge resumes once the effect ends")
+	check(gained, "the caster charges while its effect is on the foe")
 
 
 func test_statuses_end_on_ko_and_are_deterministic() -> void:

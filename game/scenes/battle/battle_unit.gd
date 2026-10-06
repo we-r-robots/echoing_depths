@@ -242,6 +242,16 @@ var _plate_rx := 12.0
 var _plate_on := true
 
 
+## The acting unit: its foot plate lights (a bright ring and a stronger fill in its side colour).
+var marked := false
+
+
+func set_marked(m: bool) -> void:
+	if m != marked:
+		marked = m
+		queue_redraw()
+
+
 func _draw() -> void:
 	if not _plate_on or is_crystal:
 		return
@@ -250,8 +260,14 @@ func _draw() -> void:
 	for k in 25:
 		var a := TAU * k / 24.0
 		pts.append(Vector2(roundf(cos(a) * _plate_rx), roundf(sin(a) * ry) + 1.0))
-	draw_colored_polygon(pts, Color(side_color, 0.22))
+	draw_colored_polygon(pts, Color(side_color, 0.45 if marked else 0.22))
 	draw_polyline(pts, Color(side_color, 1.0), 1.0)
+	if marked:
+		var outer := PackedVector2Array()
+		for k in 25:
+			var a := TAU * k / 24.0
+			outer.append(Vector2(roundf(cos(a) * (_plate_rx + 2.0)), roundf(sin(a) * (ry + 1.0)) + 1.0))
+		draw_polyline(outer, Pal.INK10, 1.0)
 
 
 ## How far the attack strip's opaque core reaches in front of the feet (world px, facing direction):

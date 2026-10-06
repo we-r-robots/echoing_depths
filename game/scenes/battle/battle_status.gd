@@ -26,7 +26,9 @@ const MIN_HIT := 16.0           # touch target (BUILD.md)
 ## Icon tint per status (the chip's frame says helpful / harmful).
 const TINT := {"stun": Pal.AMBER6, "blind": Pal.INK9, "sap": Pal.BLOOD4, "boon": Pal.LIFE4, "slow": Pal.CRYSTAL4,
 	"poison": Pal.LIFE4, "burn": Pal.AMBER5, "regen": Pal.LIFE4, "shield": Pal.CRYSTAL5, "hidden": Pal.INK9,
-	"heal_block": Pal.AMBER5, "heal_invert": Pal.VIOLET4, "charge_seal": Pal.VIOLET4, "link": Pal.AMBER6}
+	"heal_block": Pal.AMBER5, "heal_invert": Pal.AMBER6, "charge_seal": Pal.VIOLET4, "link": Pal.AMBER6,
+	"disarm": Pal.INK9, "sabotage": Pal.BLOOD4, "riposte": Pal.AMBER6, "watch": Pal.CRYSTAL4,
+	"enshrine": Pal.CRYSTAL5, "seal_immune": Pal.CRYSTAL4}
 const STAT_ICON := {"atk": "stat_atk", "def": "stat_def", "mag": "stat_mag", "spd": "stat_spd"}
 const STAT_NAME := {"atk": "Atk", "def": "Def", "mag": "Mag", "spd": "Spd"}
 ## Rune glyphs (3x5 pixel masks, row-major) for the Runebinder's binding.
@@ -190,6 +192,7 @@ func tick(vdt: float, now: float) -> void:
 			_tether_flash.erase(k)
 	_ambient(vdt)
 	_layout()
+	_place_cards()
 	_place_tips()
 	queue_redraw()
 	ui.queue_redraw()
@@ -370,6 +373,8 @@ func _draw() -> void:
 			_tether(u, units[pid])
 		if u.has_status("stun"):
 			_stars(u)
+		if u.has_status("enshrine"):
+			_reliquary(u)
 	for bd: Array in _binds:
 		var uid := int(bd[0])
 		if uid < units.size() and units[uid] != null:
@@ -393,6 +398,23 @@ func _tether(a, b) -> void:
 	var bead := p0.lerp(p1, fmod(_t * 0.8, 1.0)).round()
 	draw_rect(Rect2(bead - Vector2(1, 1), Vector2(3, 3)), Color(Pal.INK1, 0.8))
 	draw_rect(Rect2(bead, Vector2.ONE), Pal.INK10)
+
+
+## Enshrined (Reliquarist): a crystal reliquary round the body, a pointed prism with a faceted rim
+## and a thin dithered glaze (every other pixel), so the unit shows through, held.
+func _reliquary(u) -> void:
+	var r: Rect2 = u.body_rect().grow_individual(4, 6, 4, 1)
+	var cx := roundf(r.get_center().x)
+	var pts := PackedVector2Array([Vector2(cx, r.position.y - 6), Vector2(r.end.x, r.position.y + 4), Vector2(r.end.x, r.end.y),
+		Vector2(r.position.x, r.end.y), Vector2(r.position.x, r.position.y + 4), Vector2(cx, r.position.y - 6)])
+	for y in range(int(r.position.y), int(r.end.y), 2):
+		var off := int(y / 2.0) % 2
+		for x in range(int(r.position.x) + 1 + off, int(r.end.x), 4):
+			draw_rect(Rect2(x, y, 1, 1), Color(Pal.CRYSTAL5, 0.45))
+	draw_polyline(pts, Pal.CRYSTAL5, 1.0)
+	draw_line(Vector2(cx, r.position.y - 6), Vector2(cx, r.end.y), Color(Pal.CRYSTAL4, 0.6), 1.0)
+	var glint := int(_t * 20.0) % int(maxf(1.0, r.size.y))
+	draw_rect(Rect2(r.position.x + 1, r.position.y + glint, 2, 1), Pal.INK10)
 
 
 ## Stunned: three small stars circling over the head.
@@ -439,6 +461,50 @@ func _runes(u, t: float) -> void:
 
 
 # ------------------------------------------------------------------------------------------ tips
+## A card per unit (round 17, the rosters are gone): tap or hover a unit for its name, class, HP
+## and statuses (with the time each has left), in the shared tooltip.
+var _cards: Array[Control] = []
+
+
+func _place_cards() -> void:
+	while _cards.size() < units.size():
+		var c := Control.new()
+		c.mouse_filter = Control.MOUSE_FILTER_STOP
+		c.visible = false
+		ui.add_child(c)
+		ui.move_child(c, 0)   # under the status rows' own hit areas
+		_cards.append(c)
+	for i in _cards.size():
+		var c := _cards[i]
+		var u = units[i] if i < units.size() else null
+		if u == null or not u.alive or not shown:
+			c.visible = false
+			continue
+		var br: Rect2 = u.home_rect() if not u.acting else u.drawn_rect()
+		var a: Vector2 = to_ui.call(br.position)
+		var e: Vector2 = to_ui.call(br.end)
+		c.position = a
+		c.size = Vector2(maxf(MIN_HIT, e.x - a.x), maxf(MIN_HIT, e.y - a.y))
+		var entries: Array = []
+		var sig := "%d|%d|%d" % [u.uid, u.hp, u.max_hp]
+		for st: Dictionary in u.statuses:
+			var line := "%s (%.1f s left)" % [tip_line(st), maxf(0.0, float(st["until"]) - sim_t)]
+			entries.append({"effect": tip_effect(st), "text": line})
+			sig += "|%s%d" % [st["id"], int(maxf(0.0, float(st["until"]) - sim_t) * 10.0)]
+		if String(c.get_meta("sig", "")) != sig:
+			c.set_meta("sig", sig)
+			var cls: String = u.class_name_ if u.class_name_ != "" else u.base_class.capitalize()
+			var title: String = ("%s · %s" % [u.label, cls]) if not u.is_crystal else String(u.label)
+			Tip.attach(c, title, "HP %d / %d%s" % [u.hp, u.max_hp, "" if entries.is_empty() else "  ·  %d effect%s" % [entries.size(), "" if entries.size() == 1 else "s"]],
+				u.side_color, "auto", {"entries": entries})
+		c.visible = true
+
+
+## The card of unit `uid` (tests, demos), or null.
+func card_of(uid: int) -> Control:
+	return _cards[uid] if uid >= 0 and uid < _cards.size() else null
+
+
 ## One hit area per row (16 px minimum): the shared tooltip lists the unit's statuses.
 func _place_tips() -> void:
 	while _tips.size() < 12:

@@ -38,7 +38,7 @@ static func demo_summary(outcome := "fallen") -> Dictionary:
 		"monster_wins": 3, "monster_losses": 1, "memories": 11, "glimmers": 41, "shards": 0, "fragments": 0,
 		"crystal_reached": false, "lore_items": ["faded_songbook"], "new_floors": [3, 4],
 		"glimmer_breakdown": {"depth": 21, "pvp": 16, "milestones": 8, "fragments": 0},
-		"heroes": [{"name": "Brannoc", "class": "paladin", "base": "fighter", "level": 2, "memories": 4},
+		"heroes": [{"name": "Brannoc", "class": "lightsworn", "base": "fighter", "level": 2, "memories": 4},
 			{"name": "Ilse", "class": "healer", "base": "healer", "level": 5, "memories": 4},
 			{"name": "Sable", "class": "rogue", "base": "rogue", "level": 3, "memories": 3}]}
 	if outcome == "victory":

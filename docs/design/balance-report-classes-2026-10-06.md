@@ -111,3 +111,144 @@ Base-tier rows are swaps among the 4 base classes, so compare them only with eac
 
 - **Nearest-region fallback for regions with no approved class.** Fighter N, CG, LG★, CE★; Rogue N, LG, CG★; Healer CE; Mage LE★. This gives 18.5% of advanced heroes a stand-in class and inflates Paladin, Cutpurse and Threadmender counts.
 - **Gravecaller with nobody fallen casts Grave Bolt** (hits the weakest foe). In 3,000 PvP fights it cast Grave Bolt 137 times and Raise Husk 157 times, so its rate leans on the provisional half.
+
+---
+
+## Rounds 2 and 3 (classes-r2 branch, 2026-10-06)
+
+This rerun uses the same runner and settings (`--runs=1500 --fights=1500`). It recorded 25,342 fights and ran 334,792 swap sims. It reflects the branch's final state:
+- the round-2 and round-3 classes;
+- the narrowed charge lock;
+- the separate ability timer.
+
+### What changed before this run
+- **Classes:**
+  - Fighter: Halberdier, Lightsworn (replaces Paladin), Bladebreaker, Ravager, Aegisbearer. Shackler is displayed as Warden of Chains. Iron Marshal's adjacency is now "all".
+  - Rogue: Saboteur, Nightwatch, Informant, and the Duelist's Riposte rework.
+  - Healer: Bloodletter, the Gravecaller's nameless husk, and the Confessor's Retribution Flame.
+  - Mage: Reliquarist (formerly Enshriner).
+- **Charge lock narrowed** (playtest fix): statuses a unit puts on others no longer stop its charge. Only its standing summons do.
+- **Separate ability timer** (user rule): a full bar casts at the next action boundary and leaves the ATB gauge untouched.
+- **Approved tuning:**
+  - Bloodletter's drain starts at 40% of the damage it deals, shared among its allies.
+  - Gate fixes, so that every advanced class beats its base:
+    - Iron Marshal: the drive costs 3% max HP (was 6%) and gives +20 charge. Marshal's Blow 1.8 → 2.3.
+    - Informant: Atk/Mag re-leaned to 18/18 (same budget). Shield power 6.5.
+    - Unseen Arrest: stun 2.5 → 3 s.
+    - Starcaller: boons +40% (were +30%), shield 2.6, +50 charge.
+    - Column Ward: 1.8 → 2.4.
+    - Tithe: gives 2.0× (was 1.6×).
+    - Reliquary: seal 3.5 → 5 s.
+
+### Runs
+- Victory 53.4%. The Crystal is won 68.6% of the times it is reached.
+- Fight win rates: PvP 54.1%, monsters 80.1%, guardians 81.8%.
+- **PROVISIONAL stand-ins: 0.0%** (18.5% before round 2). Every region now has its own class.
+
+### Fight length (benchmark, 2,000 fights each)
+"Before" is this branch with the old jump-the-queue rule.
+
+| | Before (jump the queue) | After (separate timer) |
+|---|---|---|
+| PvP mean / median | 26.6 s / 25.6 s | 26.7 s / 25.8 s |
+| PvP fights reaching the Fading | 14.7% | 15.0% |
+| Monster mean / median | 25.1 s / 24.0 s | 25.3 s / 24.6 s |
+| Monster fights reaching the Fading | 14.6% | 14.3% |
+| Actions per PvP fight | 34.4 | 35.1 |
+
+Fights are not ending earlier, and the Fading is reached about as often as before.
+
+### Advanced vs base gate (user rule: advanced > base)
+**Method.**
+- This is a paired swap test over 400 random fights, PvP and monsters.
+- In each fight, hero 0 plays the advanced class and then its base class, both at level 2.
+- The slot, party, opponent and seed stay the same.
+- The suite version (`tests/test_class_gate.gd`) runs 80 fights and needs a margin of **+5 pp**.
+- The stat total is HP/5 + Atk + Def + Mag + Spd at level 1. Growth budgets are also well above each base's: Fighter 10.0 vs 8.1, Rogue 8.2 vs 6.6, Healer 7.5 vs 5.9, Mage 7.5 vs 5.7.
+
+| Class | Base | Stat total (adv / base) | Advanced wins | Base wins | Delta |
+|---|---|---|---|---|---|
+| Unseen Warden | Rogue | 95 / 67 | 44.0% | 37.8% | +6.2 pp |
+| Nightwatch | Rogue | 95 / 67 | 44.0% | 37.8% | +6.2 pp |
+| Reliquarist | Mage | 84 / 59 | 44.0% | 37.2% | +6.8 pp |
+| Tithekeeper | Healer | 89 / 61 | 42.5% | 35.0% | +7.5 pp |
+| Aegisbearer | Fighter | 104 / 73 | 46.8% | 38.2% | +8.5 pp |
+| Threadmender | Healer | 89 / 61 | 43.5% | 35.0% | +8.5 pp |
+| Informant | Rogue | 95 / 67 | 46.2% | 37.8% | +8.5 pp |
+| Iron Marshal | Fighter | 104 / 73 | 47.2% | 38.2% | +9.0 pp |
+| Starcaller | Mage | 84 / 59 | 47.2% | 37.2% | +10.0 pp |
+| Saboteur | Rogue | 95 / 67 | 48.0% | 37.8% | +10.2 pp |
+| Lumenward | Healer | 89 / 61 | 46.8% | 35.0% | +11.8 pp |
+| Lampwright | Mage | 84 / 59 | 49.2% | 37.2% | +12.0 pp |
+| Bladebreaker | Fighter | 104 / 73 | 50.2% | 38.2% | +12.0 pp |
+| Lightsworn | Fighter | 104 / 73 | 51.0% | 38.2% | +12.8 pp |
+| Wickburner | Healer | 89 / 61 | 48.0% | 35.0% | +13.0 pp |
+| Gravecaller | Healer | 89 / 61 | 48.2% | 35.0% | +13.2 pp |
+| Nightshade | Rogue | 95 / 67 | 51.0% | 37.8% | +13.2 pp |
+| Warden of Chains | Fighter | 104 / 73 | 52.2% | 38.2% | +14.0 pp |
+| Confessor | Healer | 89 / 61 | 49.2% | 35.0% | +14.2 pp |
+| Chronist | Mage | 84 / 59 | 52.0% | 37.2% | +14.8 pp |
+| Rekindler | Healer | 89 / 61 | 49.8% | 35.0% | +14.8 pp |
+| Duelist | Rogue | 95 / 67 | 52.8% | 37.8% | +15.0 pp |
+| Runebinder | Mage | 84 / 59 | 54.2% | 37.2% | +17.0 pp |
+| Cleric | Healer | 89 / 61 | 52.0% | 35.0% | +17.0 pp |
+| Assassin | Rogue | 95 / 67 | 55.0% | 37.8% | +17.2 pp |
+| Halberdier | Fighter | 104 / 73 | 55.8% | 38.2% | +17.5 pp |
+| Archmage | Mage | 84 / 59 | 56.2% | 37.2% | +19.0 pp |
+| Fadewalker | Rogue | 95 / 67 | 57.5% | 37.8% | +19.8 pp |
+| Ravager | Fighter | 104 / 73 | 58.2% | 38.2% | +20.0 pp |
+| Cutpurse | Rogue | 95 / 67 | 58.2% | 37.8% | +20.5 pp |
+| Bloodletter | Healer | 89 / 61 | 56.8% | 35.0% | +21.8 pp |
+| Stormwake | Mage | 84 / 59 | 60.2% | 37.2% | +23.0 pp |
+| Warlock | Mage | 84 / 59 | 61.8% | 37.2% | +24.5 pp |
+| Wildfire | Mage | 84 / 59 | 62.5% | 37.2% | +25.2 pp |
+| Berserker | Fighter | 104 / 73 | 64.0% | 38.2% | +25.8 pp |
+| Echoblade | Fighter | 104 / 73 | 65.0% | 38.2% | +26.8 pp |
+
+All 36 advanced classes clear the margin. Before the gate fixes, three failed: Informant (+2.0 pp), Iron Marshal (+3.7 to +4.8 pp) and Reliquarist (+3.0 pp).
+
+### Classes (swap test, the method of section 2)
+| Class | All | PvP | Note |
+|---|---|---|---|
+| Stormwake / Wildfire / Warlock | 82.4 / 82.2 / 80.7% | 71.6 / 71.4 / 68.4% | The Mage line still leads |
+| Bloodletter | 72.7% | 61.7% | **Top healer** (Cleric 67.1%). See the note below the table |
+| Halberdier | 68.8% | 60.7% | Third Fighter, behind Berserker and Echoblade |
+| Lightsworn | 63.0% | 53.8% | Paladin was 55.8% |
+| Iron Marshal | 60.5% | 52.4% | Was 45.6% in round 1 |
+| Lumenward | 59.3% | 46.1% | Was 56.5% in round 1 |
+| Bladebreaker / Aegisbearer / Ravager | 59.0 / 55.4 / 54.5% | 51.1 / 48.5 / 48.1% | Fighter control and friendly fire sit low among Fighters |
+| Informant | 53.0% | 39.8% | No damage ability. Crystal win rate 17.5% |
+| Nightshade | 52.4% | 39.9% | Was 48.4% |
+| Saboteur / Nightwatch | 50.9 / 47.9% | 40.2 / 36.9% | Lowest Rogues, with Unseen Warden |
+| Unseen Warden | 47.8% | 37.4% | Was 44.6%. Still the lowest class |
+
+**Bloodletter.** The user noted it "might be too strong". Its drain is already modest: 40%, shared among allies. A Bloodletting cast in random PvP averaged 72 damage to foes and 17 HP healed; Sanctuary averaged 38 damage and 41 healed. Its strength is the area damage.
+
+### Before and after the charge-lock fix (swap test, all fights)
+| Class | Round 1 | Round 2 (old lock) | Final |
+|---|---|---|---|
+| Lumenward | 56.5% | 56.9% | 59.3% |
+| Nightshade | 48.4% | 49.2% | 52.4% |
+| Unseen Warden | 44.6% | 45.8% | 47.8% |
+| Iron Marshal | 45.6% | 49.3% | 60.5% |
+| Gravecaller | 64.7% | 63.1% | 65.4% |
+
+"Final" is the narrowed lock with the separate timer and the gate fixes.
+
+**Lumenward vs the base Healer.** The swap test's base rows are swaps among the four base classes, so they can't be compared with the advanced rows. The like-for-like check is the gate. In the same slot and the same fight, Lumenward beats the base Healer by **+11.8 pp** (46.8% vs 35.0%). Lumen Ward was not retuned. Among the healers it is still third from the bottom.
+
+### Outliers to watch
+- **Mage damage line** at 78–82%, as in round 1.
+- **Bloodletter** leads the healers by 5.6 pp. If it needs a cut, the lever is its area damage (power 0.5), not the drain.
+- **Unseen Warden, Nightwatch, Saboteur and Informant** are the bottom four. All are control classes with no damage ability. Each beats its base, but in head-to-head swaps against the damage Rogues they lose in 25–35% of slots.
+- **Near-strict pairs:**
+  - Echoblade over Ravager (35/6) and over Aegisbearer (32/5).
+  - Berserker over Ravager (37/4).
+  - Every damage Rogue over Nightwatch (about 31–34 / 5–6).
+  - Bloodletter over Threadmender (26/2) and over Lumenward (25/2).
+
+### PROVISIONAL items behind these numbers
+- **Reliquarist seal rules (a)–(d):** the sealed unit still counts as standing, still takes the Fading, gets 8 s of seal immunity on release, and is invisible to melee.
+- **Informant:** its shield splits evenly against an area ability. When no foe is at 70+ charge, it shields the weakest ally.
+- **Gravecaller:** casts Grave Bolt when its front column is full.
+- **Lantern Saint:** its parent is Lightsworn.

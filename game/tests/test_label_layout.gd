@@ -244,11 +244,12 @@ func test_real_crystal_fight() -> void:
 	check(int(st["n"]) > 20, "the Crystal demo placed labels (%d)" % st["n"])
 	check(_lore_seen > 0, "a memory's lore banner showed during the fight (%d frames)" % _lore_seen)
 	check(_banner_checks > 100, "live labels were checked against the banners (%d)" % _banner_checks)
-	check(_max_rows == 4, "the Fading's summons filled the enemy roster to its 4-row cap (%d)" % _max_rows)
+	check(_max_rows > 0, "the HUD was checked against the Crystal's bar (%d frames)" % _max_rows)
 
 
-## The enemy roster never passes 4 rows nor reaches the Crystal's bar and pips, and no hero's HP
-## plate touches them (critic r5: a fifth memory row grew the panel over both).
+## No HUD rect (round 17: the rosters are gone; the top and bottom bands) reaches the Crystal's bar
+## and pips, and no hero's HP plate touches them (critic r5: a fifth memory row grew the roster
+## panel over both).
 func _crystal_hud(b: Node) -> void:
 	if b.crystal_uid < 0:
 		return
@@ -262,14 +263,9 @@ func _crystal_hud(b: Node) -> void:
 	var xf: Transform2D = b._world_xf()
 	var pr: Rect2 = c.plate_rect()
 	var pips := Rect2(xf * pr.position, xf * pr.end - xf * pr.position)
-	for side in 2:
-		var rows: Array = b.hud.roster_rows(side)
-		_max_rows = maxi(_max_rows, rows.size()) if side == 1 else _max_rows
-		check(rows.size() <= 4, "side %d roster has %d rows (cap 4)" % [side, rows.size()])
-		var h: float = 6.0 + rows.size() * b.hud.ROW_H
-		var x0: float = b.hud._l + 4.0 if side == 0 else b.hud._r - 4.0 - b.hud.PANEL_W
-		var panel := Rect2(x0, 358.0 - h, b.hud.PANEL_W, h)
-		check(not panel.intersects(pips), "side %d roster %s clears the Crystal's bar and pips %s at %.1f s" % [side, panel, pips, b.sim_t])
+	_max_rows += 1
+	for h: Rect2 in b.hud.blocked_rects():
+		check(not h.intersects(pips), "the HUD %s clears the Crystal's bar and pips %s at %.1f s" % [h, pips, b.sim_t])
 	for u in b.units:
 		if u != c and u.alive:
 			check(not u.plate_rect().intersects(pr), "%s's HP plate clears the Crystal's pips at %.1f s" % [u.label, b.sim_t])

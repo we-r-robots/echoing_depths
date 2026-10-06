@@ -77,7 +77,7 @@ static func narrate(events: Array) -> PackedStringArray:
 				if ev.get("ready", false):
 					var q := int(ev.get("queue", 0))
 					lines.append(t + "    %s is fully charged: %s" % [_tag(units[int(ev["uid"])]),
-						"ability next, jumps the turn queue" if q == 0 else "ability queued (#%d)" % (q + 1)])
+						"casts its ability at the next boundary" if q == 0 else "ability queued (#%d)" % (q + 1)])
 			"formation_proc":
 				var who := _tag(units[int(ev["uid"])])
 				if String(ev["stat"]) != "":
@@ -111,10 +111,15 @@ static func narrate(events: Array) -> PackedStringArray:
 				lines.append(t + "    - %s is no longer %s (%s)" % [_tag(units[int(ev["uid"])]),
 					String(GameData.Statuses.STATUSES[ev["status"]]["name"]).to_lower(), ev["reason"]])
 			"miss":
-				lines.append(t + "    %s" % ("%s misses %s (blinded)" % [_tag(units[int(ev["src"])]), _tag(units[int(ev["dst"])])]
-					if ev["reason"] == "blind" else "%s can't be healed (branded)" % _tag(units[int(ev["dst"])])))
+				var mtxt := "%s can't be healed (branded)" % _tag(units[int(ev["dst"])])
+				if ev["reason"] == "blind":
+					mtxt = "%s misses %s (blinded)" % [_tag(units[int(ev["src"])]), _tag(units[int(ev["dst"])])]
+				elif ev["reason"] == "parry":
+					mtxt = "%s parries %s's blow" % [_tag(units[int(ev["dst"])]), _tag(units[int(ev["src"])])]
+				lines.append(t + "    %s" % mtxt)
 			"skip":
-				lines.append(t + "%s is stunned and loses its turn" % _tag(units[int(ev["uid"])]))
+				lines.append(t + ("%s is disarmed and makes no attack" if ev["reason"] == "disarm"
+					else "%s is stunned and loses its turn") % _tag(units[int(ev["uid"])]))
 			"absorb":
 				lines.append(t + "    %s's shield absorbs %d (%d left)" % [_tag(units[int(ev["uid"])]), int(ev["amount"]), int(ev["shield"])])
 			"move":

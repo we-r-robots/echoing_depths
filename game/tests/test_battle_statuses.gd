@@ -187,37 +187,59 @@ func test_class_showcase_a_binds_summons_moves_and_revives() -> void:
 	_play("a", Vector2i(1920, 1080))
 	for ty in ["status", "skip", "miss", "spawn", "move", "gauge", "revive"]:
 		check(int(_seen_events.get(ty, 0)) > 0, "demo a plays a %s event" % ty)
-	check(_has_caption("Moth Unseen Arrest ▸ Brakka") and _has_caption("stunned · 2 blinded"), "Unseen Arrest names the stun and the blinds (%s)" % [_captions])
-	check(_has_caption("Brakka is stunned · turn lost"), "the stunned unit's lost turn has its own caption")
+	check(_has_caption("Unseen Arrest ▸ Brakka") and _has_caption("stunned · 2 blinded"), "Unseen Arrest names the stun and the blinds (%s)" % [_captions])
+	check(_has_caption("is stunned · turn lost"), "the stunned unit's lost turn has its own caption")
 	check(_has_caption("Sable Call Echo ▸ Echo of Sable") and _has_caption("summoned"), "Call Echo names the echo it summons")
 	check(_has_caption("Brakka Shackle ▸ Corin") and _has_caption("drags Tamsin forward"), "Shackle names the pull")
-	check(_has_caption("Corin Drive On ▸ Tamsin + 1") and _has_caption("act now"), "Drive On names the allies it drives on")
-	check(_has_caption("Tamsin Rune Seal ▸ Sable") and _has_caption("sealed"), "Rune Seal: \"Tamsin Rune Seal ▸ Sable · sealed\"")
+	check(_has_caption("Corin Drive On ▸ Moth + 2") and _has_caption("act now · charge +20 each"), "Drive On names the allies it drives on and their charge")
+	check(_has_caption("Tamsin Rune Seal ▸ Vael") and _has_caption("sealed"), "Rune Seal: \"Tamsin Rune Seal ▸ Vael · sealed\"")
 	check(_has_caption("Ilse Rekindle ▸ Sable") and _has_caption("rekindled"), "Rekindle names who stands again")
-	for w in ["STUNNED", "MISS", "SUMMONED", "REKINDLED", "Acts Now", "Dragged Forward", "Shoved Back"]:
+	check(_has_caption("Raise Husk ▸ Nameless Husk") and _has_caption("Raise Husk ▸ Husk of Moth"), "Raise Husk names a nameless husk and a raised one")
+	for w in ["STUNNED", "MISS", "SUMMONED", "RAISED", "REKINDLED", "Acts Now", "Dragged Forward", "Shoved Back"]:
 		check(_has_text(w), "\"%s\" shows on its unit" % w)
 	check(_has_text("cost"), "Drive On's HP cost shows as a number tagged cost")
 
 
 func test_class_showcase_b_afflictions_shields_links() -> void:
 	_play("b", Vector2i(1920, 1080))
-	for ty in ["status", "absorb", "miss"]:
+	for ty in ["status", "absorb"]:
 		check(int(_seen_events.get(ty, 0)) > 0, "demo b plays a %s event" % ty)
 	check(_hidden_alpha < 0.6, "a hidden unit fades to a translucent silhouette (alpha %.2f)" % _hidden_alpha)
 	check(_linked_pairs > 0, "Bind Lives pairs the two linked units (the tether's ends)")
-	check(_has_caption("Brand of Flame") and _has_caption("branded"), "Brand of Flame names the brand")
-	check(_has_caption("Lumen Ward ▸ all_allies") and _has_caption("shielded"), "Lumen Ward names the overheal shield %s" % [_captions])
-	check(_has_caption("blocked"), "a heal on a branded unit is named blocked")
+	check(_has_caption("Tamsin Retribution Flame ▸ Vael") and _has_caption("flame-branded"), "Retribution Flame names the brand (%s)" % [_captions])
+	check(_has_caption("Corin Aegis Strike") and _has_caption("shielded"), "the Lightsworn's Aegis Strike names its shield")
 	check(_has_caption("Wildfire") and _has_caption("set alight"), "Wildfire names the fire")
-	check(_has_caption("Bind Lives") and _has_caption("bound to"), "Bind Lives names the pair")
+	check(_has_caption("Oren Bind Lives ▸ Tamsin") and _has_caption("bound to Oren"), "Bind Lives names the pair")
 	check(_has_caption("Slow Venom ▸ Moth") and _has_caption("poisoned"), "Slow Venom names the poison")
-	check(_has_text("BLOCKED"), "a blocked heal shows BLOCKED on the branded unit")
+	check(_has_caption("vanishes"), "Vanishing Cut names the vanish")
 	check(_has_text("Fire Jumps"), "the fire jumping shows on the unit it jumps to")
+
+
+func test_class_showcase_d_reach_watch_parry_reliquary() -> void:
+	_play("d", Vector2i(1920, 1080))
+	check(_has_caption("Moth Riposte ▸ self") and _has_caption("en garde"), "the Duelist takes guard (%s)" % [_captions])
+	check(_has_caption("Moth parries"), "a parried hit names the parry")
+	check(_has_text("PARRY") and _has_text("Riposte"), "PARRY on the Duelist and its counter's cue")
+	check(_has_caption("Sable Keep Watch") and _has_caption("on watch"), "Keep Watch names the watch")
+	check(_has_caption("caught by Sable") and _has_text("Caught"), "the watch catching an attacker reads on both")
+	check(_has_caption("Vael Reliquary ▸ Corin") and _has_caption("enshrined"), "the Reliquarist names the reliquary")
+	check(_has_caption("Raise the Aegis") and _has_caption("Read the Orders"), "Aegisbearer and Informant name their abilities")
+	check(_has_caption("Ilse Bloodletting ▸ all_enemies · heals"), "Bloodletting names the foes it bleeds and the allies it heals")
+	check(_has_caption("Brakka Long Reach") and _has_caption("Corin Whirlwind"), "Halberdier and Ravager name their abilities")
+
+
+func test_class_showcase_e_disarm_sabotage_nameless_husk() -> void:
+	_play("e", Vector2i(1920, 1080))
+	check(_has_caption("Break Blade") and _has_caption("disarmed"), "Break Blade names the disarm (%s)" % [_captions])
+	check(_has_caption("is disarmed · no attack") and _has_text("DISARMED"), "a disarmed unit's lost attack has its moment")
+	check(_has_caption("Cut the Ropes") and _has_caption("sabotaged"), "Cut the Ropes names the sabotage")
+	check(_has_caption("Corin parries"), "the Duelist parries")
+	check(_has_caption("Raise Husk ▸ Nameless Husk") and _has_text("RAISED"), "a nameless husk is raised")
 
 
 func test_class_showcase_c_column_fire_wards_and_hexes() -> void:
 	_play("c", Vector2i(1920, 1080))
-	check(_has_caption("Vael Hexfire ▸ column"), "Hexfire names the column it climbs")
+	check(_has_caption("Vael Hexfire ▸ column") and not _has_caption("Hexfire ▸ column ·  · Brakka charge"), "Hexfire names the column it climbs (and no formation charge as its effect)")
 	check(_has_caption("Raise Husk ▸ Husk of") and _has_caption("raised"), "Raise Husk names the husk")
 	check(_has_caption("slowed"), "Slow the Field names the slow")
 	check(_has_caption("Burn to Mend") and _has_caption("pays HP") and _has_caption("heal hurts Tamsin"), "Burn to Mend names its cost and the hexed ally")
@@ -230,8 +252,8 @@ func test_class_showcase_c_column_fire_wards_and_hexes() -> void:
 
 func test_class_showcase_phone_width() -> void:
 	# the 19.5:9 phone width (2340x1080 is x3 too): the HUD spreads to the edges, rows keep clear
-	_play("a", Vector2i(2340, 1080))
-	_play("b", Vector2i(2340, 1080))
+	for q in ["a", "b", "d", "e"]:
+		_play(q, Vector2i(2340, 1080))
 
 
 func test_hexfire_climbs_the_column_space_by_space() -> void:

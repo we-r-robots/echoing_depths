@@ -18,7 +18,7 @@ const A := TYPE_ARRAY
 const D := TYPE_DICTIONARY
 
 const STATUS_IDS := ["stun", "blind", "sap", "boon", "slow", "poison", "burn", "regen", "shield", "hidden",
-	"heal_block", "heal_invert", "charge_seal", "link"]
+	"heal_block", "heal_invert", "charge_seal", "link", "disarm", "sabotage", "riposte", "watch", "enshrine", "seal_immune"]
 ## type -> {field: TYPE or [TYPE, allowed values]}; "t" and "type" are implied.
 const EVENTS := {
 	"fight_start": {"seed": I, "data_version": I, "sudden_death_at": F, "gauge_fill_per_spd": F, "sides": A},
@@ -41,9 +41,9 @@ const EVENTS := {
 	"status": {"uid": I, "status": [S, STATUS_IDS], "src": I, "stat": [S, ["", "atk", "def", "mag", "spd"]], "value": F,
 		"stacks": [I, [1, 2, 3]], "duration": F, "action": S},
 	"status_end": {"uid": I, "status": [S, STATUS_IDS], "stat": [S, ["", "atk", "def", "mag", "spd"]],
-		"reason": [S, ["expired", "ko", "broken", "replaced"]]},
-	"miss": {"src": I, "dst": I, "action": S, "reason": [S, ["blind", "heal_block"]]},
-	"skip": {"uid": I, "reason": [S, ["stun"]], "duration": F},
+		"reason": [S, ["expired", "ko", "broken", "replaced", "triggered"]]},
+	"miss": {"src": I, "dst": I, "action": S, "reason": [S, ["blind", "heal_block", "parry"]]},
+	"skip": {"uid": I, "reason": [S, ["stun", "disarm"]], "duration": F},
 	"absorb": {"uid": I, "src": I, "amount": I, "shield": I},
 	"move": {"side": [I, [0, 1]], "uid": I, "from": A, "to": A, "src": I, "effect": [S, ["pulled", "pushed"]]},
 	"gauge": {"uid": I, "src": I, "gauge": F},
@@ -55,9 +55,12 @@ const EVENTS := {
 }
 const SIDE := {"side": I, "name": S, "formation": D, "compositions": A, "units": A}
 const FORMATION := {"id": S, "name": S, "shape": S, "shape_name": S,
-	"state": [S, ["active", "strays", "unformed", "locked_fallback", "locked_unformed", "none"]], "sub_cells": A,
+	"state": [S, ["active", "strays", "unformed", "locked_fallback", "locked_unformed", "partial", "parts", "none"]], "sub_cells": A,
 	"locked": B, "buffs": A, "debuffs": A,
-	"behaviour": D, "cost": S}
+	"behaviour": D, "cost": S, "parts": A}
+const FORMATION_PART := {"id": S, "name": S, "shape": S, "shape_name": S,
+	"state": [S, ["active", "strays", "locked_fallback", "fallback"]], "sub_cells": A, "cells": A, "uids": A,
+	"locked": B, "buffs": A, "debuffs": A, "behaviour": D, "cost": S}
 const MODIFIER := {"scope": [S, ["all", "front", "back", "class", "post", "tip", "keeper", "flanker", "gap", "middle"]], "stat": S, "value": F}
 const COMPOSITION := {"id": S, "name": S, "mods": A}
 const UNIT := {"uid": I, "side": I, "name": S, "label": S, "class": S, "class_name": S, "span": [I, [1, 2]], "base_class": S,
@@ -111,6 +114,10 @@ func _check_formation(f: Variant, where: String) -> void:
 	_conform(f, FORMATION, where + ".formation")
 	for m: Variant in (f["buffs"] as Array) + (f["debuffs"] as Array):
 		_conform(m, MODIFIER, where + ".formation modifier")
+	for p: Variant in f["parts"]:
+		_conform(p, FORMATION_PART, where + ".formation part")
+		for m: Variant in (p["buffs"] as Array) + (p["debuffs"] as Array):
+			_conform(m, MODIFIER, where + ".formation part modifier")
 
 
 func _check_event(ev: Dictionary, where: String) -> void:

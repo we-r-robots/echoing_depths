@@ -14,6 +14,7 @@ extends RefCounted
 ## start_charge: charge at fight start (0..99).
 ## basic / ability: action ids from abilities.gd.
 ## preferred_col: 0 front / 1 back (hint for auto-placement and demo parties).
+## provisional: why a class's data may change (a decision the user hasn't made yet).
 
 const CLASSES := {
 	# ================= BASE CLASSES =================
@@ -39,24 +40,46 @@ const CLASSES := {
 		"basic": "bolt", "ability": "firestorm", "preferred_col": 1},
 
 	# ================= ADVANCED =================
-	# Only classes the user APPROVED in docs/design/class-verdicts-round1.md, one per region (the
-	# live class kept where a region is PICK ONE or its live class was voted maybe). Regions with no
-	# approved class fall back to the nearest approved region (core/alignment.gd, PROVISIONAL).
-	# Stats follow ruling 8: every advanced class of a base spends the same budget (BUDGET below).
+	# Only classes the user APPROVED (docs/design/class-verdicts-round1.md and -round2.md), one per
+	# region. Regions with no approved class fall back to the nearest approved region
+	# (core/alignment.gd, PROVISIONAL). Stats follow ruling 8: every advanced class of a base spends
+	# the same budget (BUDGET below).
 
-	# ---- Fighter (start N): LG Paladin, LE Shackler, CE Berserker, LE* Iron Marshal, CG* Echoblade
-	"paladin": {"name": "Paladin", "tier": "advanced", "base": "fighter", "region": "LG",
+	# ---- Fighter (start N): N Halberdier, LG Lightsworn, CG Bladebreaker, LE Warden of Chains (id
+	#      shackler), CE Berserker, LE* Iron Marshal, CG* Echoblade, CE* Ravager, LG* Aegisbearer (round 3)
+	"halberdier": {"name": "Halberdier", "tier": "advanced", "base": "fighter", "region": "N",
+		"stats": {"hp": 190, "atk": 30, "def": 17, "mag": 7, "spd": 12},
+		"growth": {"hp": 19, "atk": 3.2, "def": 1.8, "mag": 0.6, "spd": 0.6},
+		"crit": 0.06, "charge_on_act": 30, "charge_on_hit": 2.0, "start_charge": 30,
+		"basic": "strike", "ability": "long_reach", "preferred_col": 0},
+	# Lightsworn replaces the retired Paladin (round 2): same region, same stats, Paladin's ability name
+	"lightsworn": {"name": "Lightsworn", "tier": "advanced", "base": "fighter", "region": "LG",
 		"stats": {"hp": 195, "atk": 24, "def": 21, "mag": 10, "spd": 10},
 		"growth": {"hp": 20, "atk": 2.5, "def": 2.5, "mag": 0.6, "spd": 0.4},
 		"crit": 0.05, "charge_on_act": 30, "charge_on_hit": 2.0, "start_charge": 30,
 		"basic": "strike", "ability": "aegis_strike", "preferred_col": 0},
+	"bladebreaker": {"name": "Bladebreaker", "tier": "advanced", "base": "fighter", "region": "CG",
+		"stats": {"hp": 210, "atk": 20, "def": 24, "mag": 7, "spd": 11},
+		"growth": {"hp": 21, "atk": 1.8, "def": 2.8, "mag": 0.6, "spd": 0.6},
+		"crit": 0.05, "charge_on_act": 30, "charge_on_hit": 2.2, "start_charge": 30,
+		"basic": "strike", "ability": "break_blade", "preferred_col": 0},
+	"ravager": {"name": "Ravager", "tier": "advanced", "base": "fighter", "region": "CE*",
+		"stats": {"hp": 200, "atk": 33, "def": 15, "mag": 5, "spd": 11},
+		"growth": {"hp": 20, "atk": 3.6, "def": 1.5, "mag": 0.4, "spd": 0.5},
+		"crit": 0.08, "charge_on_act": 32, "charge_on_hit": 2.4, "start_charge": 30,
+		"basic": "strike", "ability": "whirlwind", "preferred_col": 0},
+	"aegisbearer": {"name": "Aegisbearer", "tier": "advanced", "base": "fighter", "region": "LG*",
+		"stats": {"hp": 215, "atk": 18, "def": 27, "mag": 7, "spd": 9},
+		"growth": {"hp": 22, "atk": 1.6, "def": 3.0, "mag": 0.5, "spd": 0.5},
+		"crit": 0.04, "charge_on_act": 30, "charge_on_hit": 2.2, "start_charge": 30,
+		"basic": "strike", "ability": "raise_the_aegis", "preferred_col": 0},
 	"berserker": {"name": "Berserker", "tier": "advanced", "base": "fighter", "region": "CE",
 		"stats": {"hp": 200, "atk": 31, "def": 16, "mag": 6, "spd": 11},
 		"growth": {"hp": 20, "atk": 3.5, "def": 1.5, "mag": 0.5, "spd": 0.5},
 		"crit": 0.1, "charge_on_act": 35, "charge_on_hit": 2.6, "start_charge": 30,
 		"basic": "strike", "ability": "rampage", "preferred_col": 0},
-	"shackler": {"name": "Shackler", "tier": "advanced", "base": "fighter", "region": "LE",
-		# stable id; the display name is data only (the user asked for a rename)
+	"shackler": {"name": "Warden of Chains", "tier": "advanced", "base": "fighter", "region": "LE",
+		# stable id "shackler"; renamed Warden of Chains in round 2 (q-5), ability and data unchanged
 		"stats": {"hp": 170, "atk": 28, "def": 22, "mag": 9, "spd": 11},
 		"growth": {"hp": 17, "atk": 2.8, "def": 2.5, "mag": 0.8, "spd": 0.5},
 		"crit": 0.05, "charge_on_act": 30, "charge_on_hit": 2.0, "start_charge": 30,
@@ -73,7 +96,22 @@ const CLASSES := {
 		"basic": "strike", "ability": "call_echo", "preferred_col": 0},
 
 	# ---- Rogue (start CE): CE Cutpurse, CE* Fadewalker, CG Duelist, LE Assassin, LE* Nightshade,
-	#      LG* Unseen Warden
+	#      LG* Unseen Warden, N Saboteur, LG Nightwatch, CG* Informant (round 3)
+	"saboteur": {"name": "Saboteur", "tier": "advanced", "base": "rogue", "region": "N",
+		"stats": {"hp": 125, "atk": 24, "def": 12, "mag": 10, "spd": 24},
+		"growth": {"hp": 12, "atk": 2.4, "def": 1.1, "mag": 0.6, "spd": 1.7},
+		"crit": 0.15, "charge_on_act": 40, "charge_on_hit": 1.2, "start_charge": 40,
+		"basic": "stab", "ability": "cut_the_ropes", "preferred_col": 0},
+	"nightwatch": {"name": "Nightwatch", "tier": "advanced", "base": "rogue", "region": "LG",
+		"stats": {"hp": 140, "atk": 22, "def": 17, "mag": 8, "spd": 20},
+		"growth": {"hp": 14, "atk": 2.2, "def": 1.6, "mag": 0.4, "spd": 1.2},
+		"crit": 0.12, "charge_on_act": 40, "charge_on_hit": 1.4, "start_charge": 40,
+		"basic": "stab", "ability": "keep_watch", "preferred_col": 0},
+	"informant": {"name": "Informant", "tier": "advanced", "base": "rogue", "region": "CG*",
+		"stats": {"hp": 120, "atk": 18, "def": 11, "mag": 18, "spd": 24},
+		"growth": {"hp": 11, "atk": 1.7, "def": 1.0, "mag": 1.7, "spd": 1.6},
+		"crit": 0.05, "charge_on_act": 40, "charge_on_hit": 1.2, "start_charge": 40,
+		"basic": "stab", "ability": "read_the_orders", "preferred_col": 1},
 	"duelist": {"name": "Duelist", "tier": "advanced", "base": "rogue", "region": "CG",
 		"stats": {"hp": 140, "atk": 28, "def": 12, "mag": 10, "spd": 17},
 		"growth": {"hp": 13, "atk": 3.0, "def": 1.4, "mag": 0.5, "spd": 0.7},
@@ -106,7 +144,8 @@ const CLASSES := {
 		"basic": "stab", "ability": "unseen_arrest", "preferred_col": 0},
 
 	# ---- Healer (start LG): LG Cleric, N Threadmender, LG* Lumenward, CG Rekindler, LE Tithekeeper,
-	#      CG* Wickburner, LE* Confessor, CE* Gravecaller (replaces the dropped Necromancer)
+	#      CG* Wickburner, LE* Confessor, CE* Gravecaller (replaces the dropped Necromancer),
+	#      CE Bloodletter
 	"cleric": {"name": "Cleric", "tier": "advanced", "base": "healer", "region": "LG",
 		"stats": {"hp": 145, "atk": 10, "def": 14, "mag": 25, "spd": 11},
 		"growth": {"hp": 13, "atk": 0.5, "def": 1.5, "mag": 2.5, "spd": 0.4},
@@ -147,9 +186,14 @@ const CLASSES := {
 		"growth": {"hp": 12, "atk": 0.5, "def": 1.2, "mag": 3.0, "spd": 0.4},
 		"crit": 0.08, "charge_on_act": 45, "charge_on_hit": 1.4, "start_charge": 30,
 		"basic": "smite", "ability": "raise_husk", "preferred_col": 1},
+	"bloodletter": {"name": "Bloodletter", "tier": "advanced", "base": "healer", "region": "CE",
+		"stats": {"hp": 140, "atk": 8, "def": 11, "mag": 31, "spd": 11},
+		"growth": {"hp": 12, "atk": 0.5, "def": 1.1, "mag": 3.1, "spd": 0.4},
+		"crit": 0.06, "charge_on_act": 45, "charge_on_hit": 1.2, "start_charge": 25,
+		"basic": "smite", "ability": "bloodletting", "preferred_col": 1},
 
 	# ---- Mage (start CG): CG Stormwake, N Archmage, CG* Starcaller, LG Lampwright, CE Warlock,
-	#      LE Runebinder, LG* Chronist, CE* Wildfire
+	#      LE Runebinder, LG* Chronist, CE* Wildfire, LE* Reliquarist (id enshriner)
 	"archmage": {"name": "Archmage", "tier": "advanced", "base": "mage", "region": "N",
 		"stats": {"hp": 120, "atk": 8, "def": 10, "mag": 31, "spd": 11},
 		"growth": {"hp": 11, "atk": 0.5, "def": 1.0, "mag": 3.4, "spd": 0.4},
@@ -190,9 +234,18 @@ const CLASSES := {
 		"growth": {"hp": 11, "atk": 0.5, "def": 1.0, "mag": 3.4, "spd": 0.4},
 		"crit": 0.08, "charge_on_act": 35, "charge_on_hit": 1.2, "start_charge": 35,
 		"basic": "bolt", "ability": "wildfire", "preferred_col": 1},
+	# stable id "enshriner"; renamed Reliquarist in round 3 (the name lives only here, in data)
+	"enshriner": {"name": "Reliquarist", "tier": "advanced", "base": "mage", "region": "LE*",
+		"stats": {"hp": 125, "atk": 7, "def": 14, "mag": 27, "spd": 11},
+		"growth": {"hp": 12, "atk": 0.5, "def": 1.4, "mag": 2.8, "spd": 0.4},
+		"crit": 0.06, "charge_on_act": 35, "charge_on_hit": 1.2, "start_charge": 35,
+		"basic": "bolt", "ability": "enshrine", "preferred_col": 1,
+		"provisional": "Seal rules (a)-(d) are PROVISIONAL; the user will settle them in playtesting (round 3)."},
 
 	# ================= LEGENDARY (illustrative) =================
-	"lantern_saint": {"name": "Lantern Saint", "tier": "legendary", "base": "fighter", "advances_from": "paladin",
+	# PROVISIONAL parent: Paladin retired in round 2; Lightsworn (same region) is the proposed parent
+	"lantern_saint": {"name": "Lantern Saint", "tier": "legendary", "base": "fighter", "advances_from": "lightsworn",
+		"provisional": "Parent class Lightsworn is a proposal (Paladin retired, round 2); the user hasn't confirmed it.",
 		"stats": {"hp": 280, "atk": 34, "def": 30, "mag": 18, "spd": 11},
 		"growth": {"hp": 24, "atk": 3.0, "def": 3.0, "mag": 1.5, "spd": 0.5},
 		"crit": 0.06, "charge_on_act": 35, "charge_on_hit": 2.0, "start_charge": 30,
@@ -243,5 +296,6 @@ const BUDGET := {
 
 ## Renamed or replaced class ids: saved heroes, Echoes and pools load as the new class.
 ## Necromancer was dropped by the user (round-1 verdicts); Gravecaller holds its corner.
-const CLASS_RENAMES := {"necromancer": "gravecaller"}
+## Paladin was retired in round 2; Lightsworn holds its region (Mercy+Order quad).
+const CLASS_RENAMES := {"necromancer": "gravecaller", "paladin": "lightsworn"}
 const MONSTER_IDS := ["hollow_rat", "fading_wisp", "stone_sentinel", "memory_wraith", "shard_golem"]

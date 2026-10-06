@@ -91,6 +91,48 @@ static func max_level(h: Dictionary) -> int:
 	return GameData.max_level(String(h.get("class", "")))
 
 
+## What this hero's next level adds ({stat: +n}, only the stats that really change); {} at max level.
+static func level_gain(h: Dictionary) -> Dictionary:
+	return HeroStats.level_gain(h)
+
+
+## Stat gains as words: "HP +10 · Mag +2 · Def +1" (GameData.STATS order).
+static func gain_words(g: Dictionary, sep := " · ") -> String:
+	var parts: PackedStringArray = []
+	for s: String in GameData.STATS:
+		if g.has(s) and int(g[s]) != 0:
+			parts.append("%s %+d" % [STAT_LABELS[s], int(g[s])])
+	return sep.join(parts)
+
+
+## A class's growth per level, in whole numbers as it really lands (flooring): "HP +20 · Atk +2–3 ·
+## Def +2–3 · Mag +0–1" (a stat that never grows is left out).
+static func growth_words(class_id: String, sep := " · ") -> String:
+	var parts: PackedStringArray = []
+	var g := HeroStats.growth_range(class_id)
+	for s: String in GameData.STATS:
+		if not g.has(s) or int(g[s][1]) <= 0:
+			continue
+		parts.append("%s %s" % [STAT_LABELS[s], range_words(g[s])])
+	return sep.join(parts)
+
+
+## "+2" or "+2–3" for a per-level [lowest, highest].
+static func range_words(r: Array) -> String:
+	return "%+d" % int(r[0]) if int(r[0]) == int(r[1]) else "+%d–%d" % [int(r[0]), int(r[1])]
+
+
+## The Lv field's tooltip: what a level is and what this hero's class adds per level.
+static func level_tip(h: Dictionary) -> String:
+	var cid := String(h.get("class", ""))
+	var cls := class_name_of(cid)
+	var s := "Each memory raises this hero one level (up to Lv %d as a %s). Each level adds its class's growth: %s." % [
+		max_level(h), cls, growth_words(cid, ", ")]
+	if tier(h) == "base":
+		s += " Awakening starts the new class at Lv 1 with higher base stats and its own growth."
+	return s
+
+
 ## Memories absorbed in the current tier (a memory is +1 level).
 static func memory_count(h: Dictionary) -> int:
 	if tier(h) == "base" and h.get("memories", null) is Array:

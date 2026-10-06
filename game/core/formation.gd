@@ -64,43 +64,133 @@ static func unlocked_of(party: Dictionary) -> Array:
 	return GameData.Formations.DEFAULT_UNLOCKED
 
 
-## The formation state of a party (05-formations.md, user decision 2026-10-05):
-##   active          an unlocked shape: it fights as itself (sub_cells = all cells)
-##   strays          no two heroes edge-adjacent: the Strays formation (always unlocked)
-##   unformed        partly joined but no shape: no bonus, no cost, no behaviour
-##   locked_fallback a locked shape: it fights as its LARGEST unlocked connected sub-shape among
-##                   the placed heroes (ties: SHAPES data order, then first subset found), applied
-##                   to those heroes' cells (sub_cells)
-##   locked_unformed a locked shape with no unlocked part: no formation
-## -> {"state", "shape": geometric (a SHAPES entry, STRAYS or UNFORMED), "effective": what fights,
-##     "sub_cells": [[col,row], ...] (all cells when active, the sub-shape's cells when
-##     locked_fallback, [] otherwise), "locked": bool}
+## Formation rules: "parts" (current: every connected part that forms a shape counts, user
+## decision 2026-10-06) and "single" (the old rule: the whole side is one shape or nothing; kept so
+## Echoes recorded before the change replay identically). party["formation_rule"] picks it.
+const RULE_PARTS := "parts"
+const RULE_SINGLE := "single"
+
+
+## The formation of a party (05-formations.md "Every formation part counts", user decision 2026-10-06).
+## The placed heroes split into edge-connected parts; every part of 2+ heroes is judged on its own:
+##   active          an unlocked shape: it counts as itself (sub_cells = the part's cells)
+##   locked_fallback a locked shape: it counts as its LARGEST unlocked connected sub-shape among its
+##                   heroes (ties: SHAPES data order, then first subset found); sub_cells = those cells
+##   fallback        a part that matches no shape (5+ heroes): the same fallback; shape = UNFORMED
+## A part with no unlocked sub-shape does not count. Heroes outside every counting part get nothing.
+## -> {"parts": [{"state", "shape": geometric, "effective": what fights, "sub_cells": [[col,row], ...]
+##                (the heroes it applies to), "cells": the whole connected part, "locked": bool}, ...]
+##                (counting parts only, ordered by their first cell in slot order),
+##     plus the top-level keys old callers read ("state", "shape", "effective", "sub_cells", "locked"):
+##   none            fewer than 2 units: No formation, parts []
+##   strays          no two heroes edge-adjacent: Strays (always unlocked); one part over every hero
+##                   (top-level sub_cells stay [] as before)
+##   unformed        no part yields any shape: no bonus, no cost, no behaviour, parts []
+##   locked_unformed one connected part holding every hero, a locked shape with no unlocked part
+##   active / locked_fallback   exactly one counting part and it is the whole side (old meanings)
+##   partial         exactly one counting part that leaves some heroes out (top level = that part)
+##   parts           2+ counting parts: "shape" / "effective" are a synthetic entry (id "parts", name
+##                   e.g. "Kindred + Vigil", no bonus or behaviour of its own); read "parts"
 ## Cells are taken in slot order (front column top to bottom, then back) so results don't depend
-## on the order heroes are listed. Fewer than 2 units: state "none", No formation.
+## on the order heroes are listed.
 static func effective(party: Dictionary) -> Dictionary:
 	var cells: Array = _cells_of(party)
 	cells.sort_custom(func(a: Array, b: Array) -> bool:
 		return int(a[0]) * 10 + int(a[1]) < int(b[0]) * 10 + int(b[1]))
 	var unformed: Dictionary = GameData.Formations.UNFORMED
 	if cells.size() < 2:
-		return {"state": "none", "shape": unformed, "effective": unformed, "sub_cells": [], "locked": false}
+		return _top("none", unformed, unformed, [], false, [])
 	var strays: Dictionary = GameData.Formations.STRAYS
 	if not _any_adjacent(cells):
-		return {"state": "strays", "shape": strays, "effective": strays, "sub_cells": [], "locked": false}
-	var shape: Dictionary = detect(cells)
-	if String(shape["id"]) == "strays":
-		return {"state": "unformed", "shape": unformed, "effective": unformed, "sub_cells": [], "locked": false}
+		return _top("strays", strays, strays, [], false, [_part("strays", strays, strays, cells, cells, false)])
 	var unlocked: Array = unlocked_of(party)
-	if unlocked.has(String(shape["id"])):
-		return {"state": "active", "shape": shape, "effective": shape, "sub_cells": cells.duplicate(true), "locked": false}
+	if String(party.get("formation_rule", RULE_PARTS)) == RULE_SINGLE:
+		return _effective_single(cells, unlocked)
+	var parts: Array = []
+	var groups: Array = _components(cells)
+	var lone_locked: Dictionary = {}
+	for g: Array in groups:
+		if g.size() < 2:
+			continue
+		var p := _judge(g, unlocked)
+		if bool(p["counts"]):
+			p.erase("counts")
+			parts.append(p)
+		elif bool(p["locked"]):
+			lone_locked = p
+	if parts.is_empty():
+		if groups.size() == 1 and not lone_locked.is_empty():
+			return _top("locked_unformed", lone_locked["shape"], unformed, [], true, [])
+		return _top("unformed", unformed, unformed, [], false, [])
+	if parts.size() == 1:
+		var p0: Dictionary = parts[0]
+		var state := String(p0["state"])
+		if (p0["cells"] as Array).size() < cells.size():
+			state = "partial"
+		return _top(state, p0["shape"], p0["effective"], p0["sub_cells"], bool(p0["locked"]), parts)
+	var names: Array = []
+	var any_locked := false
+	var all_sub: Array = []
+	for p: Dictionary in parts:
+		names.append(String(p["effective"]["name"]))
+		any_locked = any_locked or bool(p["locked"])
+		all_sub.append_array(p["sub_cells"])
+	var combo := {"id": "parts", "name": " + ".join(names), "size": 0, "cells": [], "bonus": [],
+		"behaviour": {}, "cost": {"text": "", "mods": []}}
+	return _top("parts", combo, combo, all_sub, any_locked, parts)
+
+
+## Which part (index into fx["parts"]) a cell's hero fights in, or -1 if it gets nothing.
+static func part_of(fx: Dictionary, cell: Array) -> int:
+	var parts: Array = fx.get("parts", [])
+	for i in parts.size():
+		for c: Array in parts[i]["sub_cells"]:
+			if int(c[0]) == int(cell[0]) and int(c[1]) == int(cell[1]):
+				return i
+	return -1
+
+
+## One connected part of 2+ heroes -> a part dictionary plus "counts" (false: it gives nothing).
+static func _judge(g: Array, unlocked: Array) -> Dictionary:
+	var shape: Dictionary = detect(g)
+	var sid := String(shape["id"])
+	if sid != "strays" and unlocked.has(sid):
+		var p := _part("active", shape, shape, g, g, false)
+		p["counts"] = true
+		return p
+	var locked := sid != "strays"
+	var geo: Dictionary = shape if locked else GameData.Formations.UNFORMED
+	var fb: Array = _best_sub(g, unlocked)
+	if fb.is_empty():
+		var q := _part("locked_unformed" if locked else "unformed", geo, GameData.Formations.UNFORMED, [], g, locked)
+		q["counts"] = false
+		return q
+	var r := _part("locked_fallback" if locked else "fallback", geo, fb[0], fb[1], g, locked)
+	r["counts"] = true
+	return r
+
+
+static func _part(state: String, shape: Dictionary, eff: Dictionary, sub: Array, part_cells: Array, locked: bool) -> Dictionary:
+	return {"state": state, "shape": shape, "effective": eff, "sub_cells": sub.duplicate(true),
+		"cells": part_cells.duplicate(true), "locked": locked}
+
+
+static func _top(state: String, shape: Dictionary, eff: Dictionary, sub: Array, locked: bool, parts: Array) -> Dictionary:
+	return {"state": state, "shape": shape, "effective": eff, "sub_cells": sub.duplicate(true), "locked": locked,
+		"parts": parts}
+
+
+## The largest unlocked connected shape among the proper subsets of `g` (ties: SHAPES data order,
+## then the first subset found). -> [shape, cells] or [].
+static func _best_sub(g: Array, unlocked: Array) -> Array:
 	var best: Dictionary = {}
 	var best_cells: Array = []
-	for m in range(1, 1 << cells.size()):
+	for m in range(1, 1 << g.size()):
 		var sub: Array = []
-		for k in cells.size():
+		for k in g.size():
 			if m & (1 << k):
-				sub.append(cells[k])
-		if sub.size() < 2 or sub.size() >= cells.size():
+				sub.append(g[k])
+		if sub.size() < 2 or sub.size() >= g.size():
 			continue
 		var sh: Dictionary = detect(sub)
 		var sid: String = String(sh["id"])
@@ -111,8 +201,48 @@ static func effective(party: Dictionary) -> Dictionary:
 			best = sh
 			best_cells = sub
 	if best.is_empty():
-		return {"state": "locked_unformed", "shape": shape, "effective": unformed, "sub_cells": [], "locked": true}
-	return {"state": "locked_fallback", "shape": shape, "effective": best, "sub_cells": best_cells, "locked": true}
+		return []
+	return [best, best_cells]
+
+
+## Edge-connected groups of `cells` (each group keeps `cells` order; groups ordered by first cell).
+static func _components(cells: Array) -> Array:
+	var seen := {}
+	var out: Array = []
+	for i in cells.size():
+		if seen.has(i):
+			continue
+		var group: Array = []
+		var stack: Array = [i]
+		seen[i] = true
+		while not stack.is_empty():
+			var k: int = stack.pop_back()
+			group.append(k)
+			for j in cells.size():
+				if not seen.has(j) and absi(int(cells[k][0]) - int(cells[j][0])) + absi(int(cells[k][1]) - int(cells[j][1])) == 1:
+					seen[j] = true
+					stack.append(j)
+		group.sort()
+		var gc: Array = []
+		for k: int in group:
+			gc.append(cells[k])
+		out.append(gc)
+	return out
+
+
+## The old rule (formation_rule "single", Echoes recorded before 2026-10-06): the whole side is one
+## shape or nothing; a partly joined side is unformed.
+static func _effective_single(cells: Array, unlocked: Array) -> Dictionary:
+	var unformed: Dictionary = GameData.Formations.UNFORMED
+	var shape: Dictionary = detect(cells)
+	if String(shape["id"]) == "strays":
+		return _top("unformed", unformed, unformed, [], false, [])
+	if unlocked.has(String(shape["id"])):
+		return _top("active", shape, shape, cells, false, [_part("active", shape, shape, cells, cells, false)])
+	var fb: Array = _best_sub(cells, unlocked)
+	if fb.is_empty():
+		return _top("locked_unformed", shape, unformed, [], true, [])
+	return _top("locked_fallback", shape, fb[0], fb[1], true, [_part("locked_fallback", shape, fb[0], fb[1], cells, true)])
 
 
 static func _any_adjacent(cells: Array) -> bool:

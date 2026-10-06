@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## run_state: {"legendaries": int, "appeared": bool, "misses": int}
 ##  - a hero is eligible from advanced level 3 (no depth gate), while the party has no Legendary,
-##    and only if their advanced class has an authored Legendary (today: Paladin -> Lantern Saint);
+##    and only if their advanced class has an authored Legendary (today: Lightsworn -> Lantern Saint, a PROVISIONAL parent);
 ##  - from then on each encounter node rolls chance(): 8 %, +8 % after each node where it does
 ##    not appear, capped at 60 %; it appears at most once per run (declining ends it).
 
@@ -56,5 +56,5 @@ static func encounter_for(advanced_class: String) -> Dictionary:
 			var d: Variant = JSON.parse_string(f.get_as_text())
 			if d is Dictionary:
 				for e: Dictionary in d.get("encounters", []):
-					_by_class[String(e["for_class"])] = e
-	return _by_class.get(advanced_class, {})
+					_by_class[GameData.canonical_class(String(e["for_class"]))] = e   # renamed classes too
+	return _by_class.get(GameData.canonical_class(advanced_class), {})

@@ -12,6 +12,18 @@ const H := 56
 ## The mini grid: 9 design px cells (critic r5: 7 px cells couldn't be read at phone size).
 const CELL := 9
 const GRID_W := 5 * CELL + 4 + 4
+## Three lines in the row: the action (serif; one step down when long), who and the move, and what
+## the memory's level gives (13 px pitch for the two quiet lines, as the advancement card's lists).
+const LINE1_Y := 4
+const LINE1_SMALL_Y := 8
+const LINE2_Y := 26
+const LINE3_Y := 39
+const STAT_ICONS := {
+	"hp": preload("res://assets/party/stat_hp.png"), "atk": preload("res://assets/party/stat_atk.png"),
+	"def": preload("res://assets/party/stat_def.png"), "mag": preload("res://assets/party/stat_mag.png"),
+	"spd": preload("res://assets/party/stat_spd.png"),
+}
+const STAT_COLORS := {"hp": Pal.BLOOD4, "atk": Pal.AMBER5, "def": Pal.INK9, "mag": Pal.VIOLET3, "spd": Pal.LIFE4}
 
 var choice: Dictionary
 var hero: Dictionary
@@ -19,6 +31,9 @@ var hero_index := -1
 var strong := false
 var awakens := false
 var awaken_tag: Control = null   # the "Can Awaken" mark (with its tooltip), when this choice Awakens
+var level_line: HBoxContainer = null   # line 3: the level step and its stat gains
+var gain: Dictionary = {}              # what the level gives ({stat: +n}); {} at the class's max level
+var at_max := false
 var grid: AlignGrid
 var _shimmer := -1.0
 var _t := 0.0
@@ -78,7 +93,7 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	# The level step, "strong shift", an edge cap and the now/after markers are in the grid's
 	# tooltip (critic r3: three lines per row were too dense)
 	var eff := EncounterDB.effective_shift(h["pos"], c)
-	var l2 := _row(Vector2(42, 32), 3)
+	var l2 := _row(Vector2(42, LINE2_Y), 3)
 	l2.add_child(_label(String(h["name"]), cc, true))
 	l2.add_child(_spacer(2))
 	var shift_text := "No move"
@@ -103,7 +118,7 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 			if word == "" and right - (9.0 + 3.0 + UIText.width(w, UIText.BOLD, UIText.BODY)) >= title_end:
 				word = w
 		var tw := (9.0 + 3.0 + UIText.width(word, UIText.BOLD, UIText.BODY)) if word != "" else 9.0
-		var tag := _row(Vector2(roundf(right - tw), 12 + roundf(UIText.ascent(UIText.SERIF, UIText.TITLE) - UIText.ascent(UIText.BOLD, UIText.BODY))), 3)
+		var tag := _row(Vector2(roundf(right - tw), LINE1_SMALL_Y + roundf(UIText.ascent(UIText.SERIF, UIText.TITLE) - UIText.ascent(UIText.BOLD, UIText.BODY))), 3)
 		tag.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
 		if word != "":
 			tag.add_child(_label(word, Pal.AMBER6, true))
@@ -115,6 +130,10 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	if c.has("recruit"):
 		l2.add_child(_spacer(4))
 		l2.add_child(_label("+ %s joins" % c["recruit"]["name"], Pal.LIFE4, true))
+	# line 3 (playtest: "Does each hero level give bonus stats? we should make it more clear"): what
+	# the memory's level gives this hero, stat icons with green gains; the words are in the tooltip
+	level_line = _level_row(h, lv, float(grid_x_of(width)) - 4.0 - 42.0)
+	level_line.position = Vector2(42, LINE3_Y)
 
 	grid = AlignGrid.new()
 	grid.cell = CELL
@@ -133,7 +152,7 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 ## its strong / capped notes, and how to read the grid.
 func _detail(c: Dictionary, h: Dictionary, lv: int, eff: Vector2i, s: Vector2i) -> String:
 	var out: PackedStringArray = []
-	out.append("Gains a memory: Lv %d to %d." % [lv, lv + 1])
+	out.append(level_words(lv))
 	if awakens:
 		out.append(awaken_hint(String(h["name"])))
 	if eff == Vector2i.ZERO:
@@ -153,6 +172,52 @@ func _detail(c: Dictionary, h: Dictionary, lv: int, eff: Vector2i, s: Vector2i) 
 	return " ".join(out)
 
 
+## The level step in words (the grid's tooltip): "Gains a memory: Lv 3 → 4: HP +10, Mag +2." or
+## "Gains a memory, but Lv 6 is the max level for its class: Awaken to grow."
+func level_words(lv: int) -> String:
+	if at_max:
+		return "Gains a memory, but Lv %d is the max level for its class%s." % [lv, ": Awaken to grow" if String(hero.get("tier", "base")) == "base" else ""]
+	var g := PartyModel.gain_words(gain, ", ")
+	return "Gains a memory: Lv %d → %d%s." % [lv, lv + 1, (": " + g) if g != "" else ""]
+
+
+## What the hero's level gives, for line 3: the hero's real class (h["stat_class"], else h["class"]),
+## level and items; the run's hero format brings "gain" / "at_max" precomputed.
+static func gain_of(h: Dictionary) -> Dictionary:
+	if h.has("gain"):
+		return {"gain": h["gain"], "at_max": bool(h.get("at_max", false))}
+	var sh := {"class": String(h.get("stat_class", h.get("class", ""))), "level": int(h.get("level", 1)),
+		"items": h.get("items", {})}
+	var at := int(sh["level"]) >= PartyModel.max_level(sh)
+	return {"gain": {} if at else PartyModel.level_gain(sh), "at_max": at}
+
+
+## Line 3: a green up-arrow, "Lv 3 → 4" and one stat icon + green "+n" per stat that grows; at the
+## class's max level "Max level: Awaken to grow". Drops the "Lv 3 →" (then the arrow) to fit `room`.
+func _level_row(h: Dictionary, lv: int, room: float) -> HBoxContainer:
+	var gi := gain_of(h)
+	gain = gi["gain"]
+	at_max = bool(gi["at_max"])
+	var r := _row(Vector2.ZERO, 3)
+	if at_max:
+		var t := "Max level: Awaken to grow" if String(h.get("tier", "base")) == "base" else "Max level for its class"
+		r.add_child(_label(t, Pal.INK8, true))
+		return r
+	var stats_w := 0.0
+	for s: String in gain:
+		stats_w += 7 + 1 + UIText.width("%+d" % int(gain[s]), UIText.BOLD, UIText.BODY) + 5
+	var lead := "Lv %d → %d" % [lv, lv + 1]
+	if 7 + 3 + UIText.width(lead, UIText.BOLD, UIText.BODY) + 3 + stats_w > room:
+		lead = "Lv %d" % (lv + 1)
+	r.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.LIFE4, 2))
+	r.add_child(_label(lead, Pal.INK9, true))
+	for s: String in gain:
+		r.add_child(_spacer(2))
+		r.add_child(_icon(STAT_ICONS[s].resource_path, STAT_COLORS[s], 2))
+		r.add_child(_label("%+d" % int(gain[s]), Pal.LIFE4, true))
+	return r
+
+
 ## What the "Can Awaken" mark means (its tooltip and the grid's).
 static func awaken_hint(hero_name: String) -> String:
 	return "%s can Awaken after this. At camp, Awaken into the class of the region %s stands in, or keep growing." % [hero_name, hero_name]
@@ -170,7 +235,7 @@ var _what: Label
 func _apply_size() -> void:
 	_what.add_theme_font_override("font", UIText.SERIF)
 	_what.add_theme_font_size_override("font_size", UIText.TITLE if small else UIText.HEADING)
-	_what.position.y = 12 if small else 8
+	_what.position.y = LINE1_SMALL_Y if small else LINE1_Y
 
 
 ## One size for every row's action: if any sibling row needed the smaller face, all use it.
