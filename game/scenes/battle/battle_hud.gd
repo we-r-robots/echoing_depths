@@ -890,18 +890,39 @@ func blocked_rects() -> Array:
 	for side in 2:
 		if panel_drawn[side].has_area():
 			out.append(panel_drawn[side])
+	# banners carry a margin (critic r6: a "20" touched the lore banner's bottom rule)
 	if frag_t <= FRAG_SHOW and frag_n > 0:
-		out.append(fragment_rect())
-	var lb := lore_bottom()
-	if lb > 0.0:
-		out.append(Rect2(_c - 240, 40, 480, lb - 40.0))
-	elif b != null and b.crystal_uid >= 0:
-		# a Crystal fight: a memory may surface over the top of the field at any break, so numbers
-		# never sit where its lore caption will draw (critic r5 frames: "60" under the lore box)
-		out.append(Rect2(_c - 240, 40, 480, 48))
+		out.append(fragment_rect().grow(BANNER_MARGIN))
+	if b != null and b.crystal_uid >= 0:
+		# a Crystal fight: a memory may surface over the top of the field at any break, and a number
+		# placed before it surfaces lives on under it, so the tallest lore banner is always reserved
+		out.append(lore_reserve())
+	else:
+		var lb := lore_bottom()
+		if lb > 0.0:
+			out.append(Rect2(_c - 240, 40, 480, lb - 40.0).grow(BANNER_MARGIN))
 	if b != null and b.sd_at > 0.0 and b.sim_t >= b.sd_at - 0.5:
-		out.append(Rect2(_c - 160, 38, 320, 24))
+		out.append(Rect2(_c - 160, 38, 320, 24).grow(BANNER_MARGIN))
 	return out
+
+
+## Clear space kept round every banner (UI design px), so no number touches its rule.
+const BANNER_MARGIN := 4.0
+## Lore lines the reserve allows for (the longest memory lore wraps to 2 lines at 456 px).
+const LORE_MAX_LINES := 3
+
+
+## The lore banner as drawn right now (UI design px), or an empty rect.
+func lore_rect() -> Rect2:
+	var lb := lore_bottom()
+	return Rect2(_c - 240, 40, 480, lb - 40.0) if lb > 0.0 else Rect2()
+
+
+## The tallest lore banner plus the margin: reserved for the whole of a Crystal fight.
+func lore_reserve() -> Rect2:
+	var n := maxi(LORE_MAX_LINES, UIText.wrap_lines(lore_text, 456.0, BOLD, UIText.BODY).size() if lore_text != "" else 0)
+	var h := ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + n * UIText.line_h(BOLD, UIText.BODY) + 6.0)
+	return Rect2(_c - 240, 40, 480, h).grow(BANNER_MARGIN)
 
 
 var caption_drawn := Rect2()

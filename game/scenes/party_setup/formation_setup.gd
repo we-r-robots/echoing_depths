@@ -149,7 +149,19 @@ func _refresh() -> void:
 	var names: Array = board.placed_names(pp if pp is Array else board.placement)
 	panel.show_cells(cells, board.unlocked, n_placed, board.heroes.size(), pc is Array, bases, names)
 	_confirm.disabled = not board.all_placed() or _done
+	panel.confirm_note = confirm_reason()
 	queue_redraw()
+
+
+## Why Confirm is disabled, in one line for the card's note line (critic r6: a greyed Confirm said
+## nothing); "" when it is enabled or the formation is already set.
+func confirm_reason() -> String:
+	if _done or board.all_placed():
+		return ""
+	var missing := board.heroes.size() - board.placed_cells().size()
+	if missing <= 0:
+		return "Drop the hero on a slot to confirm"
+	return "Place %d more %s to confirm" % [missing, "hero" if missing == 1 else "heroes"]
 
 
 func confirm() -> void:
@@ -174,6 +186,7 @@ func confirm() -> void:
 	board.toast_t = 99.0
 	_done = demo
 	_confirm.disabled = true
+	panel.confirm_note = ""
 	confirmed.emit(res)
 	if not demo:
 		queue_free()

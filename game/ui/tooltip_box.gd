@@ -17,6 +17,7 @@ var _shown := false
 var _entries: Array = []        # [[effect or {}, PackedStringArray lines], ...]
 var _in_zone := false           # opened as the reading pane: fills the zone, wired to its row
 const ENTRY_INDENT := 26        # icon chip (20) + gap
+const ROW_GAP := 5.0            # a "row" tip's gap to its row (room for the caret)
 
 
 func _ready() -> void:
@@ -27,6 +28,11 @@ func _ready() -> void:
 
 func visible_now() -> bool:
 	return _shown
+
+
+## The open box (global rect), or an empty rect.
+func box_rect() -> Rect2:
+	return _rect if _shown else Rect2()
 
 
 func hover(c: Control, on: bool) -> void:
@@ -67,7 +73,8 @@ func open(c: Control, pin: bool) -> void:
 	_accent = d.get("accent", Pal.CRYSTAL4)
 	var place := String(d.get("place", "auto"))
 	var use_zone := place == "zone" and Tip.zone.size.x > 40
-	var max_w := int(d.get("width", MAX_W)) if not use_zone else int(Tip.zone.size.x) - 8
+	var use_row := place == "row" and Tip.zone.size.x > 40
+	var max_w := int(d.get("width", MAX_W)) if not (use_zone or use_row) else int(Tip.zone.size.x) - 8
 	_lines = Array(UIText.wrap_lines(String(d.get("body", "")), max_w - PAD * 2, UIText.BOLD, UIText.BODY)) if String(d.get("body", "")) != "" else []
 	var w := UIText.width(_title, UIText.BOLD, UIText.LABEL) + PAD * 2
 	for l: String in _lines:
@@ -92,7 +99,7 @@ func open(c: Control, pin: bool) -> void:
 	var y1 := view.end.y - 4
 	var x := clampf(roundf(a.position.x + a.size.x / 2.0 - w / 2.0), x0, x1 - w)
 	var y := a.position.y - h - 4
-	if place == "zone" and not use_zone:
+	if (place == "zone" and not use_zone) or (place == "row" and not use_row):
 		place = "left"
 	if place == "below" and a.end.y + 4 + h <= y1:
 		y = a.end.y + 4
@@ -102,8 +109,17 @@ func open(c: Control, pin: bool) -> void:
 		y = clampf(roundf(a.position.y + a.size.y / 2.0 - h / 2.0), 4, y1 - h)
 		x = a.position.x - w - 6 if place == "left" else a.end.x + 6
 		x = clampf(x, x0, x1 - w)
-	_in_zone = use_zone
-	if use_zone:
+	_in_zone = use_zone or use_row
+	if use_row:
+		# anchored to its own row (critic r6: a pane docked under the list pointed at the last row):
+		# the zone's width, directly under the row, or directly over it when there is no room
+		# above the zone's foot; the caret points at the row's icon
+		x = roundf(Tip.zone.position.x)
+		w = roundf(Tip.zone.size.x)
+		y = a.end.y + ROW_GAP
+		if y + h > Tip.zone.end.y:
+			y = maxf(4.0, a.position.y - ROW_GAP - h)
+	elif use_zone:
 		# a solid pane over the whole free zone (critic r4: a box narrower than the zone let the
 		# growth row's bars show round it); taller text grows it upward from the zone's foot
 		x = roundf(Tip.zone.position.x)
@@ -159,11 +175,15 @@ func _draw() -> void:
 	# margin read as a stray line)
 	if _in_zone and owner_control != null and is_instance_valid(owner_control):
 		var a := owner_control.get_global_rect()
+		var cx := roundf(clampf(a.position.x + 10.0, r.position.x + 6.0, r.end.x - 6.0))
 		if a.end.y <= r.position.y:
 			draw_rect(a.grow(1.0), _accent, false, 1.0)
-			var cx := roundf(clampf(a.position.x + 10.0, r.position.x + 6.0, r.end.x - 6.0))
 			for k in 4:
 				draw_rect(Rect2(cx - k, r.position.y - 4 + k, k * 2 + 1, 1), _accent)
+		elif a.position.y >= r.end.y:
+			draw_rect(a.grow(1.0), _accent, false, 1.0)
+			for k in 4:
+				draw_rect(Rect2(cx - k, r.end.y + 3 - k, k * 2 + 1, 1), _accent)
 	# pointer nub toward the owner when placed beside it
 	if owner_control != null and is_instance_valid(owner_control) and not _in_zone:
 		var a := owner_control.get_global_rect()

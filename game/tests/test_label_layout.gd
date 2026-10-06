@@ -126,7 +126,7 @@ func test_world_labels_meet_the_text_floor() -> void:
 
 ## Plays one demo fight to its end through the real battle scene, recording every label placement.
 ## `each` (optional) is called with the battle node every 10 frames.
-func _play(fight: String, sequence := "ch1", each := Callable()) -> Array:
+func _play(fight: String, sequence := "ch1", each := Callable(), every := 10) -> Array:
 	var tree := Engine.get_main_loop() as SceneTree
 	var old_size := tree.root.size
 	tree.root.size = Vector2i(1920, 1080)   # the capture layout: 640x360 design px
@@ -141,7 +141,7 @@ func _play(fight: String, sequence := "ch1", each := Callable()) -> Array:
 	while frames < 60 * 120 and int(b._state) != 3:
 		b._process(1.0 / 60.0)
 		frames += 1
-		if each.is_valid() and frames % 10 == 0:
+		if each.is_valid() and frames % every == 0:
 			each.call(b)
 	var rec: Array = b.fx.record
 	tree.root.remove_child(b)
@@ -187,12 +187,43 @@ func test_real_monster_fight_kos() -> void:
 
 
 var _max_rows := 0
+var _banner_checks := 0
+var _hud_frame := 0
+var _lore_seen := 0
+
+
+## Every frame of a Crystal fight: no live label (as it is drawn now, in UI px) touches a banner
+## (the lore banner, the fragment banner, the Fading line) or comes within its margin (critic r6:
+## the fragment-2 "20" sat under the lore banner's bottom rule; numbers bar rule (c)).
+func _banners_clear(b: Node) -> void:
+	var xf: Transform2D = b._world_xf()
+	var banners: Array = []
+	var lr: Rect2 = b.hud.lore_rect()
+	if lr.has_area():
+		_lore_seen += 1
+		banners.append(["lore banner", lr])
+	if b.hud.frag_t <= b.hud.FRAG_SHOW and b.hud.frag_n > 0:
+		banners.append(["fragment banner", b.hud.fragment_rect()])
+	var m: float = b.hud.BANNER_MARGIN - 1.0
+	for l: Dictionary in b.fx.label_boxes():
+		var wb: Rect2 = l["box"]
+		var p0: Vector2 = xf * wb.position
+		var p1: Vector2 = xf * wb.end
+		var ub := Rect2(p0, p1 - p0)
+		for bn: Array in banners:
+			_banner_checks += 1
+			var r: Rect2 = bn[1]
+			check(not ub.intersects(r.grow(m)), "label \"%s\" %s keeps %d px clear of the %s %s at %.2f s" % [l["text"], ub, m, bn[0], r, b.sim_t])
 
 
 func test_real_crystal_fight() -> void:
 	_max_rows = 0
-	var st := _check_fight("crystal", _play("crystal", "ch1", _crystal_hud))
+	_banner_checks = 0
+	_lore_seen = 0
+	var st := _check_fight("crystal", _play("crystal", "ch1", _crystal_hud, 1))
 	check(int(st["n"]) > 20, "the Crystal demo placed labels (%d)" % st["n"])
+	check(_lore_seen > 0, "a memory's lore banner showed during the fight (%d frames)" % _lore_seen)
+	check(_banner_checks > 100, "live labels were checked against the banners (%d)" % _banner_checks)
 	check(_max_rows == 4, "the Fading's summons filled the enemy roster to its 4-row cap (%d)" % _max_rows)
 
 
@@ -200,6 +231,10 @@ func test_real_crystal_fight() -> void:
 ## plate touches them (critic r5: a fifth memory row grew the panel over both).
 func _crystal_hud(b: Node) -> void:
 	if b.crystal_uid < 0:
+		return
+	_banners_clear(b)
+	_hud_frame += 1
+	if _hud_frame % 10 != 0:
 		return
 	var c = b.units[b.crystal_uid]
 	if not c.alive:

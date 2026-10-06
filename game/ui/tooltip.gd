@@ -7,7 +7,9 @@ extends RefCounted
 ##   Tip.attach(control, "Def +10%", "Front heroes get Def +10%.", Pal.LIFE4[, place])
 ##     place: "auto" (above, else below), "below", "left" / "right" (beside the control), or
 ##     "zone": inside the screen's free zone set with Tip.set_zone(rect) (e.g. empty floor on a
-##     board, so the tip covers neither the list nor the heroes); falls back to "left".
+##     board, so the tip covers neither the list nor the heroes); falls back to "left";
+##     "row": anchored to its own row of a list: the zone's width, directly under the row (or over
+##     it when the zone's foot leaves no room), with a caret on the row's icon.
 ##   opts (optional): {"entries": [{"effect": EffectIcons effect or {}, "text": String}, ...]} draws a
 ##     list of icon + sentence rows under the body (the setup card's Details: the long read the
 ##     player asks for, in the same box as every other tooltip); "width": the box's max width;
@@ -68,6 +70,11 @@ static func close() -> void:
 ## Is any tooltip open right now (e.g. to keep a toast out from under it)?
 static func any_open() -> bool:
 	return _node != null and is_instance_valid(_node) and _node.visible_now()
+
+
+## The open tooltip's box (global rect), or an empty rect (tests, layout checks).
+static func box_rect() -> Rect2:
+	return _node.box_rect() if _node != null and is_instance_valid(_node) else Rect2()
 
 
 static func is_open_for(c: Control) -> bool:

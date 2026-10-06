@@ -114,8 +114,7 @@ func _process(_delta: float) -> bool:
 		return false
 	_scene_i += 1
 	if _scene_i >= _scenes.size():
-		_summary()
-		return true
+		return _probe_step()
 	var path := _scenes[_scene_i]
 	_scene_errs = counter.errors.size()
 	var ps: PackedScene = load(path)
@@ -128,6 +127,64 @@ func _process(_delta: float) -> bool:
 	_scene_node = inst
 	_scene_frames = 0
 	root.add_child(inst)
+	return false
+
+
+## Probe phase: each res://tests/probe_*.gd is a Node that walks a screen through its states over
+## frames (so _draw runs) and checks the layout; it sets `done` and fills `failures` / `asserts`.
+const PROBE_MAX_FRAMES := 6000
+var _probes: Array[String] = []
+var _probe_i := -1
+var _probe: Node = null
+var _probe_frames := 0
+var _probe_errs := 0
+
+
+func _probe_step() -> bool:
+	if _probe_i < 0 and _probes.is_empty():
+		for f in DirAccess.open("res://tests").get_files():
+			var name := f.trim_suffix(".remap")
+			if name.begins_with("probe_") and name.ends_with(".gd"):
+				_probes.append("res://tests/" + name)
+		_probes.sort()
+	if _probe != null:
+		_probe_frames += 1
+		if not bool(_probe.get("done")) and _probe_frames < PROBE_MAX_FRAMES:
+			return false
+		var fails: Array = _probe.get("failures")
+		asserts += int(_probe.get("asserts"))
+		if not bool(_probe.get("done")):
+			fails.append("did not finish in %d frames" % PROBE_MAX_FRAMES)
+		if counter.errors.size() > _probe_errs:
+			fails.append("engine/script error while running")
+		if int(_probe.get("asserts")) == 0:
+			fails.append("made no assertions")
+		total += 1
+		var nm := _probes[_probe_i].get_file().trim_suffix(".gd")
+		if fails.is_empty():
+			print("  ok    probe::%s (%d checks)" % [nm, int(_probe.get("asserts"))])
+		else:
+			failed += 1
+			var shown := 0
+			for m: String in fails:
+				shown += 1
+				if shown > 40:
+					print("  FAIL  probe::%s: ... and %d more" % [nm, fails.size() - 40])
+					break
+				print("  FAIL  probe::%s: %s" % [nm, m])
+		_probe.queue_free()
+		_probe = null
+		Tip.close()
+		return false
+	_probe_i += 1
+	if _probe_i >= _probes.size():
+		_summary()
+		return true
+	_probe_errs = counter.errors.size()
+	var sc: GDScript = load(_probes[_probe_i])
+	_probe = sc.new()
+	_probe_frames = 0
+	root.add_child(_probe)
 	return false
 
 

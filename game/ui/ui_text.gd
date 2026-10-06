@@ -126,11 +126,38 @@ static func legible(c: Color) -> Color:
 	return c
 
 
+## Layout checks (tests/probe_*.gd): while `recording`, every text drawn through this file is noted
+## per canvas item as its ink box in that item's local space ({"rect", "text"}). A probe clears an
+## item's list when it redraws (its `draw` signal), so `recorded` holds what is on screen now.
+static var recording := false
+static var recorded := {}   # canvas item instance id -> [{"rect": Rect2 (local), "text": String}]
+
+
+static func _note(ci: CanvasItem, base: Vector2, s: String, f: Font, size: int, w := -1.0,
+		align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
+	if not recording or s.strip_edges() == "":
+		return
+	var tw := width(s, f, size)
+	var x := base.x
+	if w > 0.0:
+		if align == HORIZONTAL_ALIGNMENT_CENTER:
+			x += (w - tw) / 2.0
+		elif align == HORIZONTAL_ALIGNMENT_RIGHT:
+			x += w - tw
+	var top := base.y - cap(f, size)
+	var r := Rect2(x, top, tw, cap(f, size) + minf(float(f.get_descent(size)), 3.0 * fpx(size)))
+	var id := ci.get_instance_id()
+	if not recorded.has(id):
+		recorded[id] = []
+	(recorded[id] as Array).append({"rect": r, "text": s})
+
+
 static func draw(ci: CanvasItem, pos: Vector2, s: String, color: Color, f: Font = SANS, size := BODY,
 		shadow := true, w := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
 	_check(f, size)
 	color = legible(color)
 	var base := Vector2(pos.x, pos.y + ascent(f, size))
+	_note(ci, base, s, f, size, w, align)
 	if shadow:
 		var d := fpx(size)
 		ci.draw_string(f, base + Vector2(d, d), s, align, w, size, Color(Pal.INK1, color.a))
@@ -152,6 +179,7 @@ static func outlined(ci: CanvasItem, pos: Vector2, s: String, color: Color, f: F
 	var w := width(s, f, size)
 	var x := pos.x - (w * 0.5 if anchor == 1 else (w if anchor == 2 else 0.0))
 	var base := Vector2(x, pos.y + ascent(f, size))
+	_note(ci, base, s, f, size)
 	var d := fpx(size)
 	var oc := Color(outline, outline.a * color.a)
 	if drop:

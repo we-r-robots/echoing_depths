@@ -31,6 +31,18 @@ var _details_btn: Button
 var _was_open := false
 ## Extra foot height for a second button over Confirm (the road's review mode adds Back).
 var extra_foot := 0
+## Why Confirm is disabled (set by FormationSetup), shown on the note line; "" when it isn't.
+var confirm_note := "":
+	set(v):
+		if v != confirm_note:
+			confirm_note = v
+			queue_redraw()
+## The note line over the foot: its own reserved line (critic r6: the hint was drawn over the
+## GREW FROM heading). Rows and the growth block end above it.
+const NOTE_H := 14
+## Height of the growth block (divider, heading, one row of shape chips).
+const GROWTH_H := 40
+var _show_growth := false
 
 
 func _ready() -> void:
@@ -180,9 +192,9 @@ func _rebuild_chips() -> void:
 	_growth_y = 0
 	if _ev.is_empty() or (_ev["shape"] as Dictionary).is_empty():
 		return
-	var y := 66
 	var blocks := [["note", "stat+", "behaviour"], ["cost"], ["bond"]]
-	var first := true
+	var groups: Array = []
+	var n_rows := 0
 	for blk: Array in blocks:
 		var items: Array = []
 		for e: Dictionary in _effects:
@@ -190,22 +202,32 @@ func _rebuild_chips() -> void:
 				items.append(e)
 		if blk[0] == "bond" and bool(_ev["locked"]):
 			items.append(_locked_row())
-		if items.is_empty():
-			continue
+		if not items.is_empty():
+			groups.append(items)
+			n_rows += items.size()
+	# rows keep their height; the growth block shows only when it fits whole above the note line
+	var bottom := _note_y() - 2
+	var rows_end := 66 + n_rows * ROW + maxi(groups.size() - 1, 0) * 7
+	var want_growth := String(_ev["state"]) == "active"
+	_show_growth = want_growth and rows_end + 4 + GROWTH_H <= bottom
+	var y := 66
+	var first := true
+	for items: Array in groups:
 		if not first:
 			_sections.append([y + 2, "", Pal.INK4])   # a light divider
 			y += 7
 		first = false
 		for e: Dictionary in items:
-			if y + EffectIcons.CHIP > H - FOOT:
+			if y + EffectIcons.CHIP > bottom:
 				break
 			var chip := EffectChip.new()
 			add_child(chip)
 			chip.position = Vector2(10, y)
-			# every row's tooltip opens in the card's reading pane under the list (never over the
-			# board, critic r3); the row it belongs to stays lit
+			# every row's tooltip opens on the card, directly under (or over) its own row with a
+			# caret on the row's icon (never over the board, critic r3; never docked under the
+			# list, critic r6); the row it belongs to stays lit
 			chip.label_size = UIText.HEADING
-			chip.setup(e, "zone", W - 40)
+			chip.setup(e, "row", W - 40)
 			chip.locked = bool(e.get("_locked", false))
 			_chips.append(chip)
 			y += ROW
@@ -238,24 +260,29 @@ func free_zone() -> Rect2:
 	return get_global_transform() * _zone_local()
 
 
+func _note_y() -> int:
+	return H - FOOT - extra_foot - NOTE_H
+
+
 func _zone_local() -> Rect2:
 	var top := float(_growth_y)
-	if String(_ev.get("state", "")) == "active" and top > 0.0 and H - FOOT - top >= 40:
-		top += 44.0   # the growth block
+	if _show_growth and top > 0.0:
+		top += float(GROWTH_H)   # the growth block
 	var foot := H - FOOT - extra_foot
 	top = clampf(top, 66.0, float(foot) - 40.0)
 	return Rect2(4, top, W - 8, foot - 4 - top)
 
 
-## The reading pane: the card's free lower half, where an effect's full text opens (the shared
-## tooltip). While nothing is open it collapses to one quiet hint line under the rows, with no empty
-## box (critic r5: a large dim pane holding one hint).
-func _draw_pane() -> void:
-	var z := _zone_local().grow_individual(-4, -2, -4, -2)
-	if z.size.y < 30 or details or Tip.any_open():
+## The note line, reserved over the foot: why Confirm is disabled ("Place 1 more hero to confirm"),
+## else the quiet hint that effects open their full text. Hidden while a tooltip is open.
+func _draw_note() -> void:
+	if details or Tip.any_open():
 		return
-	var hint := "Tap an effect for the full text"
-	PartyDraw.text(self, Vector2(z.position.x, z.position.y + 2), hint, Pal.INK8, PartyDraw.BOLD, UIText.BODY, false, z.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	var y := _note_y()
+	if confirm_note != "":
+		PartyDraw.text(self, Vector2(8, y), confirm_note, Pal.AMBER6, PartyDraw.BOLD, UIText.BODY, true, W - 16, HORIZONTAL_ALIGNMENT_CENTER)
+	elif not (_ev.get("shape", {}) as Dictionary).is_empty():
+		PartyDraw.text(self, Vector2(8, y), "Tap an effect for the full text", Pal.INK8, PartyDraw.BOLD, UIText.BODY, false, W - 16, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func _process(delta: float) -> void:
@@ -280,6 +307,7 @@ func _draw() -> void:
 	_details_btn.visible = not shape.is_empty()
 	if shape.is_empty():
 		_draw_empty()
+		_draw_note()
 		return
 	var locked: bool = _ev["locked"]
 	var strays := String(_ev["state"]) in ["strays", "unformed"]
@@ -289,7 +317,7 @@ func _draw() -> void:
 	# an open reading pane masks the growth block (critic r4: its chips showed as stubs under it)
 	if not _pane_open():
 		_draw_growth_block(shape, strays)
-	_draw_pane()
+	_draw_note()
 
 
 func _pane_open() -> bool:
@@ -304,10 +332,7 @@ func _pane_open() -> bool:
 ## Fills the card's foot: what one more hero would make (or, at four, what it grew from).
 func _draw_growth_block(shape: Dictionary, strays: bool) -> void:
 	var top := maxi(_growth_y, 0)
-	var bottom := H - FOOT
-	if top <= 0 or bottom - top < 40:
-		return
-	if strays or String(_ev["state"]) != "active":
+	if top <= 0 or not _show_growth or strays:
 		return
 	# docked under the rows (a divider, then the block), not at the card's foot
 	draw_rect(Rect2(10, top - 1, W - 20, 1), Pal.INK3)
