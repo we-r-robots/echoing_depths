@@ -10,6 +10,9 @@ extends Node2D
 ##   # or: battle.play_result(CombatSim.simulate(...), display)
 ##   battle.finished.connect(func(winner: int, result: Dictionary): ...)
 ## display (all optional): {"player_side": 0, "echo_side": 1 (draw that side as an Echo), "speed": 1.0}
+## Without "speed" a fight starts at the speed the player last picked (GameState.battle_speed; the
+## demo always at x1, so captures stay deterministic). Picking a speed with the x1 / x2 / x4 button
+## saves it; SKIP is a one-off and isn't remembered.
 ## Controls: set_speed(x), skip(). No input is needed to watch.
 ##
 ## Demo (no API call within the first frame): fixed-seed PvP (hero party vs an Echo party).
@@ -315,8 +318,12 @@ func play_result(res: Dictionary, display: Dictionary = {}) -> void:
 		return
 	player_side = int(display.get("player_side", 0))
 	echo_side = int(display.get("echo_side", -1))
-	var sp := float(display.get("speed", 1.0))
-	_speed_i = maxi(0, SPEEDS.find(sp))
+	if display.has("speed"):
+		_speed_i = maxi(0, SPEEDS.find(float(display["speed"])))
+	elif _demo_running:
+		_speed_i = 0
+	else:
+		_speed_i = clampi(GameState.battle_speed(), 0, SPEEDS.size() - 1)
 	_clear()
 	_ev_i = 0
 	sim_t = 0.0
@@ -357,6 +364,7 @@ func set_speed(x: float) -> void:
 
 func _cycle_speed() -> void:
 	_speed_i = (_speed_i + 1) % SPEEDS.size()
+	GameState.set_battle_speed(_speed_i)   # every later fight starts at it (user request)
 	hud.speed_btn.text = "x%d" % int(SPEEDS[_speed_i])
 
 

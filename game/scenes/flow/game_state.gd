@@ -7,6 +7,8 @@ extends RefCounted
 ##   GameState.load_all()                  # reads settings + meta (defaults when missing)
 ##   GameState.battle_effects()            # 0 Low / 1 Medium / 2 High (battle spectacle_level)
 ##   GameState.set_battle_effects(2)       # saves settings
+##   GameState.battle_speed()              # the battle speed the player last picked: index into
+##   GameState.set_battle_speed(1)         #   BATTLE_SPEEDS (0 = x1, the default); saves settings
 ##   GameState.run_options()               # start_run options from meta (unlocks, team name, crest...)
 ##   GameState.apply_summary(summary)      # banks a finished run into meta, saves; -> rewards
 ##   GameState.unlock_shape(id) / unlock_crest(id) / form_shard() / set_team(name, crest)
@@ -21,6 +23,8 @@ const FORMAT := "echoing_depths.meta"
 ## Run saves replay actions under the run's rules; version 2: Awakening at 2 memories from the camp.
 const RUN_SAVE_VERSION := 4   # 3: approved advanced classes + statuses; 4: round-2 classes (Paladin -> Lightsworn), older replays differ
 const DEFAULT_TEAM := "The Lanternrest Company"
+## The battle scene's speeds (battle.gd SPEEDS): the saved setting is an index into these.
+const BATTLE_SPEEDS: Array[float] = [1.0, 2.0, 4.0]
 const TEAM_MAX := 32
 
 ## Meta tuning (placeholders, see the open questions in 04-meta-progression.md).
@@ -110,6 +114,19 @@ static func battle_effects() -> int:
 static func set_battle_effects(level: int) -> void:
 	ensure()
 	settings["battle_effects"] = clampi(level, 0, 2)
+	save_settings()
+
+
+## The battle speed the player last picked (index into BATTLE_SPEEDS; 0 = x1). Every fight starts at
+## it, across sessions. An older settings file without the key gives x1.
+static func battle_speed() -> int:
+	ensure()
+	return clampi(int(settings.get("battle_speed", 0)), 0, BATTLE_SPEEDS.size() - 1)
+
+
+static func set_battle_speed(i: int) -> void:
+	ensure()
+	settings["battle_speed"] = clampi(i, 0, BATTLE_SPEEDS.size() - 1)
 	save_settings()
 
 
