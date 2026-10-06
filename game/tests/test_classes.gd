@@ -11,13 +11,12 @@ const LegendGate = preload("res://core/run/legend_gate.gd")
 
 const FAST := {"start_charge_spread": 0, "start_charge_bonus": 100}   # everyone starts at 99 charge
 
-## base -> region -> class: exactly the APPROVED regions (rounds 1 and 2). Still open: Fighter LG*
-## (Mercy+Order corner) and Rogue CG* (Mercy+Freedom corner).
+## base -> region -> class: exactly the APPROVED regions (rounds 1-3). Every region has one now.
 const ROSTER := {
 	"fighter": {"N": "halberdier", "LG": "lightsworn", "CG": "bladebreaker", "LE": "shackler", "CE": "berserker",
-		"LE*": "iron_marshal", "CG*": "echoblade", "CE*": "ravager"},
+		"LE*": "iron_marshal", "CG*": "echoblade", "CE*": "ravager", "LG*": "aegisbearer"},
 	"rogue": {"N": "saboteur", "LG": "nightwatch", "CE": "cutpurse", "CE*": "fadewalker", "CG": "duelist",
-		"LE": "assassin", "LE*": "nightshade", "LG*": "unseen_warden"},
+		"LE": "assassin", "LE*": "nightshade", "LG*": "unseen_warden", "CG*": "informant"},
 	"healer": {"LG": "cleric", "N": "threadmender", "LG*": "lumenward", "CG": "rekindler", "LE": "tithekeeper",
 		"CE": "bloodletter", "CG*": "wickburner", "LE*": "confessor", "CE*": "gravecaller"},
 	"mage": {"CG": "stormwake", "N": "archmage", "CG*": "starcaller", "LG": "lampwright", "CE": "warlock",
@@ -89,15 +88,13 @@ func test_roster_is_exactly_the_approved_regions() -> void:
 	eq(String(GameData.get_class_def("shackler")["ability"]), "shackle", "and it keeps its pull ability")
 
 
-func test_unwritten_regions_fall_back_to_the_nearest_approved_region() -> void:
-	# PROVISIONAL: nearest region by grid steps from the hero's cell; ties -> nearer the base's start.
-	# After round 2 only two regions are open: Fighter LG* and Rogue CG*.
+func test_no_region_falls_back_any_more() -> void:
+	# Round 3: every region has an approved class. The nearest-region fallback stays in the code only
+	# as a safety net, and no cell of any base uses it.
 	eq(Alignment.advanced_class_for("fighter", [0, 1]), "halberdier", "Fighter N (start) has its own class now")
-	eq(Alignment.advanced_class_for("fighter", [2, 2]), "lightsworn", "Fighter LG* (open) -> LG, 1 step")
-	check(Alignment.is_fallback("fighter", [2, 2]), "Fighter LG* is a stand-in")
+	eq(Alignment.advanced_class_for("fighter", [2, 2]), "aegisbearer", "Fighter LG* -> Aegisbearer")
 	eq(Alignment.advanced_class_for("fighter", [-2, -2]), "ravager", "Fighter CE* -> its own class (Ravager)")
-	eq(Alignment.advanced_class_for("rogue", [2, -2]), "duelist", "Rogue CG* (open) -> CG, 1 step")
-	check(Alignment.is_fallback("rogue", [2, -2]), "Rogue CG* is a stand-in")
+	eq(Alignment.advanced_class_for("rogue", [2, -2]), "informant", "Rogue CG* -> Informant")
 	eq(Alignment.advanced_class_for("rogue", [0, 0]), "saboteur", "Rogue N has its own class now")
 	eq(Alignment.advanced_class_for("rogue", [1, 1]), "nightwatch", "Rogue LG has its own class now")
 	eq(Alignment.advanced_class_for("healer", [-1, -1]), "bloodletter", "Healer CE has its own class now")
@@ -109,7 +106,7 @@ func test_unwritten_regions_fall_back_to_the_nearest_approved_region() -> void:
 			for l in range(-2, 3):
 				if Alignment.is_fallback(b, [g, l]):
 					stand_ins += 1
-	eq(stand_ins, 2, "only the two open corners (one cell each) use a stand-in")
+	eq(stand_ins, 0, "no cell of any base uses a stand-in")
 	for b: String in ROSTER:
 		for g in range(-2, 3):
 			for l in range(-2, 3):
@@ -172,7 +169,9 @@ func test_every_new_ability_has_label_tooltip_and_icon() -> void:
 		check(String(st["short"]).length() <= 20, "status %s short label" % id)
 	check(GameData.get_action("grave_bolt").has("provisional"), "Gravecaller's full-front fallback is marked PROVISIONAL in data")
 	check(GameData.get_action("enshrine").has("provisional") and GameData.get_class_def("enshriner").has("provisional"),
-		"Enshriner's rules and name are marked PROVISIONAL in data")
+		"the Reliquarist's seal rules are marked PROVISIONAL in data")
+	eq(String(GameData.get_class_def("enshriner")["name"]), "Reliquarist", "round 3: Enshriner renamed Reliquarist (id kept)")
+	check(GameData.get_action("read_the_orders").has("provisional"), "the Informant's split and fallback are PROVISIONAL in data")
 	check(String(GameData.get_action("brand_of_flame")["name"]).contains("Flame"), "Confessor's brand is flame-themed")
 
 
@@ -421,12 +420,12 @@ func test_wickburner_burns_its_hp_to_heal_the_others() -> void:
 
 func test_confessor_brands_against_healing() -> void:
 	var a := party([hero("fighter", 0, 1, 3), hero("confessor", 1, 1, 2)])
-	var b := party([hero("fighter", 0, 1), hero("cleric", 1, 1, 3)])
+	var b := party([hero("fighter", 0, 1, 5), hero("cleric", 1, 1, 3)])
 	var r := _sim(16, a, b)
 	var act := _ability_of(r, 1)
-	eq(String(act["action"]), "brand_of_flame", "Brand of Flame fires")
-	var br := _first(r, "status", func(ev: Dictionary) -> bool: return ev["status"] == "heal_block")
-	eq(int(br["uid"]), int(act["target"]), "the struck foe is branded")
+	eq(String(act["action"]), "brand_of_flame", "the Retribution Flame (id brand_of_flame) fires")
+	var br := _first(r, "status", func(ev: Dictionary) -> bool: return ev["status"] == "heal_invert")
+	eq(int(br["uid"]), int(act["target"]), "the struck foe is branded: its heals burn it")
 
 
 func test_gravecaller_raises_a_weaker_husk() -> void:

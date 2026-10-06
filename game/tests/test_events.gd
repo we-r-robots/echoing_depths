@@ -12,7 +12,7 @@ const TOS := ["primary", "primary_adjacent", "primary_column", "primary_column_r
 	"most_charged_enemy", "highest_hp_enemy", "random_ally", "column_sweep", "primary_behind"]
 const SELECTORS := ["melee", "back_first", "lowest_hp_enemy", "random_enemy", "lowest_hp_ally", "self", "all_enemies", "all_allies",
 	"most_charged_enemy", "highest_hp_enemy", "random_ally", "column_bottom", "strongest_front_enemy",
-	"strongest_sealable_enemy"]
+	"strongest_sealable_enemy", "last_attacker_enemy"]
 
 
 ## Actions that are an ability's second half (a status's "then"): shown as an ability, no charge spent.

@@ -46,7 +46,7 @@ const CLASSES := {
 	# the same budget (BUDGET below).
 
 	# ---- Fighter (start N): N Halberdier, LG Lightsworn, CG Bladebreaker, LE Warden of Chains (id
-	#      shackler), CE Berserker, LE* Iron Marshal, CG* Echoblade, CE* Ravager
+	#      shackler), CE Berserker, LE* Iron Marshal, CG* Echoblade, CE* Ravager, LG* Aegisbearer (round 3)
 	"halberdier": {"name": "Halberdier", "tier": "advanced", "base": "fighter", "region": "N",
 		"stats": {"hp": 190, "atk": 30, "def": 17, "mag": 7, "spd": 12},
 		"growth": {"hp": 19, "atk": 3.2, "def": 1.8, "mag": 0.6, "spd": 0.6},
@@ -68,6 +68,11 @@ const CLASSES := {
 		"growth": {"hp": 20, "atk": 3.6, "def": 1.5, "mag": 0.4, "spd": 0.5},
 		"crit": 0.08, "charge_on_act": 32, "charge_on_hit": 2.4, "start_charge": 30,
 		"basic": "strike", "ability": "whirlwind", "preferred_col": 0},
+	"aegisbearer": {"name": "Aegisbearer", "tier": "advanced", "base": "fighter", "region": "LG*",
+		"stats": {"hp": 215, "atk": 18, "def": 27, "mag": 7, "spd": 9},
+		"growth": {"hp": 22, "atk": 1.6, "def": 3.0, "mag": 0.5, "spd": 0.5},
+		"crit": 0.04, "charge_on_act": 30, "charge_on_hit": 2.2, "start_charge": 30,
+		"basic": "strike", "ability": "raise_the_aegis", "preferred_col": 0},
 	"berserker": {"name": "Berserker", "tier": "advanced", "base": "fighter", "region": "CE",
 		"stats": {"hp": 200, "atk": 31, "def": 16, "mag": 6, "spd": 11},
 		"growth": {"hp": 20, "atk": 3.5, "def": 1.5, "mag": 0.5, "spd": 0.5},
@@ -91,7 +96,7 @@ const CLASSES := {
 		"basic": "strike", "ability": "call_echo", "preferred_col": 0},
 
 	# ---- Rogue (start CE): CE Cutpurse, CE* Fadewalker, CG Duelist, LE Assassin, LE* Nightshade,
-	#      LG* Unseen Warden, N Saboteur, LG Nightwatch
+	#      LG* Unseen Warden, N Saboteur, LG Nightwatch, CG* Informant (round 3)
 	"saboteur": {"name": "Saboteur", "tier": "advanced", "base": "rogue", "region": "N",
 		"stats": {"hp": 125, "atk": 24, "def": 12, "mag": 10, "spd": 24},
 		"growth": {"hp": 12, "atk": 2.4, "def": 1.1, "mag": 0.6, "spd": 1.7},
@@ -102,6 +107,11 @@ const CLASSES := {
 		"growth": {"hp": 14, "atk": 2.2, "def": 1.6, "mag": 0.4, "spd": 1.2},
 		"crit": 0.12, "charge_on_act": 40, "charge_on_hit": 1.4, "start_charge": 40,
 		"basic": "stab", "ability": "keep_watch", "preferred_col": 0},
+	"informant": {"name": "Informant", "tier": "advanced", "base": "rogue", "region": "CG*",
+		"stats": {"hp": 120, "atk": 10, "def": 11, "mag": 26, "spd": 24},
+		"growth": {"hp": 11, "atk": 0.6, "def": 1.0, "mag": 2.8, "spd": 1.6},
+		"crit": 0.05, "charge_on_act": 40, "charge_on_hit": 1.2, "start_charge": 40,
+		"basic": "stab", "ability": "read_the_orders", "preferred_col": 1},
 	"duelist": {"name": "Duelist", "tier": "advanced", "base": "rogue", "region": "CG",
 		"stats": {"hp": 140, "atk": 28, "def": 12, "mag": 10, "spd": 17},
 		"growth": {"hp": 13, "atk": 3.0, "def": 1.4, "mag": 0.5, "spd": 0.7},
@@ -183,7 +193,7 @@ const CLASSES := {
 		"basic": "smite", "ability": "bloodletting", "preferred_col": 1},
 
 	# ---- Mage (start CG): CG Stormwake, N Archmage, CG* Starcaller, LG Lampwright, CE Warlock,
-	#      LE Runebinder, LG* Chronist, CE* Wildfire, LE* Enshriner
+	#      LE Runebinder, LG* Chronist, CE* Wildfire, LE* Reliquarist (id enshriner)
 	"archmage": {"name": "Archmage", "tier": "advanced", "base": "mage", "region": "N",
 		"stats": {"hp": 120, "atk": 8, "def": 10, "mag": 31, "spd": 11},
 		"growth": {"hp": 11, "atk": 0.5, "def": 1.0, "mag": 3.4, "spd": 0.4},
@@ -224,13 +234,13 @@ const CLASSES := {
 		"growth": {"hp": 11, "atk": 0.5, "def": 1.0, "mag": 3.4, "spd": 0.4},
 		"crit": 0.08, "charge_on_act": 35, "charge_on_hit": 1.2, "start_charge": 35,
 		"basic": "bolt", "ability": "wildfire", "preferred_col": 1},
-	# the name will change (user: "Need to work on name"): it lives only here, in data
-	"enshriner": {"name": "Enshriner", "tier": "advanced", "base": "mage", "region": "LE*",
+	# stable id "enshriner"; renamed Reliquarist in round 3 (the name lives only here, in data)
+	"enshriner": {"name": "Reliquarist", "tier": "advanced", "base": "mage", "region": "LE*",
 		"stats": {"hp": 125, "atk": 7, "def": 14, "mag": 27, "spd": 11},
 		"growth": {"hp": 12, "atk": 0.5, "def": 1.4, "mag": 2.8, "spd": 0.4},
 		"crit": 0.06, "charge_on_act": 35, "charge_on_hit": 1.2, "start_charge": 35,
 		"basic": "bolt", "ability": "enshrine", "preferred_col": 1,
-		"provisional": "Name pending (round 2); seal rules (a)-(d) await the user (q-9)."},
+		"provisional": "Seal rules (a)-(d) are PROVISIONAL; the user will settle them in playtesting (round 3)."},
 
 	# ================= LEGENDARY (illustrative) =================
 	# PROVISIONAL parent: Paladin retired in round 2; Lightsworn (same region) is the proposed parent

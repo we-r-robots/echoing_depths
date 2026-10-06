@@ -483,7 +483,7 @@ func test_round2_classes_fight_cleanly() -> void:
 	# every round-2 class, in random parties against random parties and monsters: the fight ends,
 	# and the round-2 statuses show up
 	var ids := ["halberdier", "lightsworn", "bladebreaker", "ravager", "saboteur", "duelist", "nightwatch",
-		"bloodletter", "gravecaller", "enshriner"]
+		"bloodletter", "gravecaller", "enshriner", "aegisbearer", "informant", "confessor"]
 	var rng := Rng.new(777)
 	var seen := {}
 	for i in 120:
@@ -500,5 +500,207 @@ func test_round2_classes_fight_cleanly() -> void:
 			seen["skip:" + String(ev["reason"])] = true
 		for ev: Dictionary in of_type(r, "miss"):
 			seen["miss:" + String(ev["reason"])] = true
-	for k: String in ["disarm", "sabotage", "riposte", "watch", "enshrine", "seal_immune", "skip:disarm", "miss:parry"]:
+	for k: String in ["disarm", "sabotage", "riposte", "watch", "enshrine", "seal_immune", "skip:disarm", "miss:parry", "heal_invert"]:
 		check(seen.has(k), "%s happens in random fights" % k)
+
+
+# ------------------------------------------------------------------ round 3 (user-approved via the lead)
+
+func test_aegisbearer_shield_draws_every_melee_hit() -> void:
+	var a := party([hero("aegisbearer", 0, 1, 2), hero("fighter", 0, 2, 3), hero("rogue", 0, 0, 3)])
+	var b := party([hero("fighter", 0, 0, 2), hero("rogue", 0, 2, 2), hero("berserker", 0, 3, 2)])
+	var r := _sim(60, a, b)
+	var ab := uid_at(r, 0, 0, 1)
+	var act := _ability_of(r, ab)
+	eq(String(act["action"]), "raise_the_aegis", "Raise the Aegis fires")
+	var sh := _first(r, "status", func(ev: Dictionary) -> bool: return int(ev["uid"]) == ab and ev["status"] == "shield")
+	check(not sh.is_empty() and float(sh.get("value", 0.0)) >= 40.0, "a large shield on itself (%s)" % str(sh.get("value", 0)))
+	var w := _window(r, ab, "shield")
+	if w.is_empty():
+		return
+	var melee := 0
+	for ev: Dictionary in of_type(r, "action_start"):
+		var t := float(ev["t"])
+		if t <= float(w[0]) or t >= float(w[1]) or _unit_side(r, int(ev["uid"])) != 1:
+			continue
+		var ad: Dictionary = GameData.get_action(String(ev["action"]))
+		if String(ad["target"]) == "melee" or String(ad.get("anim", "")) == "dash":
+			melee += 1
+			eq(int(ev["target"]), ab, "every foe's melee hits the Aegisbearer while the shield holds")
+	check(melee >= 1, "melee sampled while the shield held (%d)" % melee)
+	eq(String(GameData.get_class_def("aegisbearer")["region"]), "LG*", "Fighter Mercy+Order corner")
+
+
+func test_informant_shields_the_target_of_the_next_enemy_ability() -> void:
+	# The foe Fighter is stunned, so the foe Rogue's Backstab comes next: it hits the enemy with the
+	# lowest current HP (our Mage, 40 HP), not our weakest by HP fraction (the Fighter, 60/162). The
+	# Informant must shield the Mage, the Backstab's target, and nobody else.
+	var hits := 0
+	for s in 6:
+		# Strays on both sides (no Kindred charge), and the Informant's own stab lands on the stunned
+		# Fighter in its row, so the Rogue isn't charged to full before the cast
+		var a := party([hero("fighter", 0, 1, 3), hero("informant", 1, 3, 2), hero("mage", 1, 0)])
+		var b := party([hero("rogue", 0, 0, 2), hero("fighter", 0, 3, 2)])
+		var r := _sim(610 + s, a, b, {"start_hp": [{"side": 0, "slot": [1, 0], "hp": 40}, {"side": 0, "slot": [0, 1], "hp": 60}],
+			"start_statuses": [{"side": 1, "slot": [0, 3], "status": "stun", "dur_ms": 60000}]})
+		var inf := uid_at(r, 0, 1, 3)
+		var mage := uid_at(r, 0, 1, 0)
+		var act := _ability_of(r, inf)
+		if act.is_empty():
+			continue
+		var shielded := {}
+		for ev: Dictionary in _during(r, act):
+			if ev["type"] == "status" and ev["status"] == "shield" and int(ev["src"]) == inf:
+				shielded[int(ev["uid"])] = true
+		var bs := _first(r, "action_start", func(ev: Dictionary) -> bool:
+			return ev["action"] == "backstab" and float(ev["t"]) > float(act["t"]))
+		if not bs.is_empty() and int(bs["target"]) == mage:
+			hits += 1
+			eq(shielded.keys(), [mage], "seed %d: the Backstab's target alone is shielded" % (610 + s))
+	check(hits >= 3, "the foreseen Backstab came (%d of 6)" % hits)
+
+
+func test_informant_splits_the_shield_against_an_area_ability() -> void:
+	# PROVISIONAL: a foe Mage's Firestorm will hit everyone: each ally gets an even share
+	var a := party([hero("fighter", 0, 1, 3), hero("informant", 1, 1, 2), hero("rogue", 0, 2, 3)])
+	var b := party([hero("fighter", 0, 1, 3), hero("mage", 1, 1, 3)])
+	var r := _sim(62, a, b, {"start_statuses": [{"side": 1, "slot": [0, 1], "status": "stun", "dur_ms": 60000}]})
+	var inf := uid_at(r, 0, 1, 1)
+	var act := _ability_of(r, inf)
+	var vals := {}
+	for ev: Dictionary in _during(r, act):
+		if ev["type"] == "status" and ev["status"] == "shield" and int(ev["src"]) == inf:
+			vals[int(ev["uid"])] = int(float(ev["value"]))
+	eq(vals.size(), 3, "every ally the Firestorm will hit is shielded (%s)" % str(vals))
+	if vals.size() > 1:
+		var v: Array = vals.values()
+		check(v.min() == v.max(), "an even split (%s)" % str(vals))
+		var whole := int(round(3.4 * 0.6 * float(unit_stats(r, inf)["mag"])))
+		check(absi(int(v[0]) * v.size() - whole) <= v.size(), "the shares add up to one shield (%d x %d ~ %d)" % [v[0], v.size(), whole])
+
+
+func test_informant_with_no_ability_coming_shields_the_weakest() -> void:
+	# PROVISIONAL: no foe is near a full bar, so the whole shield goes to the weakest ally
+	var a := party([hero("fighter", 0, 1, 3), hero("informant", 1, 1, 2), hero("rogue", 0, 2, 3)])
+	var b := party([hero("stone_sentinel", 0, 1, 6), hero("stone_sentinel", 0, 2, 6)])
+	var r := CombatSim.simulate(63, a, b, {"tuning": {"start_charge_spread": 0, "start_charge_bonus": 0},
+		"start_hp": [{"side": 0, "slot": [0, 2], "hp": 20}],
+		"start_statuses": [{"side": 0, "slot": [1, 1], "status": "boon", "stat": "spd", "value": 3.0, "dur_ms": 60000}]})
+	var inf := uid_at(r, 0, 1, 1)
+	var act := _ability_of(r, inf)
+	check(not act.is_empty(), "Read the Orders fires")
+	var got: Array = []
+	for ev: Dictionary in _during(r, act):
+		if ev["type"] == "status" and ev["status"] == "shield" and int(ev["src"]) == inf:
+			got.append(int(ev["uid"]))
+	eq(got.size(), 1, "one ally, the whole shield")
+
+
+func test_confessor_brands_the_last_attacker_and_its_heals_burn() -> void:
+	var a := party([hero("fighter", 0, 1, 3), hero("confessor", 1, 1, 2)])
+	var b := party([hero("fighter", 0, 1, 2), hero("cleric", 1, 1, 3)])
+	var r := _sim(64, a, b, {"start_statuses": _guard(0, [[0, 1], [1, 1]])})
+	var act := _ability_of(r, 1)
+	eq(String(act["action"]), "brand_of_flame", "the Retribution Flame fires")
+	eq(String(act["name"]), "Retribution Flame", "named Retribution Flame")
+	var br := _first(r, "status", func(ev: Dictionary) -> bool: return ev["status"] == "heal_invert")
+	eq(int(br.get("uid", -1)), int(act["target"]), "the brand is heal inversion")
+
+
+func test_confessor_targets_the_last_attacker() -> void:
+	var a := party([hero("fighter", 0, 1, 3), hero("confessor", 1, 1, 2)])
+	var b := party([hero("fighter", 0, 1, 2), hero("archmage", 1, 1, 1), hero("rogue", 0, 2, 2)])
+	var r := CombatSim.simulate(66, a, b, {"start_statuses": _guard(0, [[0, 1], [1, 1]])})
+	var act := _ability_of(r, 1)
+	check(not act.is_empty(), "the Confessor fires")
+	var last := -1
+	for ev: Dictionary in r["events"]:
+		if ev == act:
+			break
+		if ev["type"] == "absorb" and int(ev["src"]) >= 0 and _unit_side(r, int(ev["src"])) == 1:
+			last = last   # absorbed hits aren't hurt: no change
+		if ev["type"] == "damage" and int(ev["src"]) >= 0 and _unit_side(r, int(ev["src"])) == 1 and int(ev["amount"]) > 0:
+			last = int(ev["src"])
+	if last >= 0:
+		eq(int(act["target"]), last, "it brands the foe that last hurt an ally")
+	else:
+		eq(int(act["target"]), uid_at(r, 1, 1, 1), "nobody hurt an ally yet: the strongest foe (the Archmage)")
+
+
+func test_reliquarist_is_the_enshriner_renamed() -> void:
+	eq(String(GameData.get_class_def("enshriner")["name"]), "Reliquarist", "display name")
+	check(String(GameData.get_action("enshrine")["text"]).contains("reliquar"), "reliquary flavour")
+
+
+# ------------------------------------------------------------------ separate ability timer (user rule, 2026-10-06)
+
+func test_a_full_bar_casts_before_a_full_gauge() -> void:
+	# A unit at full charge acts before a unit whose gauge is already full, and the cast leaves its
+	# own gauge as it was.
+	var checked := 0
+	for s in 20:
+		var r := CombatSim.simulate(700 + s, PartyGen.demo_party(), PartyGen.demo_rival())
+		var evs: Array = r["events"]
+		for k in evs.size():
+			var ev: Dictionary = evs[k]
+			if ev["type"] != "charge" or not ev["ready"]:
+				continue
+			var uid := int(ev["uid"])
+			var nxt := {}
+			for j in range(k + 1, evs.size()):
+				if evs[j]["type"] == "action_start":
+					nxt = evs[j]
+					break
+				if evs[j]["type"] in ["skip", "sudden_death", "fight_end", "ko"]:
+					break
+			if nxt.is_empty() or int(nxt["uid"]) != uid:
+				continue
+			checked += 1
+			eq(nxt["kind"], "ability", "the charged unit's next action is its ability")
+			var g: Array = nxt["gauges"]
+			check(float(g[uid]) < 1.0 or float(g[uid]) == 1.0, "gauges snapshot present")
+	check(checked > 10, "ready units cast next (%d)" % checked)
+
+
+func test_ability_cast_leaves_the_gauge() -> void:
+	# The caster's gauge in the cast's snapshot is its real fill (not spent), and its next basic turn
+	# comes no later than it would have: the gauge kept filling.
+	var a := party([hero("fighter", 0, 1, 3), hero("mage", 1, 1, 3)])
+	var b := party([hero("stone_sentinel", 0, 1, 6), hero("stone_sentinel", 0, 2, 6)])
+	var r := _sim(71, a, b)
+	var cast := _ability_of(r, 0)
+	check(not cast.is_empty(), "the Fighter casts")
+	var g := float((cast["gauges"] as Array)[0])
+	check(g < 1.0, "its gauge is untouched by the cast (%.3f, not spent to 0 or shown as a full turn)" % g)
+	var basic := _first(r, "action_start", func(ev: Dictionary) -> bool:
+		return int(ev["uid"]) == 0 and ev["kind"] == "basic" and float(ev["t"]) > float(cast["t"]))
+	var before := _first(r, "action_start", func(ev: Dictionary) -> bool:
+		return int(ev["uid"]) == 0 and ev["kind"] == "basic" and float(ev["t"]) < float(cast["t"]))
+	check(not basic.is_empty() and not before.is_empty(), "basic turns around the cast")
+
+
+func test_charge_on_act_only_from_basic_actions() -> void:
+	var r := _sim(72, party([hero("fighter", 0, 1, 3), hero("mage", 1, 1, 3)]), party([hero("stone_sentinel", 0, 1, 6)]))
+	var cast := _ability_of(r, 0)
+	for ev: Dictionary in _during(r, cast):
+		if ev["type"] == "charge" and int(ev["uid"]) == 0:
+			check(ev["reason"] != "act", "an ability cast grants no charge_on_act")
+
+
+func test_a_stunned_charged_unit_waits_for_the_stun() -> void:
+	# side 1's Fighter is stunned for 4 s from the start at 99 charge; it is hit to full while stunned,
+	# and casts only once the stun is over
+	var a := party([hero("rogue", 0, 1, 3), hero("rogue", 0, 2, 3)])
+	var b := party([hero("fighter", 0, 1, 3), hero("mage", 1, 3)])
+	var r := _sim(73, a, b, {"start_statuses": [{"side": 1, "slot": [0, 1], "status": "stun", "dur_ms": 4000}]})
+	var foe := uid_at(r, 1, 0, 1)
+	var ready := _first(r, "charge", func(ev: Dictionary) -> bool: return int(ev["uid"]) == foe and ev["ready"])
+	var cast := _ability_of(r, foe)
+	check(not ready.is_empty() and float(ready["t"]) < 4.0, "it is full while stunned")
+	check(not cast.is_empty() and float(cast["t"]) >= 4.0, "its ability waits for the stun to end (%.2f s)" % float(cast.get("t", -1.0)))
+	var end := _first(r, "status_end", func(ev: Dictionary) -> bool: return int(ev["uid"]) == foe and ev["status"] == "stun")
+	var between := 0
+	for ev: Dictionary in of_type(r, "action_start"):
+		if not end.is_empty() and float(ev["t"]) > float(end["t"]) and float(ev["t"]) < float(cast["t"]):
+			between += 1
+	eq(between, 0, "and fires at the very next boundary after it")

@@ -77,7 +77,7 @@ static func narrate(events: Array) -> PackedStringArray:
 				if ev.get("ready", false):
 					var q := int(ev.get("queue", 0))
 					lines.append(t + "    %s is fully charged: %s" % [_tag(units[int(ev["uid"])]),
-						"ability next, jumps the turn queue" if q == 0 else "ability queued (#%d)" % (q + 1)])
+						"casts its ability at the next boundary" if q == 0 else "ability queued (#%d)" % (q + 1)])
 			"formation_proc":
 				var who := _tag(units[int(ev["uid"])])
 				if String(ev["stat"]) != "":

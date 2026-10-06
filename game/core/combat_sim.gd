@@ -8,8 +8,11 @@ extends RefCounted
 ##   # result.events is the timestamped event log (schema: core/README.md)
 ##
 ## Timeline model: "active-wait" ATB. Every living unit's gauge fills at a rate
-## proportional to Spd. When one is full, that unit acts; while an action plays
+## proportional to Spd. When one is full, that unit makes its basic action; while an action plays
 ## (its `duration`) the timeline is paused, so actions never overlap on screen.
+## Abilities run on a separate timer (user rule, 2026-10-06): a unit whose charge is full casts its
+## ability at the next action boundary, ahead of every waiting basic action, and the cast leaves its
+## ATB gauge untouched.
 
 const Rng = preload("res://core/rng.gd")
 const GameData = preload("res://core/game_data.gd")
@@ -81,6 +84,7 @@ class Unit:
 	var ko_seq := -1           # order it fell in (Rekindler: first fallen; Gravecaller: most recent)
 	var raised := false        # already raised as a husk or rekindled (each fallen unit returns once)
 	var revive_used := false   # Rekindler: once per fight
+	var ready_seq := -1        # order its charge reached full (abilities fire in that order); -1 = not full
 	# round-2 statuses (data/statuses.gd)
 	var disarmed := false      # a "disarm" status is active: it makes no basic attacks
 	var sealed := false        # an "enshrine" status is active: out of play (Enshriner, PROVISIONAL rules)
@@ -118,7 +122,6 @@ var _k_crit := 1.5
 var _k_crit_on := true
 var _k_var := 0.0
 var _k_fm_thr := 0.1
-var _k_jump := true
 var _alive := [0, 0]
 # formations (05-formations.md): effective shape and behaviour per side
 var _shape: Array = [{}, {}]
@@ -146,11 +149,13 @@ var _st_count := 0             # statuses active on all units (0 = skip the stat
 var _st_owned := 0             # of those, applied by an ability (ruling 4: the caster gains no charge)
 var _followups: Array = []     # [unit, action id]: an ability's second half, due now (Unseen Warden)
 var _ko_n := 0                 # KO counter (ko_seq)
+var _ready_n := 0              # counter for ready_seq
 var _cur_followup := false     # a follow-up action is resolving (its effects count as the ability's)
 var _in_status := false        # status ticks are resolving (their hit charge stops at 99, like an ability's)
 var _shown_hit := {}           # uid -> ms of the last hit on it that showed a number (Scattered cue truth)
 var _act_dealt := 0            # damage the current action has dealt to foes so far (Bloodletter's drain)
 var _sab_saved: Array = [{}, {}]   # per side: the behaviour saved while a Saboteur has it stopped
+var _last_hurt := [-1, -1]     # per side: uid of the foe that last hurt a unit of that side (Confessor)
 
 
 ## party_a / party_b: party dictionaries ({"heroes": [...]}) or Echo dictionaries.
@@ -206,7 +211,6 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 	_k_crit_on = bool(_c["crit_enabled"])
 	_k_var = float(_c["damage_variance"])
 	_k_fm_thr = float(_c["formation_mod_threshold"])
-	_k_jump = bool(_c["full_charge_jumps_queue"])
 	_st = GameData.Statuses.TUNING
 	for k: String in over:   # tests may override status tuning through the same "tuning" option
 		if _st.has(k):
@@ -303,6 +307,14 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 				if not (_side_down(0) or _side_down(1) or _shard_won):
 					_now += gap
 			continue
+		# separate ability timer: a fully charged unit casts at this boundary, ahead of every basic
+		# action, without touching its gauge (stunned / sealed units wait)
+		var caster := _next_caster()
+		if caster != null:
+			_now += _do_action(caster, "", true)
+			if not (_side_down(0) or _side_down(1) or _shard_won):
+				_now += gap
+			continue
 
 		# time until the next gauge fills
 		var best_dt := 1 << 40
@@ -324,7 +336,7 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 				_advance(st_due - _now)
 				_now = st_due
 				continue
-		if _now + best_dt >= _sd_next and (best_dt > 0 or not _ready_pending()):
+		if _now + best_dt >= _sd_next and best_dt > 0:
 			var run := maxi(0, _sd_next - _now)
 			_advance(run)
 			_now = maxi(_now, _sd_next)
@@ -345,9 +357,9 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 			if actor == null or _acts_before(u, actor):
 				actor = u
 		actor.gauge = 0
-		if actor.stunned or (actor.disarmed and actor.charge < _charge_max):
-			# stunned: the turn is lost; disarmed: no basic attack (so no act charge), though a full
-			# bar still fires its ability (a short beat on the timeline so it reads)
+		if actor.stunned or actor.disarmed:
+			# stunned: the turn is lost; disarmed: no basic attack (so no act charge); a full bar still
+			# fires its ability on the ability timer (a short beat on the timeline so it reads)
 			var skip := int(_st["skip_ms"])
 			if _log:
 				_emit(_now, {"type": "skip", "uid": actor.uid, "reason": "stun" if actor.stunned else "disarm",
@@ -520,20 +532,20 @@ func _side_down(side: int) -> bool:
 	return _alive[side] == 0 and (_crystal == null or _crystal.side != side)
 
 
-## A fully charged unit is waiting for its (immediate) turn: sudden death waits for it.
-func _ready_pending() -> bool:
+## The unit whose ability fires at this boundary: fully charged, standing, not stunned or sealed;
+## in the order they reached full, then higher Spd, then lower uid. null if none.
+func _next_caster() -> Unit:
+	var best: Unit = null
 	for u in _units:
-		if u.alive and not u.sealed and u.charge >= _charge_max and u.gauge >= _gauge_max:
-			return true
-	return false
+		if not u.alive or u.inert or u.sealed or u.stunned or u.charge < _charge_max or u.ability == "":
+			continue
+		if best == null or u.ready_seq < best.ready_seq or (u.ready_seq == best.ready_seq and u.spd > best.spd):
+			best = u
+	return best
 
 
-## Queue order among ready units: fully charged first, then fullest gauge, higher Spd, lower uid.
+## Basic-turn order among units with a full gauge: fullest gauge, then higher Spd, then lower uid.
 func _acts_before(u: Unit, other: Unit) -> bool:
-	var uc := u.charge >= _charge_max
-	var oc := other.charge >= _charge_max
-	if uc != oc:
-		return uc
 	if u.gauge != other.gauge:
 		return u.gauge > other.gauge
 	return u.spd > other.spd
@@ -831,8 +843,8 @@ func _sd_heal_mult() -> float:
 ## Performs one action, returns its duration in ms.
 ## followup: an ability's second half (an action id), played as its own action: shown as an
 ## ability, but it spends no charge (the first half already did).
-func _do_action(u: Unit, followup := "") -> int:
-	var use_ability := u.charge >= _charge_max and followup == ""
+func _do_action(u: Unit, followup := "", cast := false) -> int:
+	var use_ability := cast and followup == ""
 	var aid := u.ability if use_ability else u.basic
 	if followup != "":
 		aid = followup
@@ -883,7 +895,8 @@ func _do_action(u: Unit, followup := "") -> int:
 		var gauges: Array = []
 		for o in _units:
 			gauges.append(snappedf(float(mini(o.gauge, _gauge_max)) / float(_gauge_max), 0.001) if o.alive else 0.0)
-		gauges[u.uid] = 1.0
+		if not use_ability and followup == "":
+			gauges[u.uid] = 1.0   # a basic turn spends the full gauge; an ability leaves it as it is
 		_emit(_now, {"type": "action_start", "uid": u.uid, "action": aid, "name": a["name"],
 			"kind": "ability" if use_ability or followup != "" else "basic", "anim": "cast" if skip_heal else a.get("anim", ""),
 			"target": primary.uid if primary != null else -1,
@@ -910,6 +923,7 @@ func _do_action(u: Unit, followup := "") -> int:
 	if use_ability:
 		var old := u.charge
 		u.charge = 0
+		u.ready_seq = -1
 		if _log:
 			_emit(_now, {"type": "ability", "uid": u.uid, "action": aid, "name": a["name"]})
 			_emit(_now, {"type": "charge", "uid": u.uid, "charge": 0, "delta": -old, "reason": "spent", "ready": false, "queue": 0})
@@ -975,8 +989,10 @@ func _apply_effect(u: Unit, a: Dictionary, eff: Dictionary, primary: Unit, t: in
 	for _h in hits:
 		if not u.alive and op != "charge":
 			return
-		if op in ["link", "tithe", "summon", "raise", "revive", "sabotage", "drain_heal"]:   # ops that pick their own units
+		if op in ["link", "tithe", "summon", "raise", "revive", "sabotage", "drain_heal", "foresight"]:   # ops that pick their own units
 			match op:
+				"foresight":
+					_foresight(u, eff, t, aid, from_ability)
 				"sabotage":
 					_sabotage(u, eff, t, aid, from_ability)
 				"drain_heal":
@@ -1186,6 +1202,17 @@ func _select(u: Unit, sel: String) -> Unit:
 				if v > bv:
 					best2 = o
 			return best2
+		"last_attacker_enemy":   # Confessor: the foe that last hurt this side, if it can be picked
+			var la := int(_last_hurt[u.side])
+			if la >= 0:
+				var lu := _units[la]
+				if lu.alive and not lu.hidden and not lu.inert and not _ring_protected(lu):
+					return lu
+			var best4: Unit = null   # else the strongest foe
+			for o: Unit in foes:
+				if o.alive and not o.hidden and not o.inert and not _ring_protected(o) and (best4 == null or _stronger(o, best4)):
+					best4 = o
+			return best4
 		"strongest_front_enemy", "strongest_sealable_enemy":
 			# strongest = highest of Atk or Mag (current); ties -> more HP, then lower uid. Never the
 			# Crystal, a hidden or sealed unit, or the ringed Keeper. Front: the column melee would hit
@@ -1446,6 +1473,8 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 	dst.hp -= dealt
 	if src == _cur_actor and src.side != dst.side:
 		_act_dealt += dealt
+	if src.side != dst.side and dealt > 0:
+		_last_hurt[dst.side] = src.uid
 	if _log:
 		var shown := amount > 0   # a fully absorbed hit shows no number, so it cues nothing
 		if shown:
@@ -1502,7 +1531,8 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 				_emit(t, {"type": "charge", "uid": rich.uid, "charge": rich.charge, "delta": -amt, "reason": "drain",
 					"ready": false, "queue": 0})
 			_gain_charge(src, amt, "effect", t)
-			_mem_cue(src, "attack", t, rich.uid, float(amt))
+			if amount > 0:   # cue only on a hit that shows a number (a fully absorbed hit shows none)
+				_mem_cue(src, "attack", t, rich.uid, float(amt))
 	for sh: Array in shares:
 		_side_hit(src, sh[0], int(sh[1]), "magic" if magic else "physical", String(sh[2]), float(sh[3]), t, aid,
 			not magic and src.col == 1)
@@ -1589,6 +1619,12 @@ func _ring_protected(o: Unit) -> bool:
 ## Keystone / Crescent gap units draw nearby melee; the Shardpoint tip draws all melee; the
 ## Lighthouse post taunts all melee and also single-target ranged and magic attacks.
 func _apply_draw(u: Unit, primary: Unit, melee: bool) -> Unit:
+	if melee:   # Aegisbearer: while its taunting shield holds, every foe's melee hits it (front column)
+		for o: Unit in _sides[primary.side]:
+			if o.alive and not o.hidden and o.col == 0 and not o.statuses.is_empty():
+				var sh := _find_status(o, "shield")
+				if not sh.is_empty() and bool(sh.get("taunt", false)):
+					return o
 	for o: Unit in _sides[primary.side]:
 		if o == primary or not o.alive or o.draw == 0 or o.hidden:
 			continue
@@ -1802,10 +1838,10 @@ func _gain_charge(u: Unit, amount: int, reason: String, t: int) -> bool:
 	var queue := 0
 	if ready:
 		for o in _units:   # fully charged units already waiting go first
-			if o != u and o.alive and o.charge >= _charge_max and o.gauge >= _gauge_max:
+			if o != u and o.alive and o.charge >= _charge_max:
 				queue += 1
-		if _k_jump:
-			u.gauge = maxi(u.gauge, _gauge_max) + _gauge_max - queue   # acts after those already queued
+		_ready_n += 1
+		u.ready_seq = _ready_n   # its ability fires at the next boundary, after those already full
 	if _log:
 		_emit(t, {"type": "charge", "uid": u.uid, "charge": u.charge, "delta": u.charge - old, "reason": reason,
 			"ready": ready, "queue": queue})
@@ -1901,19 +1937,20 @@ func _find_status(u: Unit, key: String) -> Dictionary:
 	return {}
 
 
-## Ruling 4: a unit gains no charge while an effect of its own ability is still in play (a status it
-## applied with its ability, on anyone, or a summon it called that still stands).
+## Ruling 4, narrowed (playtest fix, 2026-10-06): a unit gains no charge while (a) a summon it
+## called still stands (Echoblade's echo, Gravecaller's husks: no stacking summons), or (b) a
+## status it put on ITSELF with its ability that is flagged "locks_charge" in data/statuses.gd (a
+## "can't fall" / sustain window; none is approved yet: the hook only). Statuses it puts on others
+## (shields, DoTs, stuns, seals, links, brands) no longer lock its charge. The Fading builds no
+## charge either way (that rule lives in the sudden-death tick).
 func _charge_locked(u: Unit) -> bool:
-	if _st_owned > 0:
-		for o in _units:
-			if not o.alive:
-				continue
-			for st: Dictionary in o.statuses:
-				if int(st["owner"]) == u.uid:
-					return true
 	for o in _units:
 		if o.alive and o.summoner == u.uid and o.summon != "":
 			return true
+	if _st_owned > 0:
+		for st: Dictionary in u.statuses:
+			if int(st["owner"]) == u.uid and bool(GameData.Statuses.STATUSES.get(String(st["id"]), {}).get("locks_charge", false)):
+				return true
 	return false
 
 
@@ -1964,6 +2001,8 @@ func _add_status(dst: Unit, id: String, src: Unit, eff: Dictionary, t: int, aid:
 			st["ends"] = maxi(int(st["ends"]), t + dur)
 			if absf(value) > absf(float(st["value"])):
 				st["value"] = value
+			if bool(eff.get("taunt", false)):
+				st["taunt"] = true
 		if int(st["owner"]) != owner:   # the newest application owns it
 			if int(st["owner"]) >= 0:
 				_st_owned -= 1
@@ -1979,7 +2018,8 @@ func _add_status(dst: Unit, id: String, src: Unit, eff: Dictionary, t: int, aid:
 			"spread_ms": int(eff.get("spread_ms", 0)), "next_spread": t + int(eff.get("spread_ms", 0)),
 			"then": String(eff.get("then", "")), "partner": int(eff.get("partner", -1)), "action": aid,
 			# reactions (Riposte's counter, the Nightwatch's strike) and the watch's adjacency
-			"react": String(eff.get("counter", eff.get("strike", ""))), "adjacency": String(eff.get("adjacency", "edge"))}
+			"react": String(eff.get("counter", eff.get("strike", ""))), "adjacency": String(eff.get("adjacency", "edge")),
+			"taunt": bool(eff.get("taunt", false))}   # Aegisbearer: a shield that draws foes' melee
 		dst.statuses.append(st)
 		_st_count += 1
 		if owner >= 0:
@@ -2024,13 +2064,6 @@ func _end_status(u: Unit, st: Dictionary, t: int, reason: String) -> void:
 		_recalc(u)
 	if _log:
 		_emit(t, {"type": "status_end", "uid": u.uid, "status": String(st["id"]), "stat": String(st["stat"]), "reason": reason})
-	if kind == "stun" and u.alive and u.charge >= _charge_max and _k_jump:
-		# a charged unit whose turn the stun took acts as soon as the stun ends (the queue jump holds)
-		var queue := 0
-		for o in _units:
-			if o != u and o.alive and o.charge >= _charge_max and o.gauge >= _gauge_max:
-				queue += 1
-		u.gauge = maxi(u.gauge, _gauge_max) + _gauge_max - queue
 	if kind == "sabotage":
 		_refresh_sabotage(u.side)
 	if kind == "enshrine" and u.alive:   # freed: crystal-worn for a while (PROVISIONAL rule (c))
@@ -2148,6 +2181,8 @@ func _status_damage(dst: Unit, src_uid: int, amount: int, t: int, aid: String, i
 	if amount > 0:
 		var dealt := mini(amount, dst.hp)
 		dst.hp -= dealt
+		if src_uid >= 0 and _units[src_uid].side != dst.side and dealt > 0:
+			_last_hurt[dst.side] = src_uid
 		if _log:
 			var m := {"id": id, "mult": 1.0}
 			_emit(t, {"type": "damage", "src": src_uid, "dst": dst.uid, "amount": amount, "kind": "status", "crit": false,
@@ -2616,3 +2651,88 @@ func _drain_heal(u: Unit, eff: Dictionary, t: int, aid: String) -> void:
 	var each := int(round(pool / float(allies.size())))
 	for o: Unit in allies:
 		_apply_heal(u, o, each, t, aid)
+
+
+## Informant (round 3): the foe whose ability comes next, skipping stunned or sealed foes (the most
+## charge; among full bars the order they filled, else the sooner turn;
+## then lower uid). Its targets on u's side are read from the current state
+## without touching the RNG or the log (a random target can't be foreseen). Those allies get a
+## shield of power x heal_scale x Mag, split evenly among them (PROVISIONAL). If that foe's charge
+## is below "soon", or its targets can't be foreseen, the weakest ally gets the whole shield
+## (PROVISIONAL).
+func _foresight(u: Unit, eff: Dictionary, t: int, aid: String, from_ability: bool) -> void:
+	var total := float(eff.get("power", 2.4)) * float(_c["heal_scale"]) * float(u.mag) * u.heal_mult
+	var next: Unit = null
+	for o: Unit in _sides[1 - u.side]:
+		if not o.alive or o.inert or o.sealed or o.stunned or o.ability == "":
+			continue   # a stunned or sealed foe's ability waits: someone else's comes first
+		if next == null or o.charge > next.charge or (o.charge == next.charge and o.charge >= _charge_max and o.ready_seq < next.ready_seq) \
+				or (o.charge == next.charge and o.charge < _charge_max and _turn_in(o) < _turn_in(next)):
+			next = o
+	var hit: Array[Unit] = []
+	if next != null and next.charge >= int(eff.get("soon", 70)):
+		hit = _foresee_targets(next, u.side)
+	if hit.is_empty():
+		var w := _lowest_ally(u)
+		if w != null:
+			hit.append(w)
+	if hit.is_empty():
+		return
+	var each := int(round(total / float(hit.size())))
+	for o: Unit in hit:
+		_add_status(o, "shield", u, {"amount": maxi(1, each), "dur_ms": int(eff.get("dur_ms", 6000))}, t, aid, from_ability)
+
+
+## Running time (gauge units / rate) until a unit's gauge fills: who acts sooner.
+func _turn_in(o: Unit) -> int:
+	@warning_ignore("integer_division")
+	return maxi(0, _gauge_max - o.gauge) / maxi(1, o.rate)
+
+
+## The units on `side` that `foe`'s ability would hit if it fired now (its fallback if it has nothing
+## to work on). Random selectors and random spreads can't be foreseen: [] then.
+func _foresee_targets(foe: Unit, side: int) -> Array[Unit]:
+	var out: Array[Unit] = []
+	var a := GameData.get_action(foe.ability)
+	if a.has("requires") and not _viable(foe, a):
+		a = GameData.get_action(String(a["fallback"]))
+	var sel := String(a["target"])
+	if sel in ["random_enemy", "random_ally"]:
+		return out
+	var saved_drawn := _drawn
+	var saved_skip := _ring_skip
+	var saved_actor := _cur_actor
+	var saved_melee := _cur_melee
+	_cur_actor = null
+	var primary := _select(foe, sel)
+	if primary != null and primary.side != foe.side:
+		var melee := _is_melee(a)
+		if melee or String(a.get("area", _area_of(sel))) == "single":
+			_cur_melee = melee
+			primary = _apply_draw(foe, primary, melee)
+	var seen := {}
+	for e: Dictionary in a["effects"]:
+		var to := String(e.get("to", "primary"))
+		var op := String(e["op"])
+		if not (op in ["damage", "status", "steal_charge", "swap"]):
+			continue
+		if to in ["random_enemy", "front_random"]:
+			out.clear()
+			break
+		var tg: Array[Unit] = []
+		if to == "column_sweep":
+			if primary != null:
+				for o: Unit in _sides[primary.side]:
+					if o.alive and o.col == primary.col:
+						tg.append(o)
+		else:
+			tg = _resolve(foe, a, to, primary, e)
+		for o: Unit in tg:
+			if o.side == side and not o.sealed and not seen.has(o.uid):
+				seen[o.uid] = true
+				out.append(o)
+	_drawn = saved_drawn
+	_ring_skip = saved_skip
+	_cur_actor = saved_actor
+	_cur_melee = saved_melee
+	return out

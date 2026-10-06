@@ -41,6 +41,9 @@ extends RefCounted
 ## Round-2 ops (2026-10-06; core/README.md "Advanced class abilities"):
 ##   op "sabotage":     {dur_ms}: every foe gets "sabotage": their side's formation behaviour stops
 ##   op "drain_heal":   {pct}: pct of the damage this action dealt so far, shared out among all allies
+##   op "foresight":    {power, dur_ms, soon}: shields the allies the next enemy ability will hit
+##                       (Informant, round 3; core/README.md)
+##   status shield "taunt": true -> while the shield holds, foes' melee hits its bearer (front column)
 ##   op "raise" "nameless": {name, basic, stats}: with nobody fallen, a nameless husk rises instead
 ## Reactions (not cast directly; their effects are data): riposte_counter (Duelist's parry answer),
 ##   watch_strike (Nightwatch's catch).
@@ -48,7 +51,8 @@ extends RefCounted
 ## New "to"/target selectors: adjacent_allies (effect "adjacency": "edge" | "all"), column_allies,
 ##   other_allies, primary_neighbours, most_charged_enemy, highest_hp_enemy, random_ally,
 ##   column_bottom; round 2: primary_behind (the foe in the back column of the primary's row),
-##   strongest_front_enemy / strongest_sealable_enemy (highest of Atk or Mag; ties -> more HP, then
+##   last_attacker_enemy (the foe that last hurt this side; else the strongest), strongest_front_enemy /
+##   strongest_sealable_enemy (highest of Atk or Mag; ties -> more HP, then
 ##   lower uid; the sealable one skips units already sealed or crystal-worn).
 ## requires / fallback: an ability that needs something to work on ("adjacent_ally", "empty_front",
 ##   "fallen", "fallen_ally", "two_allies", "tithe", "wounded_other", "sealable") plays its fallback action
@@ -131,7 +135,7 @@ const ACTIONS := {
 		"text": "Each ally around it (diagonals too) acts at once, and each pays a little HP for it. With no ally around it, it strikes the front foe instead.",
 		# round-2 decision q-6: "adjacent", diagonals included ("all" = the 8 cells around it)
 		"effects": [{"op": "gauge", "to": "adjacent_allies", "adjacency": "all", "amount": 1.0},
-			{"op": "hp_cost", "to": "adjacent_allies", "adjacency": "all", "pct": 0.06}]},
+			{"op": "hp_cost", "to": "adjacent_allies", "adjacency": "all", "pct": 0.03}]},
 	"marshal_strike": {"name": "Marshal's Blow", "kind": "ability", "target": "melee", "duration": 0.72, "impact": 0.36, "anim": "melee_big",
 		"short": "Hits front foe", "text": "Nobody stands around it to drive on, so it strikes the front foe hard.",
 		"effects": [{"op": "damage", "kind": "physical", "power": 1.8, "to": "primary"}]},
@@ -159,6 +163,13 @@ const ACTIONS := {
 		"text": "A whirlwind: hits every foe in the front column and every ally around it (diagonals too), hard. With nobody beside it, only foes are hurt.",
 		"effects": [{"op": "damage", "kind": "physical", "power": 1.5, "to": "front_enemies"},
 			{"op": "damage", "kind": "physical", "power": 1.5, "to": "adjacent_allies", "adjacency": "all", "delay_ms": 150}]},
+	# Aegisbearer (round 3): a large Def-sized shield; while it holds, every foe's melee hits it
+	# (a front-column taunt: "taunt": true on the shield; from the back column it only shields)
+	"raise_the_aegis": {"name": "Raise the Aegis", "kind": "ability", "target": "self", "duration": 0.72, "impact": 0.36, "anim": "cast",
+		"short": "Shield, draws melee", "icon": "status_shield",
+		"text": "Raises a large shield (sized by its Def). While the shield holds, every foe's melee attack hits it instead.",
+		"effects": [{"op": "status", "status": "shield", "to": "self", "power": 3.0, "scale": "def", "dur_ms": 6000,
+			"taunt": true}]},
 	# Rogue
 	"pilfer": {"name": "Pilfer", "kind": "ability", "target": "most_charged_enemy", "duration": 0.65, "impact": 0.33, "anim": "dash",
 		"short": "Steals charge", "icon": "stat_charge",
@@ -199,6 +210,12 @@ const ACTIONS := {
 	"nightwatch_blow": {"name": "Night Blow", "kind": "ability", "target": "melee", "duration": 0.65, "impact": 0.33, "anim": "melee_big",
 		"short": "Hits front foe", "text": "Nobody stands beside it to watch over, so it strikes the front foe hard.",
 		"effects": [{"op": "damage", "kind": "physical", "power": 1.8, "to": "primary"}]},
+	# Informant (round 3): reads the enemy's next ability and shields whoever it will hit
+	"read_the_orders": {"name": "Read the Orders", "kind": "ability", "target": "self", "duration": 0.65, "impact": 0.3, "anim": "cast",
+		"short": "Shields next target", "icon": "status_shield",
+		"provisional": "Area split and the no-ability-soon fallback are PROVISIONAL (round 3).",
+		"text": "It knows the enemy's next move: whoever the next enemy ability will hit gets a shield first (split evenly if it hits several). If no enemy ability is coming soon, it shields the weakest ally.",
+		"effects": [{"op": "foresight", "to": "self", "power": 3.4, "dur_ms": 6000, "soon": 70}]},
 	# Healer
 	"bind_lives": {"name": "Bind Lives", "kind": "ability", "target": "lowest_hp_ally", "duration": 0.72, "impact": 0.39, "anim": "cast",
 		"short": "Binds two lives", "icon": "status_link", "requires": "two_allies", "fallback": "mender_smite",
@@ -221,17 +238,18 @@ const ACTIONS := {
 	"tithe": {"name": "Tithe", "kind": "ability", "target": "lowest_hp_ally", "duration": 0.72, "impact": 0.39, "anim": "cast",
 		"short": "Tithes the strong", "icon": "stat_hp", "requires": "tithe", "fallback": "mender_smite",
 		"text": "Takes HP from the healthiest ally and gives more of it back to the weakest.",
-		"effects": [{"op": "tithe", "to": "primary", "pct": 0.12, "give": 1.6}]},
+		"effects": [{"op": "tithe", "to": "primary", "pct": 0.12, "give": 2.0}]},
 	"burn_to_mend": {"name": "Burn to Mend", "kind": "ability", "target": "all_allies", "duration": 0.78, "impact": 0.42, "anim": "heal_big",
 		"short": "Burns HP to heal all", "icon": "stat_heal", "requires": "wounded_other", "fallback": "mender_smite",
 		"text": "Spends a share of its own HP to heal every other ally by more.",
 		"effects": [{"op": "hp_cost", "to": "self", "pct": 0.12}, {"op": "heal", "power": 1.4, "to": "other_allies"}]},
-	# Confessor: mechanic as written; flavour, name and short text are flame-themed (user note)
-	"brand_of_flame": {"name": "Brand of Flame", "kind": "ability", "target": "lowest_hp_enemy", "duration": 0.72, "impact": 0.39, "anim": "cast_big",
-		"short": "Brand: no healing", "icon": "status_heal_block",
-		"text": "Sears the weakest foe with a brand of flame: it can't be healed for a few seconds.",
-		"effects": [{"op": "damage", "kind": "magic", "power": 1.6, "to": "primary"},
-			{"op": "status", "status": "heal_block", "to": "primary", "dur_ms": 5000}]},
+	# Confessor, round 3: "Retribution flame". Brands the foe that last hurt an ally (fallback: the
+	# strongest foe); for a few seconds every heal it receives burns it instead (heal inversion).
+	"brand_of_flame": {"name": "Retribution Flame", "kind": "ability", "target": "last_attacker_enemy", "duration": 0.72, "impact": 0.39, "anim": "cast_big",
+		"short": "Its heals burn it", "icon": "status_heal_invert",
+		"text": "Brands the foe that last hurt an ally with a retribution flame (else the strongest foe): for a few seconds every heal it receives burns it instead.",
+		"effects": [{"op": "damage", "kind": "magic", "power": 1.4, "to": "primary"},
+			{"op": "status", "status": "heal_invert", "to": "primary", "dur_ms": 5000}]},
 	# Gravecaller (round-2 q-3): the fallen rise as now; with nobody fallen, a nameless husk of the
 	# Vault's long-dead rises instead, weaker than any raised hero (fixed stats, below a raised
 	# level-1 Mage, the weakest raised hero: HP 40, budget ~28).
@@ -259,15 +277,15 @@ const ACTIONS := {
 		"short": "Random ally buff", "icon": "stat_mag",
 		"text": "Gives a random ally one random gift: Atk, Mag or Spd up, a shield, or a burst of charge.",
 		"effects": [{"op": "boon_random", "to": "primary", "table": [
-			{"op": "status", "status": "boon", "stat": "atk", "value": 0.3, "dur_ms": 6000},
-			{"op": "status", "status": "boon", "stat": "mag", "value": 0.3, "dur_ms": 6000},
-			{"op": "status", "status": "boon", "stat": "spd", "value": 0.3, "dur_ms": 6000},
-			{"op": "status", "status": "shield", "power": 2.0, "dur_ms": 6000},
-			{"op": "charge", "amount": 40}]}]},
+			{"op": "status", "status": "boon", "stat": "atk", "value": 0.4, "dur_ms": 6000},
+			{"op": "status", "status": "boon", "stat": "mag", "value": 0.4, "dur_ms": 6000},
+			{"op": "status", "status": "boon", "stat": "spd", "value": 0.4, "dur_ms": 6000},
+			{"op": "status", "status": "shield", "power": 2.6, "dur_ms": 6000},
+			{"op": "charge", "amount": 50}]}]},
 	"column_ward": {"name": "Column Ward", "kind": "ability", "target": "self", "duration": 0.72, "impact": 0.39, "anim": "cast",
 		"short": "Shields its column", "icon": "status_shield",
 		"text": "Gives every ally in its column a shield for a few seconds.",
-		"effects": [{"op": "status", "status": "shield", "to": "column_allies", "power": 1.8, "dur_ms": 6000}]},
+		"effects": [{"op": "status", "status": "shield", "to": "column_allies", "power": 2.4, "dur_ms": 6000}]},
 	"rune_seal": {"name": "Rune Seal", "kind": "ability", "target": "most_charged_enemy", "duration": 0.78, "impact": 0.42, "anim": "cast_big",
 		"short": "Seals foe's charge", "icon": "status_charge_seal",
 		"text": "Runes bind the most charged foe: it is hit and gains no charge for a few seconds.",
@@ -282,14 +300,14 @@ const ACTIONS := {
 		"text": "Sets a random foe burning; every few seconds the fire jumps to a foe beside it.",
 		"effects": [{"op": "damage", "kind": "magic", "power": 0.8, "to": "primary"},
 			{"op": "status", "status": "burn", "to": "primary", "dur_ms": 6000, "power": 0.35, "spread_ms": 2000}]},
-	# Enshriner (round 2; the name will change, so it is data only). Rules (a)-(d) are PROVISIONAL.
-	"enshrine": {"name": "Enshrine", "kind": "ability", "target": "strongest_sealable_enemy", "duration": 0.85, "impact": 0.45, "anim": "cast_big",
+	# Reliquarist (id enshriner; round 2, renamed in round 3). Rules (a)-(d) are PROVISIONAL.
+	"enshrine": {"name": "Reliquary", "kind": "ability", "target": "strongest_sealable_enemy", "duration": 0.85, "impact": 0.45, "anim": "cast_big",
 		"short": "Seals foe in crystal", "icon": "status_enshrine", "requires": "sealable", "fallback": "shrine_shard",
-		"provisional": "Enshriner rules (a)-(d) await the user (round-2 q-9).",
-		"text": "Seals the strongest foe (highest Atk or Mag) in crystal for a few seconds: it can't act, nothing can hit it, and its formation loses it. It still counts as standing.",
-		"effects": [{"op": "status", "status": "enshrine", "to": "primary", "dur_ms": 3500}]},
+		"provisional": "Seal rules (a)-(d) are PROVISIONAL; playtesting will settle them (round 3).",
+		"text": "Keeps the strongest foe (highest Atk or Mag) in a crystal reliquary for a few seconds, as the Lumari kept their memories: it can't act, nothing can hit it, and its formation loses it. It still counts as standing.",
+		"effects": [{"op": "status", "status": "enshrine", "to": "primary", "dur_ms": 5000}]},
 	"shrine_shard": {"name": "Shrine Shard", "kind": "ability", "target": "back_first", "duration": 0.72, "impact": 0.39, "anim": "cast_big",
-		"short": "Hits a foe", "text": "Nobody can be sealed right now, so it strikes with a crystal shard instead.",
+		"short": "Hits a foe", "text": "Nobody can be kept in a reliquary right now, so it strikes with a crystal shard instead.",
 		"effects": [{"op": "damage", "kind": "magic", "power": 1.8, "to": "primary"}]},
 	"lantern_oath": {"name": "Lantern Oath", "kind": "ability", "target": "melee", "duration": 0.91, "impact": 0.45, "anim": "melee_big",
 		"effects": [{"op": "damage", "kind": "physical", "power": 2.0, "to": "primary"}, {"op": "damage", "kind": "physical", "power": 0.9, "to": "primary_adjacent"}, {"op": "heal", "power": 1.4, "to": "lowest_hp_ally"}]},

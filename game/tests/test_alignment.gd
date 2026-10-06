@@ -41,6 +41,6 @@ func test_advanced_class_lookup() -> void:
 	eq(Alignment.advanced_class_for("healer", [1, 1]), "cleric", "healer LG -> cleric")
 	eq(Alignment.advanced_class_for("healer", [-2, -2]), "gravecaller", "far corner -> gravecaller (Necromancer dropped)")
 	eq(Alignment.advanced_class_for("healer", [-1, -1]), "bloodletter", "healer CE -> bloodletter (round 2)")
-	eq(Alignment.advanced_class_for("rogue", [2, -2]), "duelist", "region without an approved class -> nearest approved region (CG, 1 step)")
-	eq(Alignment.advanced_class_for("fighter", [2, 2]), "lightsworn", "corner without its own class falls back to quadrant")
+	eq(Alignment.advanced_class_for("rogue", [2, -2]), "informant", "rogue CG* -> informant (round 3)")
+	eq(Alignment.advanced_class_for("fighter", [2, 2]), "aegisbearer", "fighter LG* -> aegisbearer (round 3)")
 	eq(Alignment.legendary_class_for("lightsworn"), "lantern_saint", "legendary lookup")
