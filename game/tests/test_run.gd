@@ -252,7 +252,8 @@ func test_opponent_hidden_before_fight() -> void:
 				_find_keys(v["opponent"], ["heroes", "slot", "formation", "class", "level", "items"], found)
 				check(found.is_empty(), "pre-fight view hides the opponent's party: %s" % [found])
 				var r: Dictionary = run.resolve_fight()
-				check(r.has("opponent") and r["opponent"]["heroes"].size() >= 1, "full opponent in the fight result")
+				var full: Dictionary = r.get("opponent", {})
+				check(full.get("heroes", full.get("memories", [])).size() >= 1, "full opponent in the fight result")
 				fights += 1
 			else:
 				RunBot.step(run, rng, "greedy", 0.2)
@@ -483,3 +484,266 @@ func test_victory_rewards() -> void:
 			check(int(sm["glimmers"]) > 0, "Glimmers granted")
 			return
 	check(false, "no victory in 40 bot runs")
+
+
+# ---------------------------------------------------------------- playtest 1 (user, 2026-10-05)
+
+## Plays (greedy, no Awakening) until hero `hi` holds `n` memories at base tier. Returns the run or null.
+static func _until_memories(seed_value: int, n: int, opts := {}) -> Array:
+	var run: RefCounted = Run.new()
+	var o := {"pool": _fresh_pool(), "save_echo": false, "log": false}
+	o.merge(opts, true)
+	run.start_run(seed_value, o)
+	var rng := Rng.new(seed_value)
+	for _i in 400:
+		if run.is_over():
+			return []
+		var v: Dictionary = run.current_node()
+		for i in v["party"].size():
+			if int(v["party"][i]["memories"]) >= n:
+				return [run, i]
+		if v["step"] == "decision":
+			return [run, int(v["hero_index"])]
+		if v["step"] == "choice":   # level the least-remembered hero; never Awaken on the way
+			var best := 0
+			for c: Dictionary in v["choices"]:
+				if int(c["hero_index"]) >= 0 and (int(v["choices"][best]["hero_index"]) < 0 \
+						or int(v["party"][int(c["hero_index"])]["memories"]) > int(v["party"][int(v["choices"][best]["hero_index"])]["memories"])):
+					best = int(c["index"])
+			run.choose(best)
+		elif v["step"] == "fight":
+			run.resolve_fight()
+		elif v["step"] == "outcome":
+			run.advance()
+		else:
+			RunBot.step(run, rng, "greedy", 0.0)
+	return []
+
+
+func test_awaken_after_the_second_memory() -> void:
+	eq(int(T.RUN["advance_threshold"]), 2, "Awakening after the 2nd memory (user, 2026-10-05)")
+	eq(int(EncounterDB.rules()["advance_threshold"]), int(T.RUN["advance_threshold"]), "encounter screens use the run's threshold")
+	var checked := 0
+	for s in 6:
+		var one := _until_memories(5100 + s, 1)
+		if one.is_empty():
+			continue
+		var run: RefCounted = one[0]
+		var hi: int = one[1]
+		var h: Dictionary = run.party_view()[hi]
+		eq(int(h["level"]), 2, "level 1 + 1 memory = level 2")
+		check(not bool(h["awaken_ready"]), "one memory: not ready")
+		check(run.awaken(hi).has("error"), "cannot Awaken with one memory")
+		var two := _until_memories(5100 + s, 2)
+		run = two[0]
+		hi = two[1]
+		h = run.party_view()[hi]
+		eq(int(h["memories"]), 2, "two memories")
+		eq(int(h["level"]), 3, "level 1 + 2 memories = level 3 at the moment of Awakening")
+		check(bool(h["awaken_ready"]) and bool(h["awaken_new"]), "ready and not yet answered")
+		check(String(h["awaken_class"]) != "", "the class the grid region gives is shown")
+		check(String(run.current_node()["step"]) != "decision", "no forced decision prompt")
+		var trail: Array = h["trail"]
+		eq(trail.size(), 2, "both memories on the trail")
+		var res: Dictionary = run.awaken(hi)
+		check(res.get("ok", false), "Awaken from any stop (%s)" % run.current_node()["step"])
+		h = run.party_view()[hi]
+		eq(String(h["class"]), String(res["class"]), "the new class")
+		eq(String(h["tier"]), "advanced", "advanced tier")
+		eq(int(h["level"]), 1, "the new class starts at level 1")
+		eq((h["trail_before"] as Array).size(), 2, "the trail moves to before the Awakening")
+		check(run.awaken(hi).has("error"), "an advanced hero cannot Awaken again")
+		checked += 1
+	check(checked >= 4, "checked %d heroes" % checked)
+
+
+func test_hold_back_keeps_the_offer() -> void:
+	var two := _until_memories(5200, 2)
+	var run: RefCounted = two[0]
+	var hi: int = two[1]
+	check(run.hold_back(hi).get("ok", false), "Hold Back")
+	var h: Dictionary = run.party_view()[hi]
+	check(bool(h["awaken_ready"]) and not bool(h["awaken_new"]) and bool(h["held"]), "kept: still ready, answered for now")
+	eq(String(h["tier"]), "base", "stays base")
+	var three := _until_memories(5200, 3)
+	# replay the same path: hold at 2, then reach 3
+	run = Run.new()
+	run.start_run(5200, {"pool": _fresh_pool(), "save_echo": false, "log": false})
+	var held := false
+	for _i in 400:
+		var v: Dictionary = run.current_node()
+		var p: Dictionary = v["party"][hi] if hi < v["party"].size() else {}
+		if not held and not p.is_empty() and int(p["memories"]) >= 2:
+			run.hold_back(hi)
+			held = true
+		if held and int(p.get("memories", 0)) >= 3:
+			check(bool(p["awaken_new"]), "a new memory brings the offer back")
+			eq(int(p["level"]), 4, "held heroes keep levelling")
+			break
+		if v["step"] == "choice":
+			var best := 0
+			for c: Dictionary in v["choices"]:
+				if int(c["hero_index"]) == hi:
+					best = int(c["index"])
+			run.choose(best)
+		elif v["step"] == "fight":
+			run.resolve_fight()
+		elif v["step"] == "outcome":
+			run.advance()
+		else:
+			break
+	check(not three.is_empty(), "a hero reached 3 memories")
+
+
+func test_advance_prompt_option_keeps_the_decision_step() -> void:
+	var two := _until_memories(5300, 2, {"advance_prompt": true})
+	var run: RefCounted = two[0]
+	var v: Dictionary = run.current_node()
+	eq(String(v["step"]), "decision", "advance_prompt: the old decision step")
+	var res: Dictionary = run.choose(0)
+	check(res.get("ok", false) and String(run.party_view()[int(v["hero_index"])]["tier"]) == "advanced", "choose(0) Awakens")
+	check(String(run.current_node()["step"]) != "decision", "decision answered")
+
+
+func test_recruit_pacing_fills_the_party() -> void:
+	var n := 60
+	var three_by_pvp := 0
+	var four_by_d8 := 0
+	var first_offer_late := 0
+	for s in n:
+		var run := _new_run(5400 + s)
+		var rng := Rng.new(s)
+		var enc_seen := 0
+		var offered := false
+		for _i in 600:
+			if run.is_over():
+				break
+			var v: Dictionary = run.current_node()
+			if v["step"] == "choice":
+				enc_seen += 1
+				for c: Dictionary in v["choices"]:
+					offered = offered or c.has("recruit")
+				if enc_seen == 2 and not offered:
+					first_offer_late += 1
+			if v["step"] == "fight" and v["type"] == "pvp" and int(v["floor"]) == 1 and v["party"].size() >= 3:
+				three_by_pvp += 1 if int(v["depth"]) == 4 else 0
+			if int(v["depth"]) == 8 and v["step"] == "fight" and v["party"].size() == 4:
+				four_by_d8 += 1
+			RunBot.step(run, rng, "greedy", 0.2)
+	eq(first_offer_late, 0, "a party of 2 always meets a recruit offer within its first 2 encounters")
+	eq(three_by_pvp, n, "a player who takes recruits has 3 heroes by the first PvP")
+	check(four_by_d8 >= n * 9 / 10, "and 4 by early floor 2 (%d of %d at depth 8)" % [four_by_d8, n])
+
+
+func test_recruit_choice_always_binds_in_recruitment() -> void:
+	var seen := 0
+	for s in 40:
+		var run := _new_run(5500 + s)
+		var rng := Rng.new(s)
+		for _i in 600:
+			if run.is_over():
+				break
+			var v: Dictionary = run.current_node()
+			if v["step"] == "choice" and v["kind"] == "recruitment" and v["party"].size() < 4:
+				var any := false
+				for c: Dictionary in v["choices"]:
+					any = any or c.has("recruit")
+				check(any, "a recruitment node below max party offers a recruit")
+				seen += 1
+			RunBot.step(run, rng, "random", 0.2)
+	check(seen > 40, "checked %d recruitment nodes" % seen)
+
+
+static func _echo_of(pool: RefCounted, floor_n: int, size: int, level: int, nm: String) -> void:
+	var hs: Array = []
+	var classes := ["fighter", "healer", "rogue", "mage"]
+	for i in size:
+		hs.append({"name": "H%d" % i, "class": classes[i], "level": level, "items": {}, "alignment": [0, 0],
+			"slot": [i % 2, i / 2]})
+	pool.add({"name": nm, "heroes": hs}, {"generated": false, "floor": floor_n, "team_name": nm})
+
+
+func test_matchmaking_is_size_aware() -> void:
+	var party := {"name": "P", "heroes": [
+		{"name": "A", "class": "fighter", "level": 2, "items": {}, "alignment": [0, 0], "slot": [0, 1]},
+		{"name": "B", "class": "mage", "level": 2, "items": {}, "alignment": [0, 0], "slot": [1, 1]}]}
+	var pool: RefCounted = EchoPool.new()
+	for k in 3:
+		_echo_of(pool, 1, 4, 3, "Four%d" % k)
+		_echo_of(pool, 1, 3, 2, "Three%d" % k)
+		_echo_of(pool, 1, 2, 2, "Two%d" % k)
+		_echo_of(pool, 2, 2, 2, "FloorTwo%d" % k)
+	var rng := Rng.new(1)
+	var sizes := {}
+	for _i in 200:
+		var e: Dictionary = pool.pick(1, rng, {}, party)
+		sizes[e["heroes"].size()] = true
+		eq(EchoPool.floor_of(e), 1, "same floor first")
+	eq(sizes.keys(), [2], "a 2-hero party meets 2-hero Echoes when they exist")
+	# only 3- and 4-hero Echoes left on floor 1: widen by one hero, never to 4
+	var ex := {"Two0": true, "Two1": true, "Two2": true}
+	for _i in 100:
+		eq(int(pool.pick(1, rng, ex, party)["heroes"].size()), 3, "widened to +-1 hero, never a 4-hero Echo")
+	# only 4-hero Echoes on floor 1: a neighbouring floor's 2-hero Echo is closer
+	ex.merge({"Three0": true, "Three1": true, "Three2": true})
+	for _i in 50:
+		var e: Dictionary = pool.pick(1, rng, ex, party)
+		eq(int(e["heroes"].size()), 2, "a neighbouring floor before a 4-hero Echo")
+		eq(EchoPool.floor_of(e), 2, "from floor 2")
+	# power: same size, far stronger Echoes step aside for close ones
+	var p2: RefCounted = EchoPool.new()
+	_echo_of(p2, 1, 2, 6, "Strong")
+	_echo_of(p2, 1, 2, 2, "Even")
+	for _i in 50:
+		eq(String(p2.pick(1, rng, {}, party)["name"]), "Even", "similar total level first")
+	# nothing near at all: the closest Echo
+	var p3: RefCounted = EchoPool.new()
+	_echo_of(p3, 4, 4, 4, "Far4")
+	_echo_of(p3, 5, 3, 4, "Far3")
+	eq(String(p3.pick(1, rng, {}, party)["name"]), "Far3", "fallback: the closest hero count")
+
+
+func test_starter_echoes_sized_like_a_party() -> void:
+	var pool := _fresh_pool()
+	var sizes: Array = T.RUN["echo_seed_sizes"]
+	for f in range(1, T.RUN["floors"].size() + 1):
+		var got: Array = []
+		for e: Dictionary in pool.echoes:
+			if EchoPool.floor_of(e) == f:
+				got.append(e["heroes"].size())
+		got.sort()
+		var want: Array = (sizes[f - 1] as Array).duplicate()
+		want.sort()
+		eq(got, want, "floor %d starter Echo sizes" % f)
+	# a 2-hero floor-1 party never meets a 4-hero starter Echo (closer ones exist)
+	for s in 20:
+		var run := _new_run(5600 + s)
+		var rng := Rng.new(s)
+		for _i in 200:
+			var v: Dictionary = run.current_node()
+			if v["step"] == "fight" and v["type"] == "pvp":
+				if v["party"].size() == 2:
+					var r: Dictionary = run.resolve_fight()
+					check(r["opponent"]["heroes"].size() <= 3, "a 2-hero party never meets a 4-hero Echo")
+				break
+			if v["step"] == "choice":   # decline recruits: stay at 2 heroes
+				var pick := int(v["choices"][0]["index"])
+				for c: Dictionary in v["choices"]:
+					if not c.has("recruit"):
+						pick = int(c["index"])
+						break
+				run.choose(pick)
+			else:
+				RunBot.step(run, rng, "greedy", 0.0)
+
+
+func test_player_files_are_guarded() -> void:
+	const UserFiles = preload("res://core/user_files.gd")
+	check(not UserFiles.is_real_game(), "tests are never the real game")
+	for f: String in UserFiles.PLAYER_FILES:
+		check(UserFiles.is_player_file("user://" + f), "%s is a player file" % f)
+		check(not UserFiles.is_player_file(UserFiles.path(f)), "the default %s here is the sandbox's" % f)
+	check(not UserFiles.is_player_file(EchoPool.default_path()), "the default Echo pool is not the player's")
+	check(UserFiles.may_write("user://test_unused_pool.json"), "test files may be written")
+	var p: RefCounted = EchoPool.new()
+	check(String(p.path) == "", "a new pool has no file until given one")

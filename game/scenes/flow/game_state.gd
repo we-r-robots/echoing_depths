@@ -28,10 +28,13 @@ const GLIMMERS_PER_SHARD: int = RunTuning.RUN["glimmers_per_shard"]
 const SHAPE_COST := {3: 1, 4: 2}
 const CREST_COST := 25
 
-static var settings_path := "user://settings.json"
-static var meta_path := "user://meta.json"
-static var run_path := "user://run_save.json"
-static var pool_path := "user://echo_pool.json"
+## The player's files (user://) only in the real game; tests, captures and tools get
+## user://sandbox/ (core/user_files.gd), and writing a player file from them is refused.
+const UserFiles = preload("res://core/user_files.gd")
+static var settings_path := UserFiles.path("settings.json")
+static var meta_path := UserFiles.path("meta.json")
+static var run_path := UserFiles.path("run_save.json")
+static var pool_path := UserFiles.path("echo_pool.json")
 
 static var settings: Dictionary = {}
 static var meta: Dictionary = {}
@@ -49,6 +52,11 @@ static func use_paths(dir: String) -> void:
 	_loaded = false
 	settings = {}
 	meta = {}
+
+
+## Back to this process's default files (the player's in the real game, the sandbox elsewhere).
+static func use_default_paths() -> void:
+	use_paths(UserFiles.dir())
 
 
 static func default_settings() -> Dictionary:
@@ -262,7 +270,7 @@ static func has_saved_run() -> bool:
 
 
 static func clear_saved_run() -> void:
-	if not read_only and FileAccess.file_exists(run_path):
+	if not read_only and FileAccess.file_exists(run_path) and UserFiles.may_write(run_path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(run_path))
 
 
@@ -316,6 +324,8 @@ static func _read(path: String) -> Dictionary:
 static func _write(path: String, d: Dictionary) -> bool:
 	if read_only:
 		return true
+	if not UserFiles.may_write(path):
+		return false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:

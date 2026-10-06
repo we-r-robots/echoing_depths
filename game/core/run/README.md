@@ -13,7 +13,7 @@ only stores the player's 2x4 placement and passes it to the sim.
 | `legend_memories.json` | One legend's-memory encounter per authored advanced class (8), EncounterDB format, art empty |
 | `encounter_catalog.gd` | Encounters = `data/encounters/*.json` (via `scenes/encounter/encounter_db.gd`) + `encounter_pool.json`; choice binding |
 | `encounter_pool.json` | 60 encounters in the EncounterDB format (art empty), 12 per kind; with the 5 authored: 65. Extra fields: `luck`, `rest`, `item`, `recruit` |
-| `echo_pool.gd` | Local Echo pool (`user://echo_pool.json`), per-floor seeding and per-floor matching |
+| `echo_pool.gd` | Local Echo pool (the player's `user://echo_pool.json` only in the real game), per-floor seeding, size- and power-aware matching |
 | `run_bot.gd` | Seeded bot (`greedy` / `random`) for tests and simulated playthroughs |
 
 ## API
@@ -23,7 +23,8 @@ const Run = preload("res://core/run/run.gd")
 var run := Run.new()
 run.start_run(seed, {"best_floor": 3, "story_chapter": 1})   # -> current_node()
 run.current_node()     # what the player sees now (never the map)
-run.choose(i)          # draft pick / encounter choice (incl. a legend's memory) / Advance-Hold
+run.choose(i)          # draft pick / encounter choice (incl. a legend's memory)
+run.awaken(hero_index) # Awaken a ready hero (any stop: choice, fight, outcome); run.hold_back(hero_index) keeps them
 run.set_formation([[col,row], ...])      # one cell per party hero, any time before a fight
 run.resolve_fight()    # core sim result (events for playback) + "opponent" (full, revealed now) + "run": {won, kind, health, ended}
 run.advance()          # to the next (hidden) node
@@ -31,7 +32,10 @@ run.summary()          # meta-progression payload (final once step == "ended")
 run.party_view(); run.combat_party(); run.is_over(); run.log_lines()
 ```
 
-`start_run` options: `pool` (an EchoPool object) or `pool_path` (default `user://echo_pool.json`),
+`start_run` options: `pool` (an EchoPool object) or `pool_path` (default `EchoPool.default_path()`:
+the player's `user://echo_pool.json` in the real game, `user://sandbox/` in tests, captures and tools;
+`core/user_files.gd` refuses to write a player file from anything but the real game), `advance_prompt`
+(default false: true brings back the old forced `decision` step at the threshold),
 `save_echo` (default true: the finished run's snapshot is added and saved), `best_floor` (meta's
 deepest floor so far, for one-time depth milestones), `start_pool_size` (Tavern), `party_name`,
 `log` (default true: fight results carry the event log).
@@ -40,18 +44,20 @@ deepest floor so far, for one-time depth milestones), `start_pool_size` (Tavern)
 
 Every view has `depth`, `floor`, `phase` (gathering / advancement / legend), `health`,
 `max_health`, `vault`, `party` (heroes: class, tier, level, memories, alignment, effective
-alignment, items, slot, held, legendary).
+alignment, items, slot, held, legendary, `trail` / `trail_before` (memory shifts in this tier / before
+Awakening), `awaken_ready`, `awaken_new` (ready and not answered since the last memory),
+`awaken_class` (the class Awakening gives now), `awaken_placeholder`).
 
 | step | extra fields | next call |
 |---|---|---|
 | `draft` | `offered` [{index, name, class, alignment, taken}], `picks_left` | `choose(i)` twice |
 | `choice` | `type: "encounter"`, `kind` (riddle/chance/moral/monster/recruitment, or `legend`), `encounter_id`, `title`, `text`, `choices` [{index, id, label, hero_index, hero_name, class, shift, rare, recruit?, legend?, rest?, uncertain?}] (a `rest` choice has hero_index −1) | `choose(i)` |
-| `decision` | `type: "advance"` (0 Advance, 1 Hold back), `hero_index` | `choose(0/1)` |
+| `decision` | only with `advance_prompt`: `type: "advance"` (0 Awaken, 1 Hold back), `hero_index` | `choose(0/1)` |
 | `fight` | `type: "monster" / "pvp" / "guardian" / "crystal"`, `opponent` {name, title, banner} only (formation hidden until the fight), `attempt` | `set_formation` (optional), `resolve_fight()` |
 | `outcome` | `last`: what the choice or fight did (memory, item, recruit, lore, outcome text, fight result) | `advance()` |
 | `ended` | `outcome`: `"victory"` / `"fallen"` | `summary()` |
 
-Node flow: encounter = choice → decisions → (monster kind: fight) → outcome. PvP and floor
+Node flow: encounter = choice → (monster kind: fight) → outcome. PvP and floor
 guardian = fight → outcome. The last node is the Crystal of Remembrance: one fight, no retry;
 it ends the run either way.
 
@@ -87,8 +93,10 @@ it ends the run either way.
 - **Memories:** a non-PvP choice binds to a party hero of the choice's class (EncounterDB rule; with
   two heroes of a class, the one with fewer memories) and gives +1 level (tier cap) and the shift.
   Strong shifts come from the data (~1 in 6 choices). PvP never grants memories.
-- **Advancement:** at 3 memories a base hero is offered Advance / Hold back, again after each
-  later memory while held (base cap level 6). The class comes from the *effective* position
+- **Awakening (advancement):** at 2 memories (level 1 + 2 = level 3; user, 2026-10-05) a base hero
+  can Awaken at any stop: `awaken(i)` / `hold_back(i)`, driven by the flow's camp between nodes;
+  nothing blocks the run. A held hero keeps levelling (base cap level 6) and the offer comes back
+  as new (`awaken_new`) after each later memory. The class comes from the *effective* position
   (relic offset included) via `Alignment.advanced_class_for`; when the region's class is not
   authored yet, the nearest authored advanced class of that base stands in (`placeholder_class`).
 - **Legendary gate (`legend_gate.gd`, 05-formations.md):** only offered when the hero's advanced
@@ -103,14 +111,23 @@ it ends the run either way.
   only if better. Relics bind on equip: never replaced; a relic goes to the next hero with a free
   relic slot, else is left behind.
 - **Recruitment:** recruit choices add a hero (class `*` = seeded base class) while the party has < 4.
+  **Pacing** (`RUN.recruit_within`): a party of 2 meets a recruit offer at least every 2nd encounter
+  node, a party of 3 every 3rd (a due node becomes an unused recruitment encounter), and a
+  recruitment node always offers a recruit (when no recruit choice binds by class, the first one goes
+  to the hero with the fewest memories). Greedy bot (takes recruits): 3 heroes at the first PvP in
+  100 % of runs, 4 entering floor 2 in 72 %, 4 at depth 8 in ~98 % (was 64 % / 33 % / ~55 %);
+  `tests/party_growth.gd` measures it.
 - **Fights:** monster groups from `PartyGen.monster_group`, count = party size (2–4), level
-  1 + layer/4. PvP: an Echo **recorded on the same floor** (seeded pick among that floor's 20 most
-  recent real Echoes; generated ones join only while a floor has < 4 real ones; nearest floor if empty).
+  1 + layer/4. PvP: an Echo **recorded on the same floor with the same hero count and similar power**
+  (`RUN.echo_power_gap`, max(3, 25 %)); widened to ±1 hero and max(6, 50 %), then the same on the
+  nearest floors, then the closest Echo anywhere. Within a step: a seeded pick among the floor's 20
+  most recent real matches; generated ones join only while < 4 real ones match.
 - **Team names:** a run's party is "The <epithet> <company>" (576 combinations, `RUN` tuning
   lists) unless `party_name` is passed; Echo snapshots carry `meta.team_name` and `meta.crest`
   (option `crest`, "" for now) for the future splash screen. A run never meets the same rival
   name twice. Pre-fight log lines show no strength numbers.
-- **Echo pool:** JSON at `user://echo_pool.json`, seeded with 6 generated Echoes per floor; every
+- **Echo pool:** JSON at `user://echo_pool.json` (real game only), seeded with 6 generated Echoes per
+  floor sized like a party at that floor's first PvP (`RUN.echo_seed_sizes`, `echo_seed_memories`); every
   finished run (won or fallen) records one snapshot per floor reached (the party as it first met
   rivals on that floor; `core/echo.gd` format, meta: floor, depth, outcome, seed). Max 600.
 - **Rewards (summary):** Glimmers = 1/layer + 4/PvP win + 4/new floor; `lore_items`; `new_floors`;

@@ -21,13 +21,14 @@ var _pool: RefCounted = null
 var _map: Array = []            # hidden: layers of nodes {type, kind, enc, recruit_class, lore, route}
 var _layer := -1
 var _idx := 0
-var _step := "draft"            # draft | choice | decision | fight | outcome | ended
+var _step := "draft"            # draft | choice | decision (only with advance_prompt) | fight | outcome | ended
 var _offered: Array = []
 var _heroes: Array = []
 var _health := 0
 var _vault := ""
 var _bound: Array = []
-var _decisions: Array = []      # queue of {kind: "advance", hero_index}
+var _decisions: Array = []      # advance_prompt only: queue of {kind: "advance", hero_index}
+var _since_recruit := 0         # encounter nodes in a row without a recruit offer (recruit pacing)
 var _enc: Dictionary = {}       # the encounter shown at the current node (map's or a legend's memory)
 var _enc_kind := ""
 var _legend_appeared := false   # the legend's memory appears at most once per run
@@ -64,7 +65,8 @@ var _log: Array[String] = []
 
 # ======================= public API =======================
 
-## Starts a run. options: pool (an EchoPool), pool_path (default user://echo_pool.json),
+## Starts a run. options: pool (an EchoPool), pool_path (default EchoPool.default_path():
+## the player's user://echo_pool.json only in the real game, core/user_files.gd),
 ## save_echo (default true: the finished run's snapshot is added to the pool and saved),
 ## best_floor (meta: deepest floor reached before, for depth milestones), start_pool_size,
 ## party_name, log (default true: fight results carry the event log for playback),
@@ -74,7 +76,7 @@ func start_run(seed_in: int, options: Dictionary = {}) -> Dictionary:
 	_opts = options.duplicate()
 	_pool = options.get("pool", null)
 	if _pool == null:
-		_pool = EchoPool.open(String(options.get("pool_path", EchoPool.DEFAULT_PATH)))
+		_pool = EchoPool.open(String(options.get("pool_path", "")))
 	_health = int(T.RUN["max_health"])
 	var rng := _rng(5)
 	_vault = T.VAULTS[rng.int_range(0, T.VAULTS.size() - 1)]
@@ -168,23 +170,46 @@ func choose(i: int) -> Dictionary:
 		"decision":
 			if i < 0 or i > 1:
 				return {"error": "decision index must be 0 or 1"}
-			var d: Dictionary = _decisions.pop_front()
-			var h: Dictionary = _heroes[int(d["hero_index"])]
-			var res := {"ok": true, "hero_index": d["hero_index"], "kind": d["kind"]}
-			if i == 0:
-				_advance_hero(h)
-				res["class"] = h["class"]
-			else:
-				h["held"] = true
-				h["held_ever"] = true
-				_say("  %s holds back (level %d)" % [h["name"], h["level"]])
-			_update_step()
+			var hi := int(_decisions[0]["hero_index"])
+			var res := awaken(hi) if i == 0 else hold_back(hi)
+			res["kind"] = "advance"
 			return res
 		"choice":
 			if i < 0 or i >= _bound.size():
 				return {"error": "bad choice index %d" % i}
 			return _apply_choice(i)
 	return {"error": "nothing to choose in step '%s'" % _step}
+
+
+## Awakening (advancement) is offered, never forced (user, 2026-10-05: the run hub drives it): a
+## base hero with RUN.advance_threshold memories can Awaken at any stop of the run (an encounter's
+## choice, before a fight, an outcome). The class is the one their effective grid region gives
+## (party_view "awaken_class"). -> {"ok", "hero_index", "class", "placeholder"} or {"error"}.
+func awaken(hi: int) -> Dictionary:
+	var err := _awaken_error(hi)
+	if err != "":
+		return {"error": err}
+	var h: Dictionary = _heroes[hi]
+	_advance_hero(h)
+	_drop_decisions(hi)
+	_update_step()
+	return {"ok": true, "hero_index": hi, "class": h["class"], "placeholder": h["placeholder"]}
+
+
+## Holding Back: the ready hero stays as they are and keeps gathering memories (up to the base
+## cap). The offer stands; it is flagged new again after their next memory.
+func hold_back(hi: int) -> Dictionary:
+	var err := _awaken_error(hi)
+	if err != "":
+		return {"error": err}
+	var h: Dictionary = _heroes[hi]
+	h["held"] = true
+	h["held_ever"] = true
+	h["kept_at"] = h["memories"]
+	_say("  %s holds back (level %d)" % [h["name"], h["level"]])
+	_drop_decisions(hi)
+	_update_step()
+	return {"ok": true, "hero_index": hi}
 
 
 ## Places heroes: slots[k] = [col, row] for party hero k (col 0 front, 1 back; row 0..3).
@@ -319,7 +344,16 @@ func party_view() -> Array:
 			"level": h["level"], "max_level": GameData.max_level(String(h["class"])),
 			"memories": h["memories"], "alignment": h["alignment"].duplicate(),
 			"effective_alignment": Alignment.effective_for_hero(h), "items": h["items"].duplicate(),
-			"slot": h["slot"].duplicate(), "held": h["held"], "legendary": h["legendary"]})
+			"slot": h["slot"].duplicate(), "held": h["held"], "legendary": h["legendary"],
+			"trail": h["trail"].duplicate(true), "trail_before": h["trail_before"].duplicate(true)})
+		var e: Dictionary = out[-1]
+		var ready := _can_awaken(h)
+		e["awaken_ready"] = ready                                  # can Awaken now (any stop)
+		e["awaken_new"] = ready and int(h["kept_at"]) != int(h["memories"])   # not yet answered
+		e["awaken_class"] = _awaken_class(h) if ready else ""      # what Awakening now makes
+		if ready:
+			e["awaken_placeholder"] = String(GameData.get_class_def(e["awaken_class"]).get("region", "")) \
+				!= Alignment.region_of(Alignment.effective_for_hero(h))
 	return out
 
 
@@ -478,9 +512,16 @@ func _enter(layer: int, idx: int) -> void:
 	match String(node["type"]):
 		"encounter":
 			if not _roll_legend():
+				if _recruit_due():
+					_force_recruitment(node)
 				_enc = Catalog.get_encounter(String(node["enc"]))
 				_enc_kind = String(node["kind"])
 				_bound = Catalog.bind(_enc, _heroes)
+				_ensure_recruit_bound()
+			var offered := false
+			for b: Dictionary in _bound:
+				offered = offered or (b["choice"] as Dictionary).has("recruit")
+			_since_recruit = 0 if offered and _heroes.size() < int(T.RUN["max_party"]) else _since_recruit + 1
 			if _bound.is_empty():
 				_bound = [{"hero_index": -1, "choice": {"id": "press_on", "label": "Press on", "class": "",
 					"shift": {"good": 0, "law": 0}, "outcome": "Nothing here answers to you. You press on."}}]
@@ -498,7 +539,7 @@ func _enter(layer: int, idx: int) -> void:
 			_choice_done = true
 			if not _snapshots.has(_floor()):
 				_snapshots[_floor()] = combat_party()   # recorded as it first met rivals on this floor
-			_start_fight("pvp", _pool.pick(_floor(), _rng(100 + layer), _met_names))
+			_start_fight("pvp", _pool.pick(_floor(), _rng(100 + layer), _met_names, combat_party()))
 			_met_names[String(_opponent.get("name", ""))] = true
 			_rivals.append(String(_opponent.get("name", "")))
 			_say("[%d] PvP: %s" % [layer + 1, _opponent.get("name", "")])
@@ -514,6 +555,63 @@ func _enter(layer: int, idx: int) -> void:
 				"meta": {"title": String(cd.get("name", "")), "intro": String(cd.get("intro", ""))}})
 			_say("[%d] %s" % [layer + 1, _opponent["name"]])
 	_update_step()
+
+
+## Recruit pacing (03 "Gathering": recruitment is prominent early): while the party is below
+## max_party, a party of n meets a recruit offer at least every RUN.recruit_within[n] encounter
+## nodes; this node is due when the ones before it had none.
+func _recruit_due() -> bool:
+	if _heroes.size() >= int(T.RUN["max_party"]):
+		return false
+	var within: Dictionary = T.RUN["recruit_within"]
+	return within.has(_heroes.size()) and _since_recruit + 1 >= int(within[_heroes.size()])
+
+
+## The node becomes a recruitment encounter the run has not used (hidden map data: the node's
+## place, routes and lore stay).
+func _force_recruitment(node: Dictionary) -> void:
+	if String(node["kind"]) == "recruitment":
+		return
+	var used := {}
+	for layer: Array in _map:
+		for n: Dictionary in layer:
+			used[String(n["enc"])] = true
+	for id: String in _seen:
+		used[id] = true
+	var ids: Array = Catalog.ids_of_kind("recruitment").filter(func(x: String) -> bool: return not used.has(x))
+	if ids.is_empty():
+		ids = Catalog.ids_of_kind("recruitment").filter(func(x: String) -> bool: return not _seen.has(x))
+	if ids.is_empty():
+		return
+	node["enc"] = ids[_rng(6000 + _layer).int_range(0, ids.size() - 1)]
+	node["kind"] = "recruitment"
+
+
+## A recruitment encounter always lets a party below max_party recruit: when none of its recruit
+## choices binds (they are tied to classes the party lacks), the first one goes to the hero with
+## the fewest memories.
+func _ensure_recruit_bound() -> void:
+	if _heroes.size() >= int(T.RUN["max_party"]) or _heroes.is_empty():
+		return
+	var first: Dictionary = {}
+	for c: Dictionary in _enc.get("choices", []):
+		if c.has("recruit") and first.is_empty():
+			first = c
+	if first.is_empty():
+		return
+	for b: Dictionary in _bound:
+		if (b["choice"] as Dictionary).has("recruit"):
+			return
+	var best := 0
+	for i in _heroes.size():
+		if int(_heroes[i]["memories"]) < int(_heroes[best]["memories"]):
+			best = i
+	var c := first.duplicate(true)
+	c["class"] = String(_heroes[best]["base"])
+	var at := _bound.size()
+	if at > 0 and int(_bound[-1]["hero_index"]) < 0:
+		at -= 1   # before a party-wide rest
+	_bound.insert(at, {"choice": c, "hero_index": best})
 
 
 func _update_step() -> void:
@@ -614,8 +712,9 @@ func _memory(hi: int, c: Dictionary, sh: Array) -> Dictionary:
 		_stats["wasted_memories"] += 1
 	_say("  %s takes \"%s\": memory %d, level %d, shift %s -> %s%s" % [h["name"], c.get("label", ""),
 		h["memories"], h["level"], sh, h["alignment"], " (rare)" if Catalog.is_rare(c) else ""])
-	var tier := String(GameData.get_class_def(String(h["class"]))["tier"])
-	if tier == "base" and int(h["memories"]) >= int(T.RUN["advance_threshold"]):
+	h["trail"].append([int(sh[0]), int(sh[1])])
+	if _can_awaken(h) and bool(_opts.get("advance_prompt", false)):
+		_drop_decisions(hi)
 		_decisions.append({"kind": "advance", "hero_index": hi})
 	return {"hero_index": hi, "level_before": before["level"], "level": h["level"],
 		"alignment_before": before["alignment"], "alignment": h["alignment"].duplicate(), "shift": sh,
@@ -646,18 +745,46 @@ func _roll_legend() -> bool:
 	return true
 
 
+## A base hero at the threshold (RUN.advance_threshold memories) who can Awaken now.
+func _can_awaken(h: Dictionary) -> bool:
+	return not bool(h["legendary"]) and String(GameData.get_class_def(String(h["class"])).get("tier", "")) == "base" \
+		and int(h["memories"]) >= int(T.RUN["advance_threshold"])
+
+
+func _awaken_error(hi: int) -> String:
+	if _step == "draft" or _step == "ended":
+		return "no Awakening in step '%s'" % _step
+	if hi < 0 or hi >= _heroes.size():
+		return "bad hero index %d" % hi
+	if not _can_awaken(_heroes[hi]):
+		return "%s cannot Awaken (needs %d memories at base tier)" % [_heroes[hi]["name"], int(T.RUN["advance_threshold"])]
+	return ""
+
+
+func _drop_decisions(hi: int) -> void:
+	_decisions = _decisions.filter(func(d: Dictionary) -> bool: return int(d["hero_index"]) != hi)
+
+
+## The advanced class Awakening gives now: the effective region's class, else the nearest
+## authored one of that base (content gap).
+static func _awaken_class(h: Dictionary) -> String:
+	var eff := Alignment.effective_for_hero(h)
+	var cid := Alignment.advanced_class_for(String(h["base"]), eff)
+	return cid if cid != "" else _nearest_advanced(String(h["base"]), eff)
+
+
 func _advance_hero(h: Dictionary) -> void:
 	var eff := Alignment.effective_for_hero(h)
 	var region := Alignment.region_of(eff)
-	var cid := Alignment.advanced_class_for(String(h["base"]), eff)
-	if cid == "":
-		cid = _nearest_advanced(String(h["base"]), eff)
+	var cid := _awaken_class(h)
 	h["class"] = cid
 	h["level"] = 1
 	h["held"] = false
 	h["region"] = region
 	h["placeholder"] = String(GameData.get_class_def(cid).get("region", "")) != region
 	h["advanced_at"] = _layer + 1
+	h["trail_before"] = h["trail_before"] + h["trail"]
+	h["trail"] = []
 	_say("  %s ADVANCES at %s (%s) -> %s%s" % [h["name"], eff, region, GameData.get_class_def(cid)["name"],
 		" [placeholder: region class not authored]" if h["placeholder"] else ""])
 
@@ -708,7 +835,7 @@ func _add_hero(cls: String, hname: String) -> void:
 		"items": {"weapon": "", "armor": "", "relic": ""}, "alignment": Alignment.start_for(cls),
 		"slot": slot, "memories": 0, "held": false, "held_ever": false, "legendary": false,
 		"legendary_placeholder": false, "region": "", "placeholder": false, "advanced_at": 0,
-		"joined_at": maxi(0, _layer + 1)})
+		"joined_at": maxi(0, _layer + 1), "kept_at": -1, "trail": [], "trail_before": []})
 
 
 func _has_name(n: String) -> bool:

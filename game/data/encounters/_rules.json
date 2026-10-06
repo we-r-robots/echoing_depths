@@ -2,7 +2,7 @@
   "_doc": "Display + rule config for encounter screens. Positions are [good, law] on the 5x5 grid (-2..2): +good = Mercy, -good = Cruelty, +law = Order, -law = Freedom. Colours are master-palette names. Class block holds display data only; starting positions are read from core/data/classes.gd (start_alignment).",
   "grid_min": -2,
   "grid_max": 2,
-  "advance_threshold": 3,
+  "advance_threshold": 2,
   "axes": {
     "good": { "pos": "Mercy", "neg": "Cruelty", "pos_color": "amber6", "neg_color": "blood4" },
     "law": { "pos": "Order", "neg": "Freedom", "pos_color": "ink10", "neg_color": "violet4" }

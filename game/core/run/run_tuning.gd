@@ -1,9 +1,11 @@
 extends RefCounted
 ## Run-layer tuning. Every number is a placeholder pending balance (spec 03 / 04).
-## Sized by the Memory Supply table in 03-runs-and-combat.md: core uses the "3 + 3" scheme
-## (advance at 3 memories, base max level 6 for Holding Back, advanced max level 4 = 3 more
-## memories before the Legendary gate). A run has 16 non-PvP encounters, inside the
-## 12 ("all 4 Advanced") .. 24 ("full party maxed") window.
+## Sized by the Memory Supply table in 03-runs-and-combat.md, now a "2 + 3" scheme (user,
+## 2026-10-05): a hero starts at level 1 and can Awaken after the 2nd memory (level 3 at that
+## moment; the new class starts again at level 1). Holding Back keeps a base hero growing to base
+## max level 6 (3 more memories). Advanced max level 4 = 3 more memories, and the Legendary gate
+## opens at advanced level 3. Per-hero max 5; "all 4 Awakened" 8, "full party maxed" 20. A run
+## has 16 non-PvP encounters, inside that 8 .. 20 window.
 
 const RUN := {
 	# --- run arc (hidden map; never player-facing) ---
@@ -23,7 +25,12 @@ const RUN := {
 	"start_pool_size": 3,        # heroes offered at run start (Tavern widens this; distinct base classes)
 	"start_picks": 2,
 	"max_party": 4,
-	"advance_threshold": 3,      # memories at base tier before Advance / Hold Back is offered
+	"advance_threshold": 2,      # memories at base tier before a hero can Awaken (level 1 + 2 = level 3);
+	                             # also data/encounters/_rules.json (the encounter screens; a test keeps them equal)
+	# recruit pacing: a party of n (< max_party) meets a recruit offer at least every
+	# recruit_within[n] encounter nodes (a recruitment node is swapped in when due, and a recruit
+	# choice always binds there). With the opening 2 picks: 3 heroes by the first PvP, 4 early on floor 2.
+	"recruit_within": {2: 2, 3: 3},
 	# --- health ("lanterns") ---
 	"max_health": 10,
 	"pvp_loss_health": 1,
@@ -40,11 +47,18 @@ const RUN := {
 	"crystal_memories": 4,       # memories released: one at the start, one at each of fragments 1-3
 	"glimmers_per_fragment": 6,  # on defeat, each chipped fragment becomes Glimmers
 	"item_drop_chance": 0.5,     # chance a won monster fight drops an item
-	# PvP matching by floor: an opponent is an Echo recorded on the same floor (nearest if thin)
+	# PvP matching (echo_pool.gd pick): an Echo recorded on the same floor with the same hero count and a
+	# similar power (echo_power_gap); then +-1 hero and the wide gap; then neighbouring floors
+	"echo_power_gap": [3, 0.25],       # close match: power within max(3, 25 %) of the party's
+	"echo_power_gap_wide": [6, 0.5],   # widened: max(6, 50 %)
 	"echo_recent_per_floor": 20, # pick among the most recent real Echoes of that floor
 	"echo_min_real": 4,          # below this many real Echoes on a floor, generated ones join in
 	"echo_pool_max": 600,        # oldest player Echoes dropped past this (generated seeds kept)
-	"echo_seed_per_floor": 6,    # generated Echoes per floor in a fresh pool
+	"echo_seed_per_floor": 6,    # generated Echoes per floor in a fresh pool, sized by echo_seed_sizes
+	# hero counts of a floor's generated Echoes (recorded at the floor's first PvP; recruit pacing above)
+	"echo_seed_sizes": [[2, 3, 3, 3, 4, 4], [3, 3, 4, 4, 4, 4], [3, 4, 4, 4, 4, 4], [3, 4, 4, 4, 4, 4], [4, 4, 4, 4, 4, 4]],
+	# memories per hero of a floor's generated Echoes (the encounters before that floor's first PvP / party size)
+	"echo_seed_memories": [1.0, 1.5, 2.5, 3.0, 3.5],
 	# --- rewards (Glimmers: 04-meta-progression) ---
 	"glimmers_per_layer": 1,     # depth reached
 	"glimmers_per_pvp_win": 4,

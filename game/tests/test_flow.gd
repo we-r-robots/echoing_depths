@@ -18,7 +18,7 @@ func _fresh() -> void:
 
 
 func _done() -> void:
-	GameState.use_paths("user://")
+	GameState.use_default_paths()
 
 
 ## Plays from the title to the next title. Returns the flow.

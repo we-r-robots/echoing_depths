@@ -1,8 +1,9 @@
 extends RefCounted
 ## Simple seeded bot that plays a Run to the end (tests, simulated playthroughs).
 ## policy "greedy": rest when health is low (<= max - 3), recruit while the party is small, otherwise level the least-remembered hero;
-##                  Hold Back sometimes (hold_chance), always accept a legend's memory.
-## policy "random": uniform random choices and decisions.
+##                  Awaken a ready hero (party_view "awaken_new") at the next stop, Hold Back sometimes
+##                  (hold_chance), always accept a legend's memory.
+## policy "random": uniform random choices, Awaken / Hold Back at random.
 
 const Rng = preload("res://core/rng.gd")
 
@@ -16,6 +17,18 @@ static func play(run: RefCounted, rng: Rng, policy := "greedy", hold_chance := 0
 
 static func step(run: RefCounted, rng: Rng, policy: String, hold_chance: float) -> void:
 	var v: Dictionary = run.current_node()
+	if v["step"] != "draft" and v["step"] != "ended" and v["step"] != "decision":
+		var party: Array = v["party"]
+		for i in party.size():
+			var h: Dictionary = party[i]
+			if bool(h.get("awaken_new", false)):
+				var hold := rng.int_range(0, 1) == 1 if policy == "random" \
+					else (int(h["level"]) < int(h["max_level"]) and rng.next_float() < hold_chance)
+				if hold:
+					run.hold_back(i)
+				else:
+					run.awaken(i)
+				return
 	match String(v["step"]):
 		"draft":
 			var free: Array = v["offered"].filter(func(o: Dictionary) -> bool: return not o["taken"])

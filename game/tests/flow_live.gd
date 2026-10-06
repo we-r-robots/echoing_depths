@@ -105,6 +105,6 @@ func _finish() -> bool:
 	for e in counter.errors.slice(0, 20):
 		print("  error: ", e)
 	OS.remove_logger(counter)
-	GameState.use_paths("user://")
+	GameState.use_default_paths()
 	quit(0 if ok else 1)
 	return true
