@@ -42,6 +42,7 @@ for ev in result.events: ...
 godot --path game --headless -s res://tests/run_all.gd                 # all tests, exit 1 on failure
 godot --path game --headless -s res://tests/benchmark.gd [-- --n=1000]  # perf + fight-length distribution
 godot --path game --headless -s res://tests/demo_fight.gd [-- --seed=7] # readable log of one fight
+godot --path game --headless -s res://tests/balance_classes.gd [-- --runs=1500 --fights=1500]  # class balance (swap test)
 #   demo options: --random (two random parties)  --monsters=DEPTH (demo party vs Vault monsters)
 ```
 
