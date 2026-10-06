@@ -56,17 +56,17 @@ At the threshold, the player can choose to suppress a hero's Advancement. The he
 - **Variants:** A hero's exact cell within a region adds a lean modifier (e.g. Lawful lean, Good lean). These come from a shared modifier system rather than being designed cell by cell.
 - **Total:** 9 classes per base class, or 36 across 4 base classes.
 
-### Approved Advanced Classes (rounds 1 and 2, 2026-10-06)
-The user approves every class personally (`docs/design/class-verdicts-round1.md` and `class-verdicts-round2.md`; abilities in `docs/design/advanced-class-options.md` and `class-options-round2.md`). Built so far, one per approved region (codes: `LG` Mercy+Order, `CG` Mercy+Freedom, `LE` Cruelty+Order, `CE` Cruelty+Freedom, `N` neutral cross, `*` corner):
+### Approved Advanced Classes (rounds 1-3, 2026-10-06)
+The user approves every class personally (`docs/design/class-verdicts-round1.md` and `class-verdicts-round2.md`; round 3 relayed by the lead; abilities in `docs/design/advanced-class-options.md` and `class-options-round2.md`). Built so far, one per approved region (codes: `LG` Mercy+Order, `CG` Mercy+Freedom, `LE` Cruelty+Order, `CE` Cruelty+Freedom, `N` neutral cross, `*` corner):
 
 | Base (start) | Approved region → class | No approved class yet (stand-in) |
 |---|---|---|
-| Fighter (N) | N Halberdier, LG Lightsworn, CG Bladebreaker, LE Warden of Chains, CE Berserker, LE★ Iron Marshal, CG★ Echoblade, CE★ Ravager | LG★ (Lightsworn stands in) |
-| Rogue (CE) | N Saboteur, LG Nightwatch, CG Duelist, LE Assassin, CE Cutpurse, LE★ Nightshade, LG★ Unseen Warden, CE★ Fadewalker | CG★ (Duelist stands in) |
+| Fighter (N) | N Halberdier, LG Lightsworn, CG Bladebreaker, LE Warden of Chains, CE Berserker, LG★ Aegisbearer, LE★ Iron Marshal, CG★ Echoblade, CE★ Ravager | none |
+| Rogue (CE) | N Saboteur, LG Nightwatch, CG Duelist, LE Assassin, CE Cutpurse, LG★ Unseen Warden, CG★ Informant, LE★ Nightshade, CE★ Fadewalker | none |
 | Healer (LG) | N Threadmender, LG Cleric, CG Rekindler, LE Tithekeeper, CE Bloodletter, LG★ Lumenward, CG★ Wickburner, LE★ Confessor, CE★ Gravecaller | none |
-| Mage (CG) | N Archmage, LG Lampwright, CG Stormwake, LE Runebinder, CE Warlock, LG★ Chronist, CG★ Starcaller, LE★ Enshriner, CE★ Wildfire | none |
+| Mage (CG) | N Archmage, LG Lampwright, CG Stormwake, LE Runebinder, CE Warlock, LG★ Chronist, CG★ Starcaller, LE★ Reliquarist, CE★ Wildfire | none |
 
-Round-2 abilities, as the player reads them:
+Round-2 and round-3 abilities, as the player reads them:
 
 | Class | Ability |
 |---|---|
@@ -81,13 +81,18 @@ Round-2 abilities, as the player reads them:
 | Nightwatch | Keeps watch: the next foe to hit an ally beside it is struck and stunned (once). |
 | Bloodletter | Hits every foe lightly and heals all allies from the damage (a share of 40 % to start). |
 | Gravecaller | Raises the fallen as before; with nobody fallen, a nameless husk of the Vault's long-dead, weaker than any raised hero. |
-| Enshriner | Seals the strongest foe (highest Atk or Mag) in crystal for a few seconds: it can't act or be hit, and its formation loses it. The name will change. |
+| Reliquarist (was Enshriner) | Keeps the strongest foe (highest Atk or Mag) in a crystal reliquary for a few seconds, as the Lumari kept their memories: it can't act or be hit, and its formation loses it. |
+| Aegisbearer | Raises a large shield; while it holds, every foe's melee hits it (a front-column taunt). |
+| Informant | Learns the enemy's next move: whoever the next enemy ability will hit gets a shield first. Sits in the back; no damage of its own. |
+| Confessor | Retribution flame: brands the foe that last hurt an ally (else the strongest foe); for a few seconds every heal it receives burns it instead. |
 
 - The Paladin retired in round 2; the Lightsworn holds its region and keeps its ability name. Saved Paladins (Echoes, pools, monuments) load as Lightsworn. The Necromancer was dropped in round 1; saved Necromancers load as Gravecallers.
 - **PROVISIONAL:** the Lantern Saint (Legendary) now advances from the Lightsworn. The user hasn't confirmed this parent.
-- **PROVISIONAL:** a hero who advances in a region with no approved class gets the approved class of the nearest region by grid steps from its cell (ties: the region nearer its base's starting cell). Only Fighter LG★ and Rogue CG★ still use it.
+- Every region now has an approved class (round 3). The nearest-region stand-in rule stays in the code only as a safety net; no cell uses it.
+- **PROVISIONAL (Informant):** if the next enemy ability hits several allies, each gets a shield and the total is split evenly; if no enemy ability is coming soon (no foe at 70+ charge), the weakest ally gets the shield.
+- **Advanced is stronger than base** (user rule, 2026-10-06): heroes earn an advanced class by spending memories, so every advanced class beats its own base class at equal level (a tested balance gate); advanced classes are sidegrades to each other.
 - **PROVISIONAL:** the Gravecaller with no free front slot strikes the weakest foe (Grave Bolt) instead of raising a husk.
-- **PROVISIONAL (Enshriner, q-9):** (a) a sealed unit still counts as standing, so sealing the last foe can't win; (b) the Fading still damages a sealed unit; (c) a unit just freed from a seal can't be sealed again for 8 s; (d) a sealed front unit counts as not visible for melee targeting, so melee reaches past it (as with hidden units, ruling 1). Nothing else reaches a sealed unit: no hit, heal, status or status tick.
+- **PROVISIONAL (Reliquarist, q-9; playtesting will settle these):** (a) a sealed unit still counts as standing, so sealing the last foe can't win; (b) the Fading still damages a sealed unit; (c) a unit just freed from a seal can't be sealed again for 8 s; (d) a sealed front unit counts as not visible for melee targeting, so melee reaches past it (as with hidden units, ruling 1). Nothing else reaches a sealed unit: no hit, heal, status or status tick.
 
 ### Stat Budget (ruling 8)
 Each base class has one stat budget for its advanced classes: they differ only in how it is spread. Total = HP ÷ 5 + Atk + Def + Mag + Spd at level 1, and the same sum of the per-level growth.
