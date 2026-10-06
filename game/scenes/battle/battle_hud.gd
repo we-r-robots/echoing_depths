@@ -792,26 +792,31 @@ func _build_intro() -> void:
 		_intro[side] = box
 		var rows: Array = []
 		var tw := INTRO_W - 24.0
-		for list: Array in _intro_effects(side):
-			if list.is_empty():
-				continue
-			var row: Array = []
-			for e: Dictionary in list:
-				row.append([e, _chip_label_w(String(e["title"]))])
-			# one row: if the labels don't fit, stat chips keep their subject and value ("Ilse +40%";
-			# the icon names the stat), then labels drop from the end (the tooltip still says it all)
-			if _row_w(row) > tw:
-				for item: Array in row:
-					var e: Dictionary = item[0]
-					if String(e.get("kind", "")) == "stat" and e.has("value"):
-						var subj := String(e.get("subject", ""))
-						e["title"] = (subj + " " if subj != "" else "") + String(e["value"])
-						item[1] = _chip_label_w(String(e["title"]))
-			var k := row.size() - 1
-			while _row_w(row) > tw and k >= 0:
-				row[k][1] = 0
-				k -= 1
-			rows.append(row)
+		var fx: Array = _intro_effects(side)
+		var stats: Array = fx[0]
+		var beh: Array = fx[1]
+		# every chip keeps a label, one label style per row (critic r6: "Oren +40%" twice, two bare
+		# chips): "Oren Heal +40%", else "Heal +40%"; when even that row is too wide, the costs move
+		# down beside the behaviour glyph (gains on top). Labels are never dropped.
+		var stat_row := _label_row(stats, tw)
+		if stat_row.is_empty() and not stats.is_empty():
+			var gains: Array = []
+			var costs: Array = []
+			for e: Dictionary in stats:
+				(gains if int(e.get("sign", 1)) >= 0 else costs).append(e)
+			var g_row := _label_row(gains, tw)
+			var low := _label_row(costs + beh, tw)
+			if not g_row.is_empty() and not low.is_empty():
+				rows = [g_row, low]
+			else:
+				rows = [_label_row(stats, tw, true), _label_row(beh, tw, true)]
+		else:
+			rows = [stat_row, _label_row(beh, tw, true)]
+		var kept: Array = []
+		for row: Array in rows:
+			if not row.is_empty():
+				kept.append(row)
+		rows = kept
 		_intro_rows[side] = rows
 		for row: Array in rows:
 			for it: Array in row:
@@ -820,6 +825,23 @@ func _build_intro() -> void:
 				chip.setup(it[0], "below", int(it[1]))
 				it.append(chip)
 		box.visible = false
+
+
+## One chip row with every label at the longest style that fits `tw` ("Oren Heal +40%", then
+## "Heal +40%"), or [] when none does (with `force`, the shortest style regardless).
+func _label_row(list: Array, tw: float, force := false) -> Array:
+	if list.is_empty():
+		return []
+	for style in 2:
+		var row: Array = []
+		for e0: Dictionary in list:
+			var e := e0.duplicate()
+			if String(e.get("kind", "")) == "stat" and style == 1:
+				e["title"] = String(e.get("short", e["title"]))
+			row.append([e, _chip_label_w(String(e["title"]))])
+		if _row_w(row) <= tw or (force and style == 1):
+			return row
+	return []
 
 
 func _chip_label_w(t: String) -> float:

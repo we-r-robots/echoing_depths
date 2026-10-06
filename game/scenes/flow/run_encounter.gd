@@ -115,12 +115,28 @@ func _build() -> void:
 	add_child(_col)
 	var info := EncounterDB.kind_info(kind)
 	var kc := Pal.c(String(info.get("color", "amber6")))
-	var tag := FlowUI.label(String(info.get("label", "Legend's memory" if kind == "legend" else kind)).to_upper(),
-		&"TagLabel", kc, COL_W, HORIZONTAL_ALIGNMENT_CENTER)
+	# the encounter screen's heading, piece for piece (critic r6: the two read as different screens):
+	# rule, kind icon, KIND, rule; the serif title; the divider ornament
+	var tag := HBoxContainer.new()
+	tag.add_theme_constant_override("separation", 4)
+	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tag.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var icon := TextureRect.new()
+	icon.texture = load(String(info.get("icon", "res://ui/icons/kind_riddle.png")))
+	icon.modulate = kc
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var tl := FlowUI.label(String(info.get("label", "Legend's memory" if kind == "legend" else kind)).to_upper(), &"TagLabel", kc)
+	for n: Control in [_rule(), icon, tl, _rule()]:
+		tag.add_child(n)
 	_col.add_child(tag)
 	var title := FlowUI.label(String(node.get("title", "")), &"HeadingLabel", null, COL_W, HORIZONTAL_ALIGNMENT_CENTER)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_col.add_child(title)
+	var div := TextureRect.new()
+	div.texture = load("res://ui/divider.png")
+	div.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	div.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_col.add_child(div)
 	_body = RichTextLabel.new()
 	_body.bbcode_enabled = true
 	_body.fit_content = true
@@ -148,11 +164,20 @@ func _build() -> void:
 	_result = FlowUI.vbox(3)
 	_result.visible = false
 	_col.add_child(_result)
-	_continue = FlowUI.primary("Continue", 120)
+	# the encounter screen's Continue: the column's full width under the result card
+	_continue = FlowUI.primary("Continue", COL_W)
 	_continue.visible = false
 	_continue.pressed.connect(_on_continue)
 	_col.add_child(_continue)
-	_continue.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+
+
+func _rule() -> Control:
+	var r := ColorRect.new()
+	r.color = Pal.INK4
+	r.custom_minimum_size = Vector2(18, 1)
+	r.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return r
 
 
 func _build_chips() -> void:

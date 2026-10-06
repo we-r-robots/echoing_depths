@@ -189,7 +189,10 @@ func _layout() -> void:
 	_body_top = top + 52
 	_body.position.y = _body_top
 	var cy := mini(_body_top + body_h + 24, BOTTOM - ch_h)
-	_legend.position = Vector2(col_x + COL_W - _legend.custom_minimum_size.x - 4, cy - 11)
+	# the legend sits right on top of the first row's mini grid, right edges aligned (critic r6: it
+	# read as far from the grids it explains)
+	var gx := col_x + EncounterChoiceButton.grid_x_of(COL_W) + EncounterChoiceButton.GRID_W
+	_legend.position = Vector2(gx - _legend.custom_minimum_size.x, cy - _legend.custom_minimum_size.y - 1)
 	_choice_box.position = Vector2(col_x, cy)
 
 
@@ -208,27 +211,21 @@ func _make_legend() -> Control:
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var font: Font = UIText.BOLD
-	var any_awaken := false   # (the rows say "Awakens" themselves)
-	var w := 8.0 + UIText.width("now", font, UIText.LABEL) + 6.0 + 10.0 + UIText.width("after", font, UIText.LABEL)
-	if any_awaken:
-		w += 10.0 + 9.0 + UIText.width("ready to Awaken", font, UIText.LABEL)
-	c.custom_minimum_size = Vector2(ceilf(w), 10)
+	# markers drawn as the mini grid draws them, at its cell size: a filled cell = now, a ring = after
+	var cs := EncounterChoiceButton.CELL
+	var w := cs + 3.0 + UIText.width("now", font, UIText.LABEL) + 8.0 + cs + 3.0 + UIText.width("after", font, UIText.LABEL)
+	c.custom_minimum_size = Vector2(ceilf(w), 12)
 	c.draw.connect(func() -> void:
 		var x := 0.0
-		c.draw_rect(Rect2(x, 2, 5, 5), Pal.INK9)
-		x += 8
-		UIText.draw_base(c, Vector2(x, 8), "now", Pal.INK9, font, UIText.LABEL, false)
-		x += UIText.width("now", font, UIText.LABEL) + 6
-		var r := Rect2(x, 1, 7, 7)
-		for e in [Rect2(r.position, Vector2(7, 1)), Rect2(r.position + Vector2(0, 6), Vector2(7, 1)), Rect2(r.position, Vector2(1, 7)), Rect2(r.position + Vector2(6, 0), Vector2(1, 7))]:
+		c.draw_rect(Rect2(x, 1, cs, cs), Pal.INK9)
+		x += cs + 3
+		UIText.draw(c, Vector2(x, UIText.centered_y(1, cs, font, UIText.LABEL)), "now", Pal.INK9, font, UIText.LABEL, false)
+		x += UIText.width("now", font, UIText.LABEL) + 8
+		var r := Rect2(x, 1, cs, cs)
+		for e in [Rect2(r.position, Vector2(cs, 1)), Rect2(r.position + Vector2(0, cs - 1), Vector2(cs, 1)), Rect2(r.position, Vector2(1, cs)), Rect2(r.position + Vector2(cs - 1, 0), Vector2(1, cs))]:
 			c.draw_rect(e, Pal.INK10)
-		x += 10
-		UIText.draw_base(c, Vector2(x, 8), "after", Pal.INK9, font, UIText.LABEL, false)
-		if any_awaken:
-			x += UIText.width("after", font, UIText.LABEL) + 10
-			c.draw_texture(AWAKEN_ICON, Vector2(x, 0), Pal.AMBER6)
-			x += 9
-			UIText.draw_base(c, Vector2(x, 8), "ready to Awaken", Pal.INK9, font, UIText.LABEL, false))
+		x += cs + 3
+		UIText.draw(c, Vector2(x, UIText.centered_y(1, cs, font, UIText.LABEL)), "after", Pal.INK9, font, UIText.LABEL, false))
 	return c
 
 

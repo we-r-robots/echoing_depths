@@ -91,31 +91,19 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 			parts.append("%s +%d" % [w["word"], w["amount"]])
 		shift_text = ", ".join(parts)
 	l2.add_child(_label(shift_text, Pal.INK9 if eff != Vector2i.ZERO else Pal.INK8, true))
-	# what fits beside the grid: the strong-shift star and the word "Awakens" go first to the
-	# tooltip (the gold studs still mark a strong row; the amber glyph still marks an Awakening)
-	var room2 := float(width - 42 - (GRID_W - 4) - 8 - 6)
-	var used := l2.get_combined_minimum_size().x
-	var aw := 3.0 + 9.0 + 3.0 + UIText.width("Awakens", UIText.BOLD, UIText.BODY)
-	# an Awakening always shows glyph + word (critic r4), in one place on every row: the end of
-	# line 1, right-aligned before the grid (the action's title is a size step down, so it fits);
-	# on line 2 only when line 1 has no room
-	var aw_line1 := false
+	# an Awakening always sits in ONE place on every row (critic r6: it moved between lines): line 1,
+	# right-aligned against the mini grid, glyph + word; when the action's title leaves no room for
+	# the word, the glyph alone holds the same spot (the word is in the grid's tooltip)
 	if awakens:
-		var tw := 9.0 + 3.0 + UIText.width("Awakens", UIText.BOLD, UIText.BODY)
-		var right := float(width - (GRID_W - 4) - 8 - 8)
-		var title_end := 42.0 + UIText.width(what.text, UIText.SERIF, UIText.TITLE) + 8.0
-		if right - tw >= title_end:
-			aw_line1 = true
-			var tag := _row(Vector2(roundf(right - tw), 12 + roundf(UIText.ascent(UIText.SERIF, UIText.TITLE) - UIText.ascent(UIText.BOLD, UIText.BODY))), 3)
-			tag.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
+		var word_w := UIText.width("Awakens", UIText.BOLD, UIText.BODY)
+		var right := float(grid_x_of(width)) - 4.0
+		var title_end := 42.0 + UIText.width(what.text, UIText.SERIF, UIText.TITLE) + 4.0
+		var with_word := right - (9.0 + 3.0 + word_w) >= title_end
+		var tw := (9.0 + 3.0 + word_w) if with_word else 9.0
+		var tag := _row(Vector2(roundf(right - tw), 12 + roundf(UIText.ascent(UIText.SERIF, UIText.TITLE) - UIText.ascent(UIText.BOLD, UIText.BODY))), 3)
+		tag.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
+		if with_word:
 			tag.add_child(_label("Awakens", Pal.AMBER6, true))
-	var aw_line2 := awakens and not aw_line1
-	# (no strong-shift star: critic r5 found it unexplained; the tooltip says "Strong shift")
-	if aw_line2:
-		l2.add_child(_spacer(2))
-		l2.add_child(_icon("res://ui/icons/arrow2_up.png", Pal.AMBER6, 2))
-		if used + aw <= room2:
-			l2.add_child(_label("Awakens", Pal.AMBER6, true))
 	if c.has("recruit"):
 		l2.add_child(_spacer(4))
 		l2.add_child(_label("+ %s joins" % c["recruit"]["name"], Pal.LIFE4, true))
@@ -127,7 +115,7 @@ func setup(c: Dictionary, h: Dictionary, idx: int, width: int) -> void:
 	grid.from_pos = h["pos"]
 	grid.to_pos = EncounterDB.clamp_pos(h["pos"] + s)
 	grid.show_target = true
-	grid.position = Vector2(width - grid.total_size() - 8, int((H - grid.total_size()) / 2.0))
+	grid.position = Vector2(grid_x_of(width), int((H - grid.total_size()) / 2.0))
 	add_child(grid)
 	grid.mouse_filter = Control.MOUSE_FILTER_STOP
 	Tip.attach(grid, String(h["name"]), _detail(c, h, lv, eff, s), cc)
@@ -155,6 +143,11 @@ func _detail(c: Dictionary, h: Dictionary, lv: int, eff: Vector2i, s: Vector2i) 
 		out.append("%s joins the party." % c["recruit"]["name"])
 	out.append("Grid: solid cell now, ring after.")
 	return " ".join(out)
+
+
+## The mini grid's left edge in a row `width` wide.
+static func grid_x_of(width: int) -> int:
+	return width - GRID_W - 8
 
 
 var small := false   # the action label is one size step down (too long for serif 15)
