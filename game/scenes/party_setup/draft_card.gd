@@ -1,9 +1,11 @@
 class_name DraftCard
 extends Control
-## One offered hero in the starting draft. The hero first (3x sprite on a lit stage, name, class),
-## then the fixed starting alignment in one line, labelled base stats, and one line each for the
-## basic action and the ability (tap either for the full text in the shared Tip). The rest of the
-## card is the tap target (toggle pick).
+## One offered hero in the starting draft, in the Sea of Stars party-menu rhythm (hires-ui r7: the
+## card lost on density and three type voices): the hero (3x sprite on a lit stage), the name (the
+## card's one serif line), class and starting alignment on one line, then two aligned columns of
+## label / value rows (HP Atk Def | Mag Spd Row) and one ability row. Everything secondary (what the
+## ability does, the basic attack, what the alignment means) is in the rows' tooltips. The rest of
+## the card is the tap target (toggle pick).
 
 signal tapped
 
@@ -28,12 +30,13 @@ var _flash := 0.0
 var _motes: Array = []
 var _rows: Array = []
 
-const NAME_Y := 150
+const NAME_Y := 152
 const NAME_SIZE := 20               # serif, one size step above the card's other text
-const CLASS_Y := 179
-const STATS_Y := 197
-## Tooltip rows: [basic, ability] (the ability reads first, the basic attack is one quiet line).
-const ROW_RECT := [Rect2(4, 268, 0, 16), Rect2(4, 228, 0, 36)]
+const CLASS_Y := 181
+const STATS_Y := 204
+const STAT_ROW := 17                # one row pitch for every label / value line
+## The ability row (its tooltip carries the ability's full sentence and the basic attack).
+const ABILITY_RECT := Rect2(4, 262, 0, 20)
 var _class_tip: Control
 var _tag_tip: Control
 ## One short plain line per base action, and the full plain sentence for its tooltip.
@@ -111,20 +114,15 @@ func setup(hd: Dictionary, width: int, height: int, phase := 0) -> void:
 	_class_tip.size = Vector2(w - 8, 16)
 	add_child(_class_tip)
 	Tip.attach(_class_tip, PartyModel.class_name_of(base), ctext, ccol)
-	_tag_tip = Control.new()
-	_tag_tip.position = Vector2(_stage().position.x + 1, _stage().position.y + 1)
-	_tag_tip.size = Vector2(18, 18)
-	add_child(_tag_tip)
-	Tip.attach(_tag_tip, PartyModel.class_name_of(base), ctext, ccol)
-	for k in 2:
-		var aid := String(cdef.get("basic" if k == 0 else "ability", ""))
-		var row := Control.new()
-		var rr: Rect2 = ROW_RECT[k]
-		row.position = rr.position
-		row.size = Vector2(w - 8, rr.size.y)
-		add_child(row)
-		_rows.append(row)
-		Tip.attach(row, String(GameData.get_action(aid).get("name", aid)), action_full(aid), Pal.c(info["color"]) if k == 1 else Pal.INK9)
+	var abid := String(cdef.get("ability", ""))
+	var bid := String(cdef.get("basic", ""))
+	var row := Control.new()
+	row.position = ABILITY_RECT.position
+	row.size = Vector2(w - 8, ABILITY_RECT.size.y)
+	add_child(row)
+	_rows.append(row)
+	Tip.attach(row, String(GameData.get_action(abid).get("name", abid)), "%s Basic attack, %s: %s" % [
+		action_full(abid), String(GameData.get_action(bid).get("name", bid)), action_full(bid)], ccol)
 	queue_redraw()
 
 
@@ -191,38 +189,35 @@ func _draw() -> void:
 	var ax := w - 8 - PartyDraw.text_w(aw, PartyDraw.BOLD)
 	PartyDraw.tint_tex(self, START, Vector2(ax - 11, ly + 2), Pal.INK8)
 	PartyDraw.text(self, Vector2(ax, ly), aw, Pal.INK9, PartyDraw.BOLD)
-	# stats: muted labels, bright values
+	# stats: two aligned columns of label / value rows, one face, one row pitch (Sea of Stars:
+	# muted label left, bright value right-aligned in its column)
 	var st := PartyModel.stats({"class": hero["class"], "level": 1, "items": {}})
-	var sy := STATS_Y
-	var cw := floori((w - 16) / 5.0)
-	var sx := 8
-	for sname: String in ["hp", "atk", "def", "mag", "spd"]:
-		var well := Rect2(sx, sy, cw - 2, 25)
-		PartyDraw.inset(self, well)
-		draw_rect(Rect2(well.position.x + 1, well.position.y, well.size.x - 2, 1), STAT_COLORS[sname])
-		PartyDraw.text(self, Vector2(sx, sy + 2), PartyModel.STAT_LABELS[sname], Pal.INK9, PartyDraw.BOLD, UIText.BODY, false, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
-		PartyDraw.text(self, Vector2(sx, sy + 13), str(st[sname]), Pal.INK10, PartyDraw.BOLD, UIText.BODY, true, cw - 2, HORIZONTAL_ALIGNMENT_CENTER)
-		sx += cw
-	# the ability (its name and one short line), then the basic attack as one quiet line; the full
-	# sentences are in each row's tooltip
-	for k in 2:
-		var aid := String(cdef.get("basic" if k == 0 else "ability", ""))
-		var act := GameData.get_action(aid)
-		var rr: Rect2 = ROW_RECT[k]
-		rr.size.x = w - 8
-		var lit := k < _rows.size() and Tip.is_open_for(_rows[k])
-		if lit:
-			draw_rect(rr, Pal.INK3)
-		var y := rr.position.y + 2
-		if k == 1:
-			# the same icon + name + short label as hero detail (PartyModel.ability_short), in the
-			# card's one body face: only the hero's name is serif
-			PartyDraw.tint_tex(self, ABILITY, Vector2(8, y + 3), cc)
-			PartyDraw.text(self, Vector2(18, y), String(act.get("name", aid)), Pal.INK10, PartyDraw.BOLD)
-			PartyDraw.text(self, Vector2(18, y + 14), PartyModel.ability_short(act), Pal.INK9, PartyDraw.BOLD)
-		else:
-			draw_rect(Rect2(8, rr.position.y - 3, w - 16, 1), Pal.INK3)
-			PartyDraw.text(self, Vector2(8, y), "Basic: %s" % String(act.get("name", aid)), Pal.INK9, PartyDraw.BOLD)
+	draw_rect(Rect2(8, STATS_Y - 6, w - 16, 1), Pal.INK3)
+	var colw := floori((w - 16 - 12) / 2.0)
+	var cols := [["hp", "atk", "def"], ["mag", "spd", "row"]]
+	for ci in 2:
+		var x0 := 8 + ci * (colw + 12)
+		for ri in 3:
+			var k: String = cols[ci][ri]
+			var y := STATS_Y + ri * STAT_ROW
+			var lab := "Row" if k == "row" else String(PartyModel.STAT_LABELS[k])
+			var val := ("Front" if int(cdef.get("preferred_col", 0)) == 0 else "Back") if k == "row" else str(st[k])
+			if k != "row":
+				PartyDraw.tint_tex(self, HeroCard.ICONS[k], Vector2(x0, y + 2), STAT_COLORS[k], false)
+			PartyDraw.text(self, Vector2(x0 + 11, y), lab, Pal.INK8, PartyDraw.BOLD)
+			PartyDraw.text(self, Vector2(x0, y), val, Pal.INK10, PartyDraw.BOLD, UIText.BODY, true, colw, HORIZONTAL_ALIGNMENT_RIGHT)
+	# the ability: icon and name on one row; what it does and the basic attack are in its tooltip
+	var abid := String(cdef.get("ability", ""))
+	var act := GameData.get_action(abid)
+	var rr := ABILITY_RECT
+	rr.size.x = w - 8
+	draw_rect(Rect2(8, rr.position.y - 5, w - 16, 1), Pal.INK3)
+	if not _rows.is_empty() and Tip.is_open_for(_rows[0]):
+		draw_rect(rr, Pal.INK3)
+	var ay := UIText.centered_y(rr.position.y, rr.size.y, PartyDraw.BOLD)
+	PartyDraw.tint_tex(self, ABILITY, Vector2(8, rr.position.y + 6), cc)
+	PartyDraw.text(self, Vector2(19, ay), String(act.get("name", abid)), Pal.INK10, PartyDraw.BOLD)
+	PartyDraw.text(self, Vector2(8, ay), "Ability", Pal.INK8, PartyDraw.BOLD, UIText.BODY, true, w - 16, HORIZONTAL_ALIGNMENT_RIGHT)
 	if pick > 0:
 		PartyDraw.soft_outline(self, r, Pal.AMBER5)
 		PartyDraw.soft_outline(self, r.grow(-1), Pal.AMBER3)
@@ -237,10 +232,6 @@ func _draw_over() -> void:
 	_over.size = size
 	if pick <= 0:
 		return
-	var b := Rect2(_stage().end.x - 17, _stage().position.y + 3, 14, 14)
-	_over.draw_rect(b, Pal.AMBER2)
-	PartyDraw.soft_outline(_over, b, Pal.AMBER5)
-	PartyDraw.text(_over, b.position + Vector2(0, 1), str(pick), Pal.AMBER7, PartyDraw.BOLD, UIText.BODY, false, 14, HORIZONTAL_ALIGNMENT_CENTER)
 	var st := _stage()
 	var fr := Rect2(st.position.x + 1, st.end.y - 16, st.size.x - 2, 14)
 	_over.draw_rect(fr, Pal.AMBER1)
@@ -290,11 +281,6 @@ func _draw_stage(cc: Color) -> void:
 			draw_rect(Rect2(Vector2(x, y).round(), Vector2(1, 1)), Pal.AMBER5 if ph < 0.7 else Pal.AMBER3)
 	PartyDraw.soft_outline(self, r, Pal.INK5)
 	draw_rect(Rect2(r.position.x + 1, r.end.y - 2, r.size.x - 2, 1), cc)
-	# class corner tag
-	var tg := Rect2(r.position.x + 3, r.position.y + 3, 13, 13)
-	draw_rect(tg, Pal.INK1)
-	PartyDraw.soft_outline(self, tg, cc)
-	draw_texture(PartyDraw.icon(info["icon"]), tg.position + Vector2(3, 3), cc)
 
 
 static func _align_words(a: Array) -> String:

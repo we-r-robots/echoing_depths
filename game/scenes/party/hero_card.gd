@@ -19,6 +19,7 @@ const SLOT_ICONS := {
 	"relic": preload("res://assets/party/slot_relic.png"),
 }
 const LOCK := preload("res://assets/party/lock.png")
+const GameData = preload("res://core/game_data.gd")
 const ABILITY := preload("res://assets/party/ability.png")
 const STAGE := Rect2(8, 8, 80, 100)
 const NAME_SIZE := 20      # the hero's name, one size step above the panel's other text
@@ -28,11 +29,12 @@ const LV_W := 44           # room for "Lv 4/6" before the stars
 const TAKEN_Y := 62        # the memories row: one 16x16 well per memory (its arrow), then the empty ones
 const TAKEN_X := 52        # room for "Memories" before the wells
 const WELL := 16           # memory wells: 16 design px = 48 screen px at 1080p, arrows drawn x2
-const STATS_Y := 116
-const EQUIP_Y := 151
+const STATS_Y := 117
+const STAT_ROW := 14       # label / value rows, two aligned columns (Sea of Stars' stat list)
+const EQUIP_Y := 163
 const ROW := 22            # weapon / armor rows: slot icon, name, stat chips right-aligned
 const ROW_RELIC := 36      # the Relic row: name and BOUND, then its alignment and stat chips
-const ABILITY_Y := 238
+const ABILITY_Y := 251
 const NOTE_Y := 276        # the screen's one status sentence, inside the card (critic r3)
 
 var hero: Dictionary = {}
@@ -154,7 +156,7 @@ func _build_tips() -> void:
 			"An advanced class. Its level stars fill as it grows. Legendary gate: sealed (a Legendary class needs a sacrifice).", Pal.AMBER6)
 	var a := PartyModel.ability_of(String(hero["class"]))
 	var note := "Replaced by the new class's ability on advancing." if PartyModel.tier(hero) == "base" else "This advanced class's ability."
-	_ability_tip = _tip_area(Rect2(6, ABILITY_Y - 2, W - 12, 32))
+	_ability_tip = _tip_area(Rect2(6, ABILITY_Y - 3, W - 12, 20))
 	Tip.attach(_ability_tip, String(a.get("name", "")), PartyModel.ability_desc(a) + " " + note, Pal.c(info["color"]))
 
 
@@ -361,7 +363,7 @@ func _draw_note() -> void:
 		return
 	var r := Rect2(8, NOTE_Y, W - 16, H - NOTE_Y - 8)
 	draw_rect(Rect2(8, NOTE_Y - 5, W - 16, 1), Pal.INK3)
-	var lines := UIText.wrap_lines(message, int(r.size.x), UIText.BOLD, UIText.BODY)
+	var lines := balanced_lines(message, r.size.x)
 	var lh := UIText.line_h(UIText.BOLD, UIText.BODY)
 	var y := r.position.y + roundf((r.size.y - lines.size() * lh) / 2.0)
 	for l: String in lines:
@@ -369,24 +371,42 @@ func _draw_note() -> void:
 		y += lh
 
 
+## Wraps to the fewest lines, then evens them out (no one-word widow, critic r6): the narrowest
+## width that keeps the same line count.
+static func balanced_lines(s: String, width: float) -> PackedStringArray:
+	var lines := UIText.wrap_lines(s, width, UIText.BOLD, UIText.BODY)
+	if lines.size() < 2:
+		return lines
+	var lo := 20.0
+	var hi := width
+	while hi - lo > 1.0:
+		var mid := floorf((lo + hi) / 2.0)
+		if UIText.wrap_lines(s, mid, UIText.BOLD, UIText.BODY).size() <= lines.size():
+			hi = mid
+		else:
+			lo = mid
+	return UIText.wrap_lines(s, hi, UIText.BOLD, UIText.BODY)
+
+
 func _draw_stats(y: int) -> void:
-	# no section header: the stat icons say what this strip is. Label and value share one centre
-	# line per column (critic r5: left labels over right-aligned values read as two columns).
+	# two aligned columns of label / value rows, one face, one row pitch (hires-ui r7, after Sea of
+	# Stars' equipment screen): stat icon and muted label left, bright value right-aligned
 	var st := PartyModel.stats(hero)
-	var x := 8
-	var cw := 40
-	for s: String in ["hp", "atk", "def", "mag", "spd"]:
-		var r := Rect2(x, y, cw, 27)
-		PartyDraw.row(self, Rect2(r.position, Vector2(cw, 12)))
-		var lab: String = PartyModel.STAT_LABELS[s]
-		var lw := 9 + PartyDraw.text_w(lab, PartyDraw.BOLD)
-		var lx := x + roundi((cw - lw) / 2.0)
-		PartyDraw.tint_tex(self, ICONS[s], Vector2(lx, y + 2), STAT_COLORS[s])
-		PartyDraw.text(self, Vector2(lx + 9, y), lab, Pal.INK9, PartyDraw.BOLD)
-		var well := Rect2(x, y + 13, cw, 13)
-		PartyDraw.inset(self, well)
-		PartyDraw.text(self, Vector2(x, y + 14), str(st[s]), Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, cw, HORIZONTAL_ALIGNMENT_CENTER)
-		x += cw + 3
+	var colw := floori((W - 16 - 14) / 2.0)
+	var cols := [["hp", "atk", "def"], ["mag", "spd", "row"]]
+	var pref := int(GameData.get_class_def(PartyModel.base_class(hero)).get("preferred_col", 0))
+	for ci in 2:
+		var x0 := 8 + ci * (colw + 14)
+		for ri in 3:
+			var k: String = cols[ci][ri]
+			var ry := y + ri * STAT_ROW
+			var lab := "Row" if k == "row" else String(PartyModel.STAT_LABELS[k])
+			var val := ("Front" if pref == 0 else "Back") if k == "row" else str(st[k])
+			if k != "row":
+				PartyDraw.tint_tex(self, ICONS[k], Vector2(x0, ry + 2), STAT_COLORS[k], false)
+			PartyDraw.text(self, Vector2(x0 + 11, ry), lab, Pal.INK8, PartyDraw.BOLD)
+			PartyDraw.text(self, Vector2(x0, ry), val, Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, colw, HORIZONTAL_ALIGNMENT_RIGHT)
+	draw_rect(Rect2(8, y + 3 * STAT_ROW + 1, W - 16, 1), Pal.INK3)
 
 
 func _draw_equipment(y: int) -> void:
@@ -397,11 +417,9 @@ func _draw_equipment(y: int) -> void:
 		var it := PartyModel.item(id) if id != "" else {}
 		var rh := ROW_RELIC if slot == "relic" else ROW
 		var r := Rect2(8, ry, W - 16, rh - 1)
-		if slot == "relic":
-			draw_rect(r, Pal.AMBER1 if id != "" else Pal.INK2)
-			PartyDraw.soft_outline(self, r, Pal.AMBER3 if id != "" else Pal.INK4)
-		else:
-			PartyDraw.row(self, r)
+		# every slot is the same quiet row (hires-ui r7: one highlighted selection per screen, the
+		# hero's tab; the Relic is marked by its amber name, lock and BOUND, not a second fill)
+		PartyDraw.row(self, r)
 		var ty := UIText.centered_y(ry, ROW - 1, UIText.BOLD, PartyDraw.SANS_SIZE)
 		var well := Rect2(10, ry + 4, 13, 13)
 		PartyDraw.inset(self, well)
@@ -444,12 +462,14 @@ func _draw_ability(y: int) -> void:
 	draw_rect(Rect2(8, y - 5, W - 16, 1), Pal.INK3)
 	var a := PartyModel.ability_of(String(hero["class"]))
 	if _ability_tip != null and Tip.is_open_for(_ability_tip):
-		draw_rect(Rect2(6, y - 2, W - 12, 32), Pal.INK3)
-	var well := Rect2(8, y + 2, 15, 15)
+		draw_rect(Rect2(6, y - 3, W - 12, 20), Pal.INK3)
+	var well := Rect2(8, y - 1, 15, 15)
 	PartyDraw.inset(self, well)
 	var cc := Pal.c(info["color"])
 	draw_texture(ABILITY, well.position + Vector2(4, 4), cc)
 	# BUILD.md "effects are icons" (user ruling 2026-10-05): the name and a label of 20 characters or
-	# fewer, set the same way as on the draft card; the full sentence is in the tooltip
-	PartyDraw.text(self, Vector2(28, y), String(a.get("name", "—")), Pal.INK10, PartyDraw.BOLD)
-	PartyDraw.text(self, Vector2(28, y + 14), PartyModel.ability_short(a), Pal.INK9, PartyDraw.BOLD)
+	# fewer on one row (hires-ui r7: fewer lines); the full sentence is in the tooltip
+	var nm := String(a.get("name", "—"))
+	var ty := UIText.centered_y(y - 1, 15, PartyDraw.BOLD)
+	PartyDraw.text(self, Vector2(28, ty), nm, Pal.INK10, PartyDraw.BOLD)
+	PartyDraw.text(self, Vector2(28 + PartyDraw.text_w(nm, PartyDraw.BOLD) + 8, ty), PartyModel.ability_short(a), Pal.INK8, PartyDraw.BOLD)

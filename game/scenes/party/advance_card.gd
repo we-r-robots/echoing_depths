@@ -13,6 +13,7 @@ const H := 312
 const GEM := preload("res://ui/icons/memory_gem.png")
 const STAR := preload("res://ui/icons/star.png")
 const POINTER := preload("res://assets/party/pointer.png")
+const STAT_PITCH := 14
 
 var hero: Dictionary = {}
 var codex: Array = []
@@ -136,8 +137,8 @@ func _draw() -> void:
 	var eff := PartyModel.effective(hero)
 	var region := PartyModel.region_of(eff)
 	PartyDraw.text(self, Vector2(x, 38), "They stand in %s." % PartyModel.region_words(region).replace("Neutral cross", "the neutral cross"), Pal.INK8, PartyDraw.BOLD)
-	_draw_advance(Rect2(6, 52, W - 12, 128))
-	_draw_hold(Rect2(6, 184, W - 12, 74))
+	_draw_advance(Rect2(6, 52, W - 12, 134))
+	_draw_hold(Rect2(6, 190, W - 12, 76))
 	# pointer hand beside the focused button
 	var b := _btn_adv if focus == 0 else _btn_hold
 	var bob := 1 if fmod(_t, 0.6) < 0.3 else 0
@@ -176,7 +177,8 @@ func _draw_advance(r: Rect2) -> void:
 	var sub := ("%s  ·  " % lean if lean != "" and PartyModel.region_of(PartyModel.effective(hero)) != "N" else "")
 	sub += "joins the codex" if not known else "known path"
 	PartyDraw.text(self, Vector2(x, y + 31), sub, Pal.INK8, PartyDraw.BOLD)
-	# stats: before > after (change)
+	# stats: before > after (change), one row pitch with room between rows (critic r6: the block
+	# was small and dense)
 	var a := PartyModel.stats(hero)
 	var b := PartyModel.stats(adv) if id != "" else a
 	var sy := y + 44
@@ -184,9 +186,9 @@ func _draw_advance(r: Rect2) -> void:
 	var keys := ["hp", "atk", "def", "mag", "spd"]
 	for i in keys.size():
 		var k: String = keys[i]
-		var ry := sy + i * 12
+		var ry := sy + i * STAT_PITCH
 		if i % 2 == 0:
-			draw_rect(Rect2(r.position.x + 2, ry, r.size.x - 4, 12), Pal.INK3 if lit else Pal.INK2)
+			draw_rect(Rect2(r.position.x + 2, ry - 1, r.size.x - 4, STAT_PITCH), Pal.INK3 if lit else Pal.INK2)
 		PartyDraw.tint_tex(self, HeroCard.ICONS[k], Vector2(cx[0], ry + 3), HeroCard.STAT_COLORS[k], false)
 		PartyDraw.text(self, Vector2(cx[0] + 10, ry + 1), PartyModel.STAT_LABELS[k], Pal.INK8, PartyDraw.BOLD)
 		PartyDraw.text(self, Vector2(cx[1], ry + 1), str(a[k]), Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, 26, HORIZONTAL_ALIGNMENT_RIGHT)
@@ -195,12 +197,12 @@ func _draw_advance(r: Rect2) -> void:
 		var d := int(b[k]) - int(a[k])
 		var dc := Pal.LIFE4 if d > 0 else (Pal.BLOOD4 if d < 0 else Pal.INK6)
 		var ds := "(%+d)" % d if d != 0 else "(=)"
-		PartyDraw.text(self, Vector2(cx[4], ry + 1), ds, dc)
+		PartyDraw.text(self, Vector2(cx[4], ry + 1), ds, dc, PartyDraw.BOLD)
 	# bars to the right: a quick visual of the new stat line vs the old
 	var bx := r.position.x + 140
 	for i in keys.size():
 		var k: String = keys[i]
-		var ry := sy + i * 12 + 4
+		var ry := sy + i * STAT_PITCH + 4
 		var mx := 240.0 if k == "hp" else 40.0
 		var wa := clampi(roundi(float(a[k]) / mx * 66.0), 1, 66)
 		var wb := clampi(roundi(float(b[k]) / mx * 66.0), 1, 66)
@@ -211,13 +213,13 @@ func _draw_advance(r: Rect2) -> void:
 			draw_rect(Rect2(bx, ry + 1, wa, 3), Pal.INK6)
 			draw_rect(Rect2(bx + wa, ry + 1, wb - wa, 3), HeroCard.STAT_COLORS[k])
 	# ability swap
-	var ab_y := sy + 63
+	var ab_y := sy + keys.size() * STAT_PITCH + 3
 	var old_ab := String(PartyModel.ability_of(String(hero["class"])).get("name", "—"))
 	var new_ab := String(PartyModel.ability_of(id).get("name", "—")) if id != "" else "???"
 	PartyDraw.text(self, Vector2(x, ab_y), "Ability", Pal.INK8, PartyDraw.BOLD)
 	var ox := x + 38
 	PartyDraw.text(self, Vector2(ox, ab_y), old_ab, Pal.INK8, PartyDraw.BOLD)
-	ox += PartyDraw.text_w(old_ab) + 4
+	ox += PartyDraw.text_w(old_ab, PartyDraw.BOLD) + 5
 	PartyDraw.tint_tex(self, preload("res://ui/icons/arrow_right.png"), Vector2(ox, ab_y + 1), Pal.AMBER5)
 	PartyDraw.text(self, Vector2(ox + 10, ab_y), new_ab, Pal.AMBER6, PartyDraw.BOLD)
 
@@ -240,7 +242,7 @@ func _draw_hold(r: Rect2) -> void:
 	for l: Array in lines:
 		PartyDraw.text(self, Vector2(x, ly), l[0], l[2], PartyDraw.BOLD)
 		PartyDraw.text(self, Vector2(x + 8, ly), l[1], Pal.INK8, PartyDraw.BOLD)
-		ly += 11
+		ly += 13
 	# what holding back could reach
 	ly += 3
 	draw_rect(Rect2(r.position.x + 4, ly, r.size.x - 8, 1), Pal.INK3)
@@ -255,4 +257,4 @@ func _draw_hold(r: Rect2) -> void:
 		var t := "Corner %s: %d step away" % [nm, int(_reach["steps"])] if int(_reach["steps"]) == 1 \
 			else "Corner %s: %d steps away" % [nm, int(_reach["steps"])]
 		PartyDraw.text(self, Vector2(x + 10, ly), t, Pal.CRYSTAL5, PartyDraw.BOLD)
-		PartyDraw.text(self, Vector2(x + 10, ly + 11), "needs %s  ·  %d memories left" % [_reach["words"], PartyModel.memories_left(hero)], Pal.INK8, PartyDraw.BOLD)
+		PartyDraw.text(self, Vector2(x + 10, ly + 12), "needs %s  ·  %d memories left" % [_reach["words"], PartyModel.memories_left(hero)], Pal.INK8, PartyDraw.BOLD)

@@ -259,10 +259,11 @@ func _draw_corner_info() -> void:
 			PartyDraw.tint_tex(self, STAR, Vector2(sx + k * 8, cr.position.y + 7), acc)
 		var d := PartyModel.steps(effective, cell)
 		var t := "%d step%s" % [d, "" if d == 1 else "s"]
-		var tw := PartyDraw.text_w(t, PartyDraw.BOLD)
-		var tr := Rect2(cr.position.x + (C - tw - 6) / 2, cr.position.y + 28, tw + 6, 12)
-		draw_rect(tr, Pal.INK1)
-		PartyDraw.text(self, tr.position + Vector2(3, 1), t, Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
+		# a dark band inside the cell, 3 px clear of its bevel on every side (critic r6: the pills
+		# sat on the cell borders)
+		var tr := Rect2(cr.position.x + 3, cr.end.y - 3 - 13, C - 6, 13)
+		draw_rect(tr, Color(Pal.INK1, 0.85))
+		PartyDraw.text(self, Vector2(tr.position.x, UIText.centered_y(tr.position.y, tr.size.y, PartyDraw.BOLD)), t, Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false, tr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 ## Name plate centred on cx, kept inside the grid's frame with 2 px to spare (it may overhang
