@@ -1,11 +1,10 @@
 class_name TitleScreen
 extends Control
-## Title: Continue (when a run is saved), New run, Lanternrest, Settings, Quit (desktop).
+## Title: Continue (when there is a save) or New game, both into Lanternrest, where the game
+## starts (the Vault entrance there starts each run); Settings, Quit (desktop).
 ## The footer shows the team's crest and name and what Lanternrest holds so far.
 ## Signals carry the choice to the flow controller (scenes/flow/flow.gd).
 
-signal new_run
-signal continue_run
 signal lanternrest
 signal settings
 signal quit
@@ -42,10 +41,10 @@ func _ready() -> void:
 	add_child(_sub)
 	_menu = FlowUI.vbox(6)
 	add_child(_menu)
-	if GameState.has_saved_run():
-		_add("continue", "Continue run", continue_run)
-	_add("new", "New run", new_run)
-	_add("lanternrest", "Lanternrest", lanternrest)
+	if GameState.has_save():
+		_add("continue", "Continue", lanternrest)
+	else:
+		_add("new", "New game", lanternrest)
 	_add("settings", "Settings", settings)
 	if not OS.has_feature("mobile") and not OS.has_feature("web"):
 		_add("quit", "Quit", quit)

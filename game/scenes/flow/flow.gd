@@ -1,8 +1,9 @@
 class_name Flow
 extends Control
-## The playable flow: title -> new run -> draft -> the run's nodes (encounters, advancement
+## The playable flow: title -> Lanternrest (the village hub; the game starts there) -> the Vault
+## entrance starts a new run (or continues the saved one) -> draft -> the run's nodes (encounters, advancement
 ## decisions, formation setup, the PvP splash, battles, floor guardians, the Crystal) -> results
-## -> Lanternrest -> title or a new run. Settings from the title.
+## -> back to Lanternrest. Settings from the title.
 ##
 ## The run itself is core's (core/run/run.gd); each screen is its own scene and this controller
 ## only routes between them, records the player's actions (a run is deterministic from its seed,
@@ -120,10 +121,6 @@ func _finish_run() -> void:
 
 func on_title(action: String) -> void:
 	match action:
-		"new":
-			start_new_run()
-		"continue":
-			continue_run()
 		"lanternrest":
 			show_lanternrest()
 		"settings":
@@ -194,11 +191,15 @@ func on_results_done() -> void:
 	show_lanternrest()
 
 
+## The village: the Vault entrance starts a run ("new") or continues the saved one ("continue").
 func on_lanternrest(action: String) -> void:
-	if action == "new":
-		start_new_run()
-	else:
-		show_title()
+	match action:
+		"new":
+			start_new_run()
+		"continue":
+			continue_run()
+		_:
+			show_title()
 
 
 # ======================================================================= helpers
@@ -255,8 +256,6 @@ func _open(kind: String, data: Dictionary) -> void:
 	match kind:
 		"title":
 			var s := TitleScreen.open(self)
-			s.new_run.connect(on_title.bind("new"))
-			s.continue_run.connect(on_title.bind("continue"))
 			s.lanternrest.connect(on_title.bind("lanternrest"))
 			s.settings.connect(on_title.bind("settings"))
 			s.quit.connect(on_title.bind("quit"))
@@ -268,6 +267,7 @@ func _open(kind: String, data: Dictionary) -> void:
 		"lanternrest":
 			var s := LanternrestScreen.open(self)
 			s.new_run.connect(on_lanternrest.bind("new"))
+			s.continue_run.connect(on_lanternrest.bind("continue"))
 			s.to_title.connect(on_lanternrest.bind("title"))
 			screen = s
 		"draft":
@@ -360,7 +360,7 @@ func bot_step(stop_at := "") -> bool:
 	var d: Dictionary = p["data"]
 	match kind:
 		"title":
-			on_title("new")
+			on_title("lanternrest")
 		"settings":
 			show_title()
 		"draft":
@@ -399,5 +399,8 @@ func bot_step(stop_at := "") -> bool:
 		"results":
 			on_results_done()
 		"lanternrest":
-			on_lanternrest("title")
+			# the first visit descends through the Vault entrance; after a run it goes home
+			if GameState.identity_needed():
+				GameState.set_identity(GameState.DEFAULT_TEAM, Crests.DEFAULT_CREST)
+			on_lanternrest("new" if run == null else "title")
 	return true

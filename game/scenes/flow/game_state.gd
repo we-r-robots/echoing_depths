@@ -69,7 +69,7 @@ static func default_meta() -> Dictionary:
 		"story_chapter": 1, "unlocked_formations": GameData.Formations.DEFAULT_UNLOCKED.duplicate(),
 		"crests": Crests.DEFAULT_UNLOCKED.duplicate(), "crest": Crests.DEFAULT_CREST,
 		"team_name": DEFAULT_TEAM, "lore": [], "remembrances": [], "monuments": [], "memories_met": [],
-		"last_run": {}}
+		"last_run": {}, "identity_chosen": false, "village_seen": []}
 
 
 static func load_all() -> void:
@@ -245,6 +245,33 @@ static func unlock_crest(id: String) -> bool:
 	(meta["crests"] as Array).append(id)
 	save_meta()
 	return true
+
+
+## A save exists (the title offers Continue instead of New game).
+static func has_save() -> bool:
+	return FileAccess.file_exists(meta_path) or has_saved_run()
+
+
+## The first visit to Lanternrest asks for a team name and crest (docs/BUILD.md "Team identity").
+## Saves from before the village (a run already played) count as chosen.
+static func identity_needed() -> bool:
+	ensure()
+	return not bool(meta.get("identity_chosen", false)) and int(meta.get("runs", 0)) == 0
+
+
+static func set_identity(name: String, crest_id: String) -> void:
+	ensure()
+	meta["identity_chosen"] = true
+	set_team(name, crest_id)
+
+
+## The player has looked at a newly built place (its NEW tag goes).
+static func mark_seen(place_id: String) -> void:
+	ensure()
+	var seen: Array = meta["village_seen"]
+	if not seen.has(place_id):
+		seen.append(place_id)
+		save_meta()
 
 
 ## Sets the team's name and crest (Banner Hall). An empty name falls back to the default.

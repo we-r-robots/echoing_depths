@@ -58,7 +58,7 @@ func _process(_d: float) -> bool:
 			if visited_count("title") > 1:
 				_done = true
 			elif s is TitleScreen:
-				(s as TitleScreen).new_run.emit()
+				(s as TitleScreen).lanternrest.emit()
 		"draft":
 			if s is DraftScreen and wait == 20:
 				(s as DraftScreen).toggle(0)
@@ -89,8 +89,17 @@ func _process(_d: float) -> bool:
 			if s is ResultsScreen and wait == 20:
 				(s as ResultsScreen).proceed.emit()
 		"lanternrest":
-			if s is LanternrestScreen and wait == 20:
-				(s as LanternrestScreen).to_title.emit()
+			# the first visit: pick the team, then descend through the Vault entrance (the real
+			# panels); after the run, back to the title
+			var v := s as LanternrestScreen
+			if v != null and wait == 20:
+				if visited_count("lanternrest") == 1:
+					if v.panel is IdentityPanel:
+						(v.panel as IdentityPanel).confirm()
+					v.open_place("vault")
+					(v.panel as VaultPanel).new_descent()
+				else:
+					v.to_title.emit()
 	return false
 
 
