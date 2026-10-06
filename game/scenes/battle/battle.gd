@@ -26,6 +26,9 @@ const Demo = preload("res://scenes/battle/battle_demo.gd")
 const Unit = preload("res://scenes/battle/battle_unit.gd")
 const LabelLayout = preload("res://scenes/battle/label_layout.gd")
 const FXScript = preload("res://scenes/battle/battle_fx.gd")
+const StatusScript = preload("res://scenes/battle/battle_status.gd")
+const Statuses = preload("res://core/data/statuses.gd")
+const Abilities = preload("res://core/data/abilities.gd")
 const META_PATH := "res://assets/sprites/sprite_meta.json"
 
 const DEMO_PVP_SEED := 34
@@ -89,7 +92,21 @@ const FX_COL := {
 	"siphon": ["violet2", "violet4"], "mend": ["life4", "amber7"], "sanctuary": ["life4", "amber7"],
 	"aegis_strike": ["amber6", "ink10"], "lantern_oath": ["amber6", "amber7"], "quake": ["fade3", "ink9"],
 	"claw": ["blood4", "ink10"], "gnaw": ["blood4", "ink10"], "backstab": ["violet4", "ink10"], "execute": ["blood4", "ink10"],
+	# approved advanced classes (round 17)
+	"shackle": ["ink9", "ink10"], "drive_on": ["amber5", "amber7"], "marshal_strike": ["amber5", "ink10"],
+	"call_echo": ["crystal4", "crystal5"], "echo_strike": ["crystal4", "ink10"], "pilfer": ["violet3", "violet4"],
+	"vanishing_cut": ["ink8", "violet4"], "slow_venom": ["life3", "life4"], "unseen_arrest": ["ink8", "amber6"],
+	"unseen_arrest_strike": ["amber6", "ink10"], "bind_lives": ["amber6", "amber7"], "mender_smite": ["amber5", "amber7"],
+	"lumen_ward": ["crystal5", "amber7"], "rekindle": ["amber5", "amber7"], "rekindle_mend": ["life4", "amber7"],
+	"tithe": ["blood4", "life4"], "burn_to_mend": ["amber5", "life4"], "brand_of_flame": ["amber5", "blood4"],
+	"raise_husk": ["violet2", "fade3"], "grave_bolt": ["violet2", "fade3"], "chain_storm": ["crystal4", "crystal5"],
+	"draw_star": ["amber6", "crystal5"], "column_ward": ["crystal4", "crystal5"], "rune_seal": ["violet3", "violet4"],
+	"slow_field": ["crystal3", "crystal4"], "wildfire": ["amber5", "blood4"],
 }
+## The caption's word for a status landing on a unit ("Tamsin Rune Seal ▸ Vael · sealed").
+const STATUS_VERB := {"stun": "stunned", "blind": "blinded", "sap": "sapped", "boon": "blessed", "slow": "slowed",
+	"poison": "poisoned", "burn": "set alight", "regen": "regenerating", "shield": "shielded", "hidden": "hidden",
+	"heal_block": "branded", "heal_invert": "hexed", "charge_seal": "sealed", "link": "bound"}
 
 enum State { IDLE, INTRO, PLAY, END }
 
@@ -99,7 +116,8 @@ enum State { IDLE, INTRO, PLAY, END }
 ## EXPERIMENT (awaiting user approval): ability-turn spectacle. 0 = current look, 1 = subtle, 2 = full.
 ## Affects ability turns only: focus dim, camera push, VFX size, hit-stop and shake.
 ## Override from the command line with user arg --spectacle=N.
-## Crystal demo sequence: "ch1" (chapter-1 memories) or "late" (chapters 2-4).
+## Crystal demo sequence: "ch1" (chapter-1 memories) or "late" (chapters 2-4); class showcase
+## (demo_fight "classes"): "a", "b" or "c".
 @export var demo_sequence := "ch1"
 @export_range(0, 2) var spectacle_level := 2
 
@@ -187,6 +205,8 @@ var _perf_t := PackedFloat32Array()
 @onready var plates: Node2D = $WorldLayer/World/View/Plates
 @onready var dim: ColorRect = $WorldLayer/World/View/Dim
 @onready var fade_rect: ColorRect = $WorldLayer/World/View/FadeLayer/Fade
+## Timed statuses: chip rows by the plates (UI layer), tethers, stars and runes (world).
+var status_fx: Node2D
 var fade_level := 0.0
 var _fade_target := 0.0
 
@@ -197,6 +217,10 @@ func _ready() -> void:
 	stage = $WorldLayer/World/View/Stage
 	stage.setup()
 	fx.setup($HUD/Pops, world_to_ui)
+	status_fx = StatusScript.new()
+	status_fx.name = "Statuses"
+	view.add_child(status_fx)
+	status_fx.setup($HUD, world_to_ui, fx)
 	hud = $HUD/Hud
 	hud.setup(self)
 	hud.speed_pressed.connect(_cycle_speed)
@@ -241,6 +265,12 @@ func _start_demo() -> void:
 		else:
 			var rival: Dictionary = Echo.from_dict(Echo.make(PartyGen.demo_rival(), {"player": "Ashen Pact"})).get("echo", {})
 			start_fight(mine, rival, fs, {}, {"echo_side": 1})
+		return
+	if String(args.get("fight", demo_fight)) == "classes":
+		# round 17: a class showcase (battle_demo.gd CLASS_DEMOS, --sequence=a|b|c)
+		var cf: Array = Demo.class_fight(String(args.get("sequence", demo_sequence)))
+		_demo_running = true
+		start_fight(cf[0], cf[1], int(cf[2]), cf[3], {"echo_side": 1})
 		return
 	if String(args.get("fight", demo_fight)) == "crystal":
 		var cd: Array = DEMO_CRYSTAL.get(String(args.get("sequence", demo_sequence)), DEMO_CRYSTAL["ch1"])
@@ -362,6 +392,7 @@ func _clear() -> void:
 	_hold_t = 0.0
 	_held_ev = -1
 	_fading_tagged = 0
+	status_fx.clear()
 
 
 # ---------------------------------------------------------------------------------------- frame
@@ -475,7 +506,7 @@ func _frame(delta: float) -> void:
 			n.lit = false
 	if _focus_end >= 0.0 and sim_t > _focus_end + 0.05 and _state != State.END:   # the final KO keeps its number through the beat
 		_focus_end = -1.0
-		fx.fade_popups()   # numbers never outlive their action
+		fx.fade_popups(false)   # numbers never outlive their action (a climbing column of fire may)
 		for u in units:
 			u.dimmed = false
 			u.lit = false
@@ -495,6 +526,11 @@ func _frame(delta: float) -> void:
 	fx.clip_rects = _hud_world_rects(_world_xf().affine_inverse()) if _state == State.PLAY else []
 	fx.tick(delta * speed, sim_t)
 	plates.tick(vdt, sim_t)
+	status_fx.hud_rects = fx.clip_rects
+	status_fx.label_rects = fx.live_boxes()
+	status_fx.field = fx.field
+	status_fx.shown = _state == State.PLAY or (_state == State.END and _end_hold > 0.0)
+	status_fx.tick(delta * speed, sim_t)
 	hud.tick(vdt)
 	_update_camera(delta)
 
@@ -650,6 +686,12 @@ func _dispatch(ev: Dictionary) -> void:
 		"crystal_fragment": _on_crystal_fragment(ev)
 		"move": _on_move(ev)
 		"revive": _on_revive(ev)
+		"status": _on_status(ev)
+		"status_end": _on_status_end(ev)
+		"miss": _on_miss(ev)
+		"skip": _on_skip(ev)
+		"absorb": _on_absorb(ev)
+		"gauge": _on_gauge(ev)
 		_: _on_other(ev)    # unknown / future event types are ignored safely
 
 
@@ -830,6 +872,10 @@ func _on_spawn(ev: Dictionary) -> void:
 	stage.alive_cells[node.side][Vector2i(node.col, node.row)] = true
 	hud.row_flash.resize(maxi(hud.row_flash.size(), units.size()))
 	plates.units = units
+	var kind := String(ev.get("summon", ""))
+	if kind != "":
+		_summon(ev, node, kind)
+		return
 	if _instant:
 		return
 	node.form_t = 0.0
@@ -843,6 +889,52 @@ func _on_spawn(ev: Dictionary) -> void:
 	fx.ring(node.position, 4, 30, 0.7, Pal.VIOLET4, 0.35)
 	hud.show_lore(node.label, String(ev.get("lore", "")))
 	hitstop(1.4 if String(ev.get("reason", "")) == "fragment" else 1.0, node.uid)
+
+
+## A summon (core spawn `summon`: Echoblade's echo, Gravecaller's husk) fades in at its slot, marked
+## as summoned: the echo a bright crystal rim and a cool tint, the husk a hollow grey-violet; both draw
+## a hollow gem on their plate (they never charge). No lore banner: the caption names it.
+func _summon(ev: Dictionary, node, kind: String) -> void:
+	node.summon = kind
+	if kind == "husk":
+		node.mat.set_shader_parameter("gray", 0.55)
+		node.form_col = Color(0.82, 0.76, 0.92, 0.92)
+	else:
+		node.form_col = Color(0.86, 0.97, 1.0, 0.85)
+	node.modulate = node.form_col
+	node.g_base = 0.0
+	node.t_base = float(ev["t"])
+	if _instant:
+		return
+	node.form_t = 0.0
+	node.modulate.a = 0.0
+	node.dimmed = false
+	node.lit = true
+	var src := int(ev.get("summoner", -1))
+	var S = units[src] if src >= 0 and src < units.size() else null
+	var col := Pal.CRYSTAL5 if kind == "echo" else Pal.VIOLET3
+	if kind == "echo":
+		if S != null:
+			S.echo_afterimage(0.7)   # its afterimage steps out of it into the slot
+			fx.trail(S.chest(), node.chest(), Pal.CRYSTAL5)
+			fx.particles(S.chest(), 12, Pal.CRYSTAL5, 30.0, 10.0, 0.5, 0.0, 1, 3.0)
+		fx.pillar(node.position.x, node.position.y, 9.0, 0.7, Pal.CRYSTAL4)
+	else:
+		# a wisp rises from the fallen body and walks into the empty slot
+		var rid := int(ev.get("raised", -1))
+		var R = units[rid] if rid >= 0 and rid < units.size() else null
+		if R != null:
+			fx.particles(R.chest(), 18, Pal.VIOLET3, 20.0, 30.0, 0.8, -20.0, 1, 5.0)
+			fx.projectile(R.chest(), node.chest(), sim_t, sim_t + 0.4, Pal.VIOLET2, Pal.FADE3, 0, 18.0)
+			fx.trail(R.chest(), node.chest(), Pal.VIOLET3)
+		if S != null:
+			fx.light(S.chest(), Pal.VIOLET2, 1, 0.5, 0.6)
+		fx.pillar(node.position.x, node.position.y, 9.0, 0.8, Pal.VIOLET2)
+	fx.ring(node.position, 4, 24, 0.6, col, 0.35)
+	fx.particles(node.chest(), 16, col, 24.0, 20.0, 0.7, -10.0, 1, 5.0)
+	_layout_ctx()
+	fx.popup(-1, fx.Row.MUTED, node.uid, 1, false, "SUMMONED" if kind == "echo" else "RAISED", col, "", Color.WHITE, 0.15)
+	hitstop(0.45, node.uid)
 
 
 ## A fragment breaks off: cracks spread, a shard flies off with particles, hit-stop, the pip fills.
@@ -957,7 +1049,7 @@ func _on_move(ev: Dictionary) -> void:
 		u.home = dest
 		u.position = dest
 		return
-	_pending_moves.append([u.uid, dest, "Dragged forward" if String(ev.get("effect", "")) == "pulled" else "Shoved back"])
+	_pending_moves.append([u.uid, dest, "Dragged Forward" if String(ev.get("effect", "")) == "pulled" else "Shoved Back", int(ev.get("src", -1))])
 
 
 ## A fallen unit stands again (Rekindler; core README `revive`).
@@ -967,24 +1059,49 @@ func _on_revive(ev: Dictionary) -> void:
 		return
 	var u = units[uid]
 	u.revive(int(ev.get("hp", 1)))
+	u.g_base = 0.0
+	u.t_base = float(ev["t"])
 	stage.alive_cells[u.side][Vector2i(u.col, u.row)] = true
 	if _instant:
 		return
+	# the Rekindler's flame relights it: embers rise round it, it stands with an amber flash
+	u.dimmed = false
+	u.lit = true
+	u.flash(Pal.AMBER6, 1.0)
 	fx.pillar(u.position.x, u.position.y, 10.0, 0.8, Pal.AMBER6)
 	fx.light(u.chest(), Pal.AMBER5, 2, 0.6, 0.8)
+	fx.particles(u.position + Vector2(0, -2), 26, Pal.AMBER6, 18.0, 50.0, 1.0, -40.0, 1, 7.0)
+	fx.ring(u.position, 4, 26, 0.6, Pal.AMBER6, 0.35)
+	var src := int(ev.get("src", -1))
+	if src >= 0 and src < units.size() and src != uid:
+		fx.trail(units[src].chest(), u.chest(), Pal.AMBER6)
+	_layout_ctx()
+	fx.popup(int(ev.get("hp", 1)), fx.Row.HEAL, uid, 1, true, "REKINDLED", Pal.AMBER6, "", Color.WHITE, 0.1)
+	hitstop(0.35, u.uid)
 
 
 ## Hold the door plays once the KO and the action's focus have settled: its own brief focus,
 ## the clock paused while the unit walks (visual time) into the fallen unit's slot.
 func _play_pending_move() -> void:
 	var m: Array = _pending_moves.pop_front()
+	# an ability's swap (Shackle: pulled + pushed) plays as one moment, both walking at once
+	while m.size() > 3 and not _pending_moves.is_empty() and (_pending_moves[0] as Array).size() > 3:
+		_walk_move(_pending_moves.pop_front())
+	_walk_move(m)
+	if m.size() > 3 and int(m[3]) >= 0 and int(m[3]) < units.size():
+		var a = units[int(m[3])]
+		fx.trail(a.chest(), units[int(m[0])].chest(), Pal.INK9)   # the chain that hauled it
+		a.lit = true
+
+
+func _walk_move(m: Array) -> void:
 	var u = units[int(m[0])]
 	var dest: Vector2 = m[1]
 	var s: int = u.side
 	var sc: Color = side_colors[s].lerp(Pal.INK10, 0.25)
 	for n in units:
 		n.dimmed = false
-		n.lit = n == u
+		n.lit = n.lit and m.size() > 3 or n == u
 	u.walk_to(dest, 0.9)
 	hitstop(1.2, u.uid)
 	u.buff_glow = 1.1
@@ -1048,6 +1165,7 @@ func _on_fight_start(ev: Dictionary) -> void:
 			lines.append([true, String(c.get("name", "")), "comp"])
 		form_lines[k] = lines
 	hud.row_flash.resize(maxi(16, units.size()))
+	status_fx.units = units
 	hud.build_banner()
 
 
@@ -1182,15 +1300,20 @@ func _on_action_start(ev: Dictionary) -> void:
 	var is_ab := String(ev.get("kind", "basic")) == "ability"
 	var aid := String(ev.get("action", ""))
 	var cols := _fx_cols(aid)
-	var ct := _caption_targets(a.uid, tid)
-	var extra := _extra_targets(tid, a.side) if area == "single" else 0
+	var ct := _caption_targets(a.uid, tid, aid, t_end)
+	var extra := _extra_targets(tid, a.side, aid, t_end) if area == "single" else 0
 	_cur_multi = area != "single" or extra > 0
 	var lead := tid if area != "all_allies" else -1
 	if area == "single" and not ct.is_empty():
 		lead = int(ct["lead"])
 		extra = int(ct["extra"])
+	var cx := _caption_effects(a.uid, aid, t_end, lead, area)
+	if int(cx.get("lead", -2)) != -2:
+		lead = int(cx["lead"])
+		extra = int(cx.get("extra", 0))
 	hud.show_caption(a.uid, String(ev.get("name", aid)), lead, is_ab, area, extra,
-		String(ct.get("verb", "")), int(ct.get("tail", -1)), int(ct.get("tail_extra", 0)))
+		String(ct.get("verb", "")), int(ct.get("tail", -1)), int(ct.get("tail_extra", 0)),
+		String(cx.get("note", "")), String(cx.get("lead_label", "")))
 	match anim:
 		"melee", "melee_big", "dash", "slam", "slam_big":
 			if tgt != null:
@@ -1247,9 +1370,29 @@ func _on_action_start(ev: Dictionary) -> void:
 				var from2: Vector2 = a.chest() + Vector2(a.facing * 10, -6)
 				var kind := 1 if aid == "meteor" else 0
 				fx.projectile(from2, tgt.chest(), maxf(t0 + 0.08, imp - 0.2), imp, cols[0], cols[1], kind, 24.0)
+	if area == "column" and tgt != null:
+		_column_fire(a, tgt, t0, imp, cols)
 	if is_ab:
 		fx.particles(a.chest(), 14, cols[1], 30.0, 10.0, 0.5, -20.0, 1, 3.0)
 		fx.light(a.position + Vector2(0, -10), cols[0], 2, 0.4, dur + 0.4)
+
+
+## Warlock's Hexfire (user tweak): fire climbs the foes' column from its bottom space to its top, one
+## space at a time, empty spaces included; each unit's number lands as the fire reaches it (the sim
+## stamps each hit 110 ms apart).
+const COLUMN_STEP := 0.11
+
+
+func _column_fire(a, tgt, t0: float, imp: float, cols: Array) -> void:
+	var side: int = tgt.side
+	var col: int = tgt.col
+	var bottom := Layout.slot_pos(side, col, 3)
+	fx.projectile(a.chest() + Vector2(a.facing * 10, -6), bottom + Vector2(0, -8), maxf(t0 + 0.08, imp - 0.22), imp, cols[0], cols[1], 0, 18.0)
+	for r in range(3, -1, -1):
+		var k := 3 - r
+		var p := Layout.slot_pos(side, col, r)
+		# on the fight's clock, so the fire reaches each space with its number (not during the cut-in)
+		fx.beam(p.x, p.y, 8.0, p.y - 40.0, 62.0, 0.42, Pal.BLOOD4, Pal.AMBER6, 0.0, imp + k * COLUMN_STEP)
 
 
 func _on_ability(ev: Dictionary) -> void:
@@ -1257,7 +1400,8 @@ func _on_ability(ev: Dictionary) -> void:
 		return
 	var a = units[int(ev["uid"])]
 	var cols := _fx_cols(String(ev.get("action", "")))
-	hud.show_cutin(a.uid, String(ev.get("name", "")), ABILITY_FREEZE + 0.5)
+	hud.show_cutin(a.uid, String(ev.get("name", "")), ABILITY_FREEZE + 0.5,
+		String((Abilities.ACTIONS.get(String(ev.get("action", "")), {}) as Dictionary).get("icon", "")))
 	hitstop(ABILITY_FREEZE, a.uid)
 	a.flash(a.side_color, 1.0)
 	a.set_ready(false)
@@ -1311,6 +1455,13 @@ func _beam_on(T, dur: float, col: Color, hi: Color) -> void:
 	fx.beam(br.get_center().x, T.position.y, minf(br.size.x * 0.5, 12.0), br.position.y, br.size.y + 36.0, dur, col, hi)
 
 
+static func _drains(aid: String) -> bool:
+	for e: Dictionary in (Abilities.ACTIONS.get(aid, {}) as Dictionary).get("effects", []):
+		if e.has("drain"):
+			return true
+	return false
+
+
 func _fx_cols(aid: String) -> Array:
 	var c: Array = FX_COL.get(aid, ["amber6", "ink10"])
 	return [Pal.c(c[0]), Pal.c(c[1])]
@@ -1325,9 +1476,12 @@ func _on_damage(ev: Dictionary) -> void:
 	T.set_hp(int(ev.get("hp", T.hp)))
 	if _instant:
 		return
+	var kind := String(ev.get("kind", "physical"))
+	if kind == "status":
+		_on_status_damage(ev, T)
+		return
 	var src := int(ev.get("src", -1))
 	var S = units[src] if src >= 0 and src < units.size() else null
-	var kind := String(ev.get("kind", "physical"))
 	var crit := bool(ev.get("crit", false))
 	var amount := int(ev.get("amount", 0))
 	var aid := String(ev.get("action", ""))
@@ -1423,6 +1577,8 @@ func _on_damage(ev: Dictionary) -> void:
 		T.hp <= 0 and not T.is_crystal, false, kind == "sudden_death")
 	_num_max_dist = maxf(_num_max_dist, fx.LabelLayout.dist(fx.last_box().get_center(), T.body_rect()) * 6.0)
 	var pid := String((ev.get("primary", {}) as Dictionary).get("id", "")) if ev.get("primary", null) is Dictionary else ""
+	if pid == "link":
+		status_fx.tether_flash(dst)
 	if was_split or pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
 		var main := int(_cur_action.get("target", -1))
 		if main >= 0 and main < units.size() and main != dst:
@@ -1516,6 +1672,7 @@ func _primary_note(p: Dictionary) -> Array:
 		"flank": return ["Flank x%.1f" % mult, Pal.AMBER6]
 		"hearthguard": return ["Hearth -%d%%" % roundi((1.0 - mult) * 100.0), Pal.AMBER6]
 		"echo_step": return ["halved", Pal.CRYSTAL5]
+		"link": return ["linked", Pal.AMBER6]   # a linked partner's share of the blow (round 17)
 		"chorus_splash": return ["Chorus", Pal.VIOLET4]
 		"sudden_death":
 			return _fading_tag(mult)
@@ -1572,15 +1729,15 @@ func _formation_line(side: int, form: Dictionary) -> int:
 
 ## How many other units this action hits besides its named target (Cleave's sides, splash), read
 ## ahead in the event list up to the next action: the caption says "▸ Moth + 2".
-func _extra_targets(tid: int, side: int) -> int:
+func _extra_targets(tid: int, side: int, aid := "", t_end := INF) -> int:
 	var seen := {}
 	var i := _ev_i
 	while i < events.size():
 		var e: Dictionary = events[i]
 		var ty := String(e.get("type", ""))
-		if ty == "action_start" or ty == "sudden_death" or ty == "fight_end":
+		if ty == "action_start" or ty == "sudden_death" or ty == "fight_end" or float(e.get("t", 0.0)) > t_end + 0.001:
 			break
-		if ty == "damage":
+		if ty == "damage" and (aid == "" or String(e.get("action", "")) == aid):
 			var d := int(e.get("dst", -1))
 			if d >= 0 and d != tid and d < units.size() and units[d].side != side:
 				seen[d] = true
@@ -1594,18 +1751,22 @@ func _extra_targets(tid: int, side: int) -> int:
 ## action also strikes someone, with the struck unit), "+ N" counts only further units touched the
 ## same way, and the other kind follows as a clause: "▸ Ilse · heals self", "▸ Sable · strikes Corin".
 ## Returns {} for a plain action (one kind of effect): the caption keeps its usual target.
-func _caption_targets(actor: int, tid: int) -> Dictionary:
+func _caption_targets(actor: int, tid: int, aid := "", t_end := INF) -> Dictionary:
 	var struck: Array = []
 	var healed: Array = []
+	var costs := true      # every "struck" unit only paid HP (a Tithe, a cost): it is taken from, not struck
 	var i := _ev_i
 	while i < events.size():
 		var e: Dictionary = events[i]
 		var ty := String(e.get("type", ""))
-		if ty == "action_start" or ty == "sudden_death" or ty == "fight_end":
+		if ty == "action_start" or ty == "sudden_death" or ty == "fight_end" or float(e.get("t", 0.0)) > t_end + 0.001:
 			break
 		var d := int(e.get("dst", -1))
-		if int(e.get("src", -2)) == actor and d >= 0 and d < units.size():
+		if int(e.get("src", -2)) == actor and d >= 0 and d < units.size() and (aid == "" or String(e.get("action", aid)) == aid):
 			if ty == "damage" and String(e.get("kind", "")) != "sudden_death" and not struck.has(d):
+				var pr: Variant = e.get("primary", {})
+				if not (String(e.get("kind", "")) == "status" and pr is Dictionary and ["tithe", "cost"].has(String(pr.get("id", "")))):
+					costs = false
 				struck.append(d)
 			elif ty == "heal" and not healed.has(d):
 				healed.append(d)
@@ -1613,12 +1774,122 @@ func _caption_targets(actor: int, tid: int) -> Dictionary:
 	if struck.is_empty() or healed.is_empty():
 		return {}
 	# lead: the action's target, unless it is the actor itself (a self-heal) and the action strikes too
-	var lead_struck := not (healed.has(tid) and tid != actor)
+	# (a Tithe leads with the one it heals: the other only pays)
+	var lead_struck := not (healed.has(tid) and tid != actor) and not costs
 	var lead_list: Array = struck if lead_struck else healed
 	var tail_list: Array = healed if lead_struck else struck
 	var lead := tid if lead_list.has(tid) and tid != actor else int(lead_list[0])
-	return {"lead": lead, "extra": lead_list.size() - 1, "verb": "heals" if lead_struck else "strikes",
+	return {"lead": lead, "extra": lead_list.size() - 1, "verb": "heals" if lead_struck else ("takes from" if costs else "strikes"),
 		"tail": int(tail_list[0]) if not tail_list.has(actor) else actor, "tail_extra": tail_list.size() - 1}
+
+
+## What an action does beyond hitting and healing, read ahead to its end (round 17): the statuses it
+## lands, the units it moves, summons, revives or drives on. Returns {"note": "sealed" ...} for the
+## caption's clause ("Tamsin Rune Seal ▸ Vael · sealed"), and "lead" / "extra" / "lead_label" when
+## the action's own target (often itself) isn't what it touched ("Sable Call Echo ▸ Echo of Sable
+## · summoned", "Corin Drive On ▸ Moth + 1 · act now").
+func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: String) -> Dictionary:
+	var by_status := {}       # status id -> [uids]
+	var order: Array = []
+	var gauges: Array = []
+	var pulled := -1
+	var spawn := {}
+	var revived := -1
+	var missed: Array = []
+	var hexed: Array = []
+	var self_cost := false
+	var i := _ev_i
+	while i < events.size():
+		var e: Dictionary = events[i]
+		var ty := String(e.get("type", ""))
+		if ty == "action_start" or ty == "sudden_death" or ty == "fight_end" or float(e.get("t", 0.0)) > t_end + 0.001:
+			break
+		match ty:
+			"status":
+				if int(e.get("src", -1)) == actor and String(e.get("action", "")) == aid:
+					var id := String(e.get("status", ""))
+					if not by_status.has(id):
+						by_status[id] = []
+						order.append(id)
+					if not (by_status[id] as Array).has(int(e["uid"])):
+						(by_status[id] as Array).append(int(e["uid"]))
+			"gauge":
+				if int(e.get("src", -1)) == actor:
+					gauges.append(int(e["uid"]))
+			"move":
+				if int(e.get("src", -1)) == actor and String(e.get("effect", "")) == "pulled":
+					pulled = int(e["uid"])
+			"spawn":
+				if int(e.get("summoner", -2)) == actor and String(e.get("summon", "")) != "":
+					spawn = e
+			"revive":
+				if int(e.get("src", -1)) == actor:
+					revived = int(e["uid"])
+			"miss":
+				if int(e.get("src", -1)) == actor and String(e.get("action", "")) == aid:
+					missed.append(e)
+			"damage":
+				# status damage the action deals (a hexed heal, an HP cost): named, not "strikes"
+				var pr: Variant = e.get("primary", {})
+				if int(e.get("src", -1)) == actor and String(e.get("action", "")) == aid and String(e.get("kind", "")) == "status" and pr is Dictionary:
+					var pid := String(pr.get("id", ""))
+					if pid == "heal_invert" and not hexed.has(int(e["dst"])):
+						hexed.append(int(e["dst"]))
+					elif pid == "cost" and int(e["dst"]) == actor:
+						self_cost = true
+		i += 1
+	var out := {}
+	var notes: PackedStringArray = []
+	if not spawn.is_empty():
+		out["lead"] = -1
+		out["lead_label"] = String((spawn.get("unit", {}) as Dictionary).get("label", "a summon"))
+		var rid := int(spawn.get("raised", -1))
+		notes.append("summoned" if String(spawn.get("summon", "")) == "echo" else "raised")
+	if revived >= 0:
+		out["lead"] = revived
+		notes.append("rekindled")
+	if not gauges.is_empty():
+		out["lead"] = int(gauges[0])
+		out["extra"] = gauges.size() - 1
+		notes.append("act now")
+	if pulled >= 0 and pulled < units.size():
+		notes.append("drags %s forward" % units[pulled].label)
+	# a self-targeted action whose statuses land on others leads with them (Column Ward ▸ Ilse + 1)
+	if lead == actor and int(out.get("lead", -2)) == -2:
+		for id: String in order:
+			var who: Array = by_status[id]
+			if not who.has(actor):
+				out["lead"] = int(who[0])
+				out["extra"] = who.size() - 1
+				lead = int(who[0])
+				break
+	var ext := int(out.get("extra", 0))
+	for id: String in order:
+		var who: Array = by_status[id]
+		var verb := String(STATUS_VERB.get(id, id))
+		if id == "link" and who.size() == 2 and who.has(lead):
+			var other := int(who[0]) if int(who[1]) == lead else int(who[1])
+			notes.append("bound to %s" % ("self" if other == actor else units[other].label))
+		elif who.size() == 1 and int(who[0]) == actor and actor != lead:
+			notes.append("vanishes" if id == "hidden" else "self %s" % verb)
+		elif who.has(lead) and who.size() == 1 + ext:
+			notes.append(verb)                       # exactly the units the caption names
+		elif who.size() == 1 and lead >= 0:
+			notes.append("%s %s" % [units[int(who[0])].label, verb])
+		else:
+			notes.append("%d %s" % [who.size(), verb])
+	if self_cost:
+		notes.append("pays HP")
+	for h: int in hexed:
+		notes.append("heal hurts %s" % units[h].label)
+	for m: Dictionary in missed:
+		var d := int(m.get("dst", -1))
+		if String(m.get("reason", "")) == "heal_block":
+			notes.append("%s blocked" % (units[d].label if d >= 0 and d < units.size() else "heal"))
+		elif not notes.has("misses"):
+			notes.append("misses")
+	out["note"] = " · ".join(notes)
+	return out
 
 
 ## The label solver's view of the field (BattleFX.units_geo / blocked / field, world px), rebuilt
@@ -1650,6 +1921,9 @@ func _layout_ctx(keep := -1) -> void:
 	# the Crystal's integrity bar is HUD too: no label covers it
 	if crystal_uid >= 0 and crystal_uid < units.size() and units[crystal_uid].alive:
 		bl.append(units[crystal_uid].plate_rect())
+	# the status rows are walls too: a label never covers a chip (round 17)
+	for r: Rect2 in status_fx.rows.values():
+		bl.append(r)
 	fx.blocked = bl
 
 
@@ -1704,8 +1978,15 @@ func _on_heal(ev: Dictionary) -> void:
 	if _instant:
 		return
 	var src := int(ev.get("src", -1))
-	# a heal on oneself from a heal ability (Oren's Mend on Oren) is a heal, not a drain
-	var drain := src == dst and not String(_cur_action.get("anim", "")).begins_with("heal")
+	if String(ev.get("action", "")) == "status:regen":
+		# a regen tick: a small number with the regen glyph, no beam (round 17)
+		fx.particles(T.chest(), 5, Pal.LIFE4, 8.0, 18.0, 0.6, -10.0, 1, 3.0)
+		_layout_ctx()
+		fx.popup(int(ev.get("amount", 0)), fx.Row.HEAL, dst, 1, true, "", Color.WHITE, "", Color.WHITE, _stagger(dst), false, false, false, "regen")
+		return
+	# a heal on oneself is a drain only from an action that drains (Siphon): Oren's Mend on Oren or
+	# a Tithe paid back to its Tithekeeper is a heal
+	var drain := src == dst and _drains(String(ev.get("action", "")))
 	fx.sprite_fx(&"heal_glow", T.position + Vector2(0, -20), false, Color.WHITE, 1.0)
 	fx.light(T.chest(), Pal.LIFE4, 1, 0.5, 0.6)
 	fx.particles(T.chest(), 10, Pal.LIFE4, 18.0, 30.0, 0.8, -10.0, 1, 4.0)
@@ -1754,6 +2035,234 @@ func _on_ko(ev: Dictionary) -> void:
 	fx.light(u.chest(), Pal.INK10, 2, 0.5, 0.5)
 	_layout_ctx(u.uid)
 	fx.ko(u.uid)
+
+
+# ------------------------------------------------------------------------- statuses (round 17)
+## A status lands (or stacks / refreshes): its chip pops in the unit's row (battle_status.gd), and
+## the moment reads on the board in that status's own way.
+func _on_status(ev: Dictionary) -> void:
+	var e: Dictionary = status_fx.apply(ev, float(ev["t"]))
+	if e.is_empty() or _instant:
+		return
+	var u = units[int(ev["uid"])]
+	var id := String(ev.get("status", ""))
+	if _focus_end >= 0.0:
+		u.dimmed = false
+		u.lit = is_ab_focus(_cur_action)
+	var c: Vector2 = u.chest()
+	match id:
+		"stun":
+			u.flash(Pal.AMBER6, 0.8)
+			fx.ring(u.top() + Vector2(0, -3), 2, 14, 0.4, Pal.AMBER6, 0.35)
+			fx.particles(u.top(), 10, Pal.AMBER6, 40.0, 10.0, 0.4, 40.0, 1, 2.0)
+		"blind":
+			fx.particles(u.top() + Vector2(0, 6), 14, Pal.INK3, 16.0, 4.0, 0.8, 0.0, 2, 4.0)
+			fx.ring(u.top() + Vector2(0, 6), 12, 3, 0.4, Pal.INK8, 0.4)
+		"sap", "boon":
+			var up := id == "boon"
+			var sc := Pal.LIFE4 if up else Pal.BLOOD4
+			fx.particles(c + Vector2(0, 8 if up else -10), 10, sc, 8.0, 30.0 if up else -30.0, 0.6, 0.0, 1, 4.0)
+			u.buff_glow = 0.5
+			u.buff_color = sc
+		"slow":
+			fx.ring(u.position, 22, 6, 0.6, Pal.CRYSTAL4, 0.35)
+			fx.particles(c, 6, Pal.CRYSTAL4, 6.0, -10.0, 0.7, 10.0, 1, 4.0)
+		"poison":
+			fx.particles(c, 10, Pal.LIFE4, 25.0, 15.0, 0.6, 40.0, 1, 3.0)
+			u.flash(Pal.LIFE3, 0.6)
+		"burn":
+			_flame_burst(u)
+			if _is_spread(ev):
+				# Wildfire: the fire jumps from the burning unit beside it, an arc of flame
+				var from = _burning_neighbour(u)
+				if from != null:
+					fx.projectile(from.chest(), c, sim_t, sim_t + 0.3, Pal.AMBER5, Pal.AMBER7, 0, 16.0)
+					fx.trail(from.chest(), c, Pal.AMBER6)
+				_layout_ctx()
+				fx.cue("Fire Jumps", u.uid, Pal.AMBER6, 0.0)
+		"regen":
+			fx.particles(c, 8, Pal.LIFE4, 10.0, 20.0, 0.8, -10.0, 1, 4.0)
+		"shield":
+			fx.ring(c, 18, 12, 0.5, Pal.CRYSTAL5, 1.0)
+			fx.ring(c, 4, 16, 0.4, Pal.INK10, 1.0)
+			fx.light(c, Pal.CRYSTAL4, 1, 0.5, 0.5)
+		"hidden":
+			fx.particles(c, 16, Pal.INK4, 30.0, 10.0, 0.5, 0.0, 2, 4.0)
+		"heal_block":
+			# Brand of Flame: the brand sears on (flame-themed, user note), the plate frame smoulders
+			_flame_burst(u)
+			fx.ring(c, 3, 14, 0.45, Pal.BLOOD4, 1.0)
+			u.flash(Pal.AMBER5, 0.9)
+		"heal_invert":
+			fx.ring(c, 3, 14, 0.45, Pal.VIOLET4, 1.0)
+			u.flash(Pal.VIOLET3, 0.8)
+		"charge_seal":
+			status_fx.bind(u.uid)   # runes ring it, chain together and close in
+			u.flash(Pal.VIOLET4, 0.6)
+		"link":
+			fx.light(c, Pal.AMBER6, 1, 0.4, 0.5)
+			fx.ring(c, 4, 14, 0.4, Pal.AMBER6, 1.0)
+
+
+func _on_status_end(ev: Dictionary) -> void:
+	var uid := int(ev.get("uid", -1))
+	status_fx.end(ev)
+	if _instant or uid < 0 or uid >= units.size():
+		return
+	var u = units[uid]
+	if not u.alive:
+		return
+	match String(ev.get("status", "")):
+		"shield":
+			if String(ev.get("reason", "")) == "broken":   # the shield shatters
+				fx.particles(u.chest(), 14, Pal.CRYSTAL5, 50.0, 10.0, 0.5, 80.0, 1, 4.0)
+				fx.ring(u.chest(), 16, 22, 0.3, Pal.CRYSTAL5, 1.0)
+		"hidden":
+			fx.particles(u.chest(), 10, Pal.INK8, 20.0, 10.0, 0.4, 0.0, 1, 4.0)
+
+
+## A burn landing outside the Wildfire's own cast (between actions): the fire jumped. (A burn inside
+## the cast is its first fire, even on another foe when the target fell to the blow.)
+func _is_spread(ev: Dictionary) -> bool:
+	return not (String(_cur_action.get("action", "")) == String(ev.get("action", ""))
+		and float(ev.get("t", 0.0)) <= float(_cur_action.get("t", 0.0)) + float(_cur_action.get("duration", 0.0)) + 0.001)
+
+
+## The burning unit edge-adjacent to `u` on its side the fire came from (the event doesn't say which;
+## reported): the first such neighbour.
+func _burning_neighbour(u):
+	for n in units:
+		if n != null and n != u and n.alive and n.side == u.side and n.has_status("burn") \
+				and absi(n.col - u.col) + absi(n.row - u.row) == 1:
+			return n
+	return null
+
+
+func _flame_burst(u) -> void:
+	var f: Vector2 = u.position + Vector2(0, -4)
+	fx.particles(f, 16, Pal.AMBER6, 14.0, 46.0, 0.7, -30.0, 1, 5.0)
+	fx.particles(f, 10, Pal.BLOOD4, 12.0, 36.0, 0.6, -20.0, 2, 4.0)
+	fx.light(u.chest(), Pal.AMBER5, 1, 0.55, 0.5)
+
+
+## A hit that missed (a blinded attacker) or a heal that did nothing (a branded unit): the word stands
+## in its target's column, like a number.
+func _on_miss(ev: Dictionary) -> void:
+	if _instant:
+		return
+	var dst := int(ev.get("dst", -1))
+	if dst < 0 or dst >= units.size():
+		return
+	var T = units[dst]
+	_layout_ctx()
+	if String(ev.get("reason", "")) == "heal_block":
+		fx.popup(-1, fx.Row.MUTED, dst, 1, false, "BLOCKED", Pal.AMBER6, "", Color.WHITE, _stagger(dst))
+		_flame_burst(T)
+		_beam_on(T, 0.3, Pal.FADE2, Pal.FADE3)   # the heal's light fizzles out grey
+	else:
+		fx.popup(-1, fx.Row.MUTED, dst, 1, false, "MISS", Pal.INK9, "", Color.WHITE, _stagger(dst))
+		fx.particles(T.chest() + Vector2(T.facing * 10.0, -4.0), 6, Pal.INK8, 30.0, 10.0, 0.3, 0.0, 1, 2.0)
+
+
+## A stunned unit's turn comes and is lost: its own brief moment (core `skip`, 0.3 s on the timeline).
+func _on_skip(ev: Dictionary) -> void:
+	var uid := int(ev.get("uid", -1))
+	if uid < 0 or uid >= units.size():
+		return
+	var u = units[uid]
+	var t0 := float(ev["t"])
+	var dur := float(ev.get("duration", 0.3))
+	u.g_base = 0.0
+	u.t_base = t0 + dur
+	if _instant:
+		return
+	_stale_seen += fx.live_popups()
+	fx.fade_popups()
+	_cur_action = {"uid": uid, "t": t0, "duration": dur, "kind": "skip", "anim": "", "target": -1}
+	_last_actor = uid
+	_focus_end = t0 + dur
+	for n in units:
+		if n != null:
+			n.dimmed = n != u
+			n.lit = false
+	hud.show_caption(uid, "is stunned · turn lost", -1, false)
+	u.flash(Pal.AMBER6, 0.8)
+	u.hit(float(u.facing), 2.0)   # a dazed wobble where its swing would be
+	fx.ring(u.top() + Vector2(0, -3), 4, 18, 0.45, Pal.AMBER6, 0.35)
+	fx.particles(u.top(), 12, Pal.AMBER6, 30.0, 6.0, 0.5, 30.0, 1, 3.0)
+	_layout_ctx()
+	fx.popup(-1, fx.Row.MUTED, uid, 1, false, "STUNNED", Pal.AMBER6, "", Color.WHITE, 0.0)
+
+
+## A shield took part of a hit: a shield-coloured number with its glyph, the shield line shrinks.
+func _on_absorb(ev: Dictionary) -> void:
+	status_fx.absorb(ev)
+	if _instant:
+		return
+	var uid := int(ev.get("uid", -1))
+	if uid < 0 or uid >= units.size():
+		return
+	var u = units[uid]
+	fx.ring(u.chest(), 15, 10, 0.3, Pal.CRYSTAL5, 1.0)
+	fx.particles(u.chest() + Vector2(u.facing * 10.0, 0), 6, Pal.CRYSTAL5, 40.0, 6.0, 0.3, 0.0, 1, 2.0)
+	_layout_ctx()
+	fx.popup(int(ev.get("amount", 0)), fx.Row.SHIELD, uid, 1, false, "", Color.WHITE, "", Color.WHITE, _stagger(uid), false, false, false, "shield")
+
+
+## Iron Marshal's Drive On: an ally's gauge fills, a spark flies from the Marshal to its gauge.
+func _on_gauge(ev: Dictionary) -> void:
+	var uid := int(ev.get("uid", -1))
+	if uid < 0 or uid >= units.size():
+		return
+	var u = units[uid]
+	u.g_base = float(ev.get("gauge", 1.0))
+	u.t_base = float(ev["t"])
+	if _instant:
+		return
+	var src := int(ev.get("src", -1))
+	var gp: Vector2 = u.plate_pos() + Vector2(0, 7)
+	if src >= 0 and src < units.size():
+		fx.projectile(units[src].chest(), gp, sim_t, sim_t + 0.25, Pal.AMBER5, Pal.AMBER7, 0, 10.0)
+	fx.ring(gp, 2, 14, 0.45, Pal.AMBER6, 0.4)
+	u.buff_glow = 0.7
+	u.buff_color = Pal.AMBER6
+	u.dimmed = false
+	u.lit = true
+	_layout_ctx()
+	fx.cue("Acts Now", u.uid, Pal.AMBER6, 0.0)
+
+
+## Status damage (core damage kind "status"): poison and burn ticks, a hexed heal, an HP cost, a
+## link's share. Each number carries its status glyph, one size down from a blow: never a hit's
+## flinch or hit-stop, never the Fading's grey mote.
+func _on_status_damage(ev: Dictionary, T) -> void:
+	var dst: int = T.uid
+	var pid := String((ev.get("primary", {}) as Dictionary).get("id", "")) if ev.get("primary", null) is Dictionary else ""
+	var row: int = fx.Row.TICK
+	var tag := ""
+	var tag_col := Pal.INK9
+	match pid:
+		"burn":
+			row = fx.Row.BURN
+			fx.particles(T.position + Vector2(0, -6), 6, Pal.AMBER6, 10.0, 30.0, 0.5, -20.0, 1, 4.0)
+		"poison":
+			fx.particles(T.chest(), 5, Pal.LIFE4, 14.0, 6.0, 0.5, 30.0, 1, 3.0)
+		"heal_invert":
+			row = fx.Row.HEX
+			tag = "hexed heal"
+			tag_col = Pal.VIOLET4
+			fx.ring(T.chest(), 3, 12, 0.35, Pal.VIOLET4, 1.0)
+		"cost", "tithe":
+			row = fx.Row.DEATH
+			tag = "cost" if pid == "cost" else "tithe"
+			tag_col = Pal.BLOOD4
+		"link":
+			status_fx.tether_flash(dst)
+	T.flash(FXScript.GLYPH_COL.get(pid, Pal.INK10), 0.5)
+	hud.row_flash[dst] = maxf(hud.row_flash[dst], 0.6)
+	_layout_ctx()
+	fx.popup(int(ev.get("amount", 0)), row, dst, 1, false, "", Color.WHITE, tag, tag_col, _stagger(dst),
+		T.hp <= 0 and not T.is_crystal, false, false, pid if FXScript.GLYPH_ICON.has(pid) else "poison")
 
 
 func _on_sudden_death(ev: Dictionary) -> void:
