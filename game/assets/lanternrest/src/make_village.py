@@ -9,7 +9,6 @@ Writes into game/assets/lanternrest/:
   <place>_hi.png   its 1 px highlight outline (amber), for hover / tap
   lantern_glow.png, vault_glow.png   additive light layers
   flame_0..3.png   the lantern's flame (animated)
-  mist.png         a drifting mist band drawn over the fogged side areas
   layout.json      every layer's world position, the places' tap zones and the banner anchor
 Uses paint.py / kit.py from assets/encounter/src (read only), like the battle art.
 The world is WORLD_W x 360: wider than any screen (640 at 16:9, 780 at 19.5:9), scrolled sideways.
@@ -43,22 +42,27 @@ layout = {'world': [WORLD_W, WORLD_H], 'far_w': FAR_W, 'layers': {}, 'places': {
 # ------------------------------------------------------------------ helpers
 def lantern_light(cv, r=330.0):
     """0..1 warm light from the lantern, squashed vertically (it pools on the ground)."""
-    d = np.sqrt((cv.x - LANTERN[0]) ** 2 + ((cv.y - LANTERN[1] - 150) * 1.6) ** 2)
+    d = np.sqrt((cv.x - LANTERN[0]) ** 2 + ((cv.y - 300) * 2.0) ** 2)
     return np.clip(1 - d / r, 0, 1)
+
+
+# warm light on grass and earth keeps two tones apart (the stock WARM table folds ink3 and ink4 together)
+GROUND_WARM = _map([('ink3', 'amber1'), ('ink4', 'amber2'), ('ink5', 'amber2'), ('ink6', 'amber3'), ('ink7', 'amber3'),
+                    ('ink8', 'amber4'), ('life1', 'amber1'), ('life2', 'amber2')])
 
 
 def edge_dark(cv):
     """Darkening toward the fogged edges of the village (whole ramp steps)."""
-    dx = np.abs(cv.x - LANTERN[0])
+    dx = np.sqrt((cv.x - LANTERN[0]) ** 2 + ((cv.y - 300) * 3.0) ** 2) + 30 * (fbm(cv.w, cv.h, 24, 2, 17) - 0.5)
     return np.clip((dx - 380) / 140.0, 0, 1.0)
 
 
-def light_world(cv, mask, warm_amt=1.0, base=-0.5):
+def light_world(cv, mask, warm_amt=1.0, base=-0.5, warm_pow=1.0, table=None):
     """The shared lighting pass for anything painted in world space: lift near the lantern, sink
     toward the edges, tint warm close to the light."""
     lf = lantern_light(cv)
     light_pass(cv, noisy(lf * 2.6 + base, 11, 0.12, cell=30) - edge_dark(cv), mask)
-    tint_pass(cv, noisy(lf * 1.25 * warm_amt, 12, 0.12, cell=30), WARM, mask)
+    tint_pass(cv, noisy(lf ** warm_pow * 1.25 * warm_amt, 12, 0.12, cell=30), WARM if table is None else table, mask)
 
 
 def crop_save(cv, name, mask=None):
@@ -165,7 +169,9 @@ def ground():
     n = fbm(WORLD_W, 1, 60, 3, 21)[0]
     top = SKYLINE - 6 * n - 3 * np.sin(xs / 70.0)
     land = Y >= top[None, :]
-    cv.shade(land, 0.35 + 0.25 * smoothstep(SKYLINE, 300, Y) + 0.1 * (fbm(WORLD_W, WORLD_H, 14, 3, 3) - 0.5),
+    # grass in clumps (two tones), darker toward the back
+    clump = fbm(WORLD_W, WORLD_H * 2, 9, 2, 3)[::2][:WORLD_H]
+    cv.shade(land, 0.3 + 0.25 * smoothstep(SKYLINE, 300, Y) + 1.0 * (clump - 0.5),
              ramp('ink2', 'ink3', 'ink3', 'ink4', 'ink4'), 0, 1)
     cv.put(land & ~shift(land, 0, 1), IDX['ink4'])
     # meadow tufts in rows (texture, read as grass, not noise)
@@ -184,7 +190,7 @@ def ground():
     road_top = PATH[0] + 1.5 * np.sin(xs / 45.0)
     road_bot = PATH[1] + 2.0 * np.sin(xs / 60.0 + 1)
     road = (Y >= road_top[None, :]) & (Y <= road_bot[None, :])
-    cv.shade(road, 0.45 + 0.2 * (fbm(WORLD_W, WORLD_H, 8, 2, 41) - 0.5), ramp('ink3', 'ink4', 'ink4', 'ink5'), 0, 1)
+    cv.shade(road, 0.45 + 0.2 * (fbm(WORLD_W, WORLD_H, 8, 2, 41) - 0.5), ramp('ink4', 'ink5', 'ink5', 'ink6'), 0, 1)
     cv.put(road & ~shift(road, 0, 1), IDX['ink2'])
     cv.put(road & ~shift(road, 0, -1), IDX['ink2'])
     for i in range(80):
@@ -219,14 +225,15 @@ def ground():
         cv.put(post, IDX['amber1'])
         cv.put(post & (X == fx), IDX['amber2'])
     # the front verge: a darker band of taller grass at the bottom edge frames the view
-    front = (Y > 340 + 4 * fbm(WORLD_W, WORLD_H, 12, 2, 77)) & land
+    edge_n = fbm(WORLD_W, 1, 6, 2, 77)[0]
+    front = (Y > 343 + 5 * edge_n[None, :]) & land
     cv.put(front, IDX['ink2'])
-    cv.put(front & ~shift(front, 0, 1), IDX['life1'])
+    cv.put(front & ~shift(front, 0, 1), IDX['ink3'])
 
-    light_world(cv, cv.idx >= 0)
+    light_world(cv, cv.idx >= 0, warm_amt=1.3, warm_pow=2.0, table=GROUND_WARM)
     # the vault's cold light spills onto the road in front of its door
-    cold = np.clip(1 - np.sqrt((X - VAULT_X) ** 2 + ((Y - 300) * 2.2) ** 2) / 70.0, 0, 1)
-    tint_pass(cv, noisy(cold * 1.4, 13, 0.3), COOL, cv.idx >= 0)
+    cold = np.clip(1 - np.sqrt((X - VAULT_X) ** 2 + ((Y - 297) * 3.0) ** 2) / 46.0, 0, 1)
+    tint_pass(cv, noisy(cold * 1.2, 13, 0.15), COOL, cv.idx >= 0)
     cv.clean(passes=1)
     crop_save(cv, 'ground')
     return cv
@@ -331,7 +338,7 @@ def vault():
     xs = np.arange(WORLD_W)
     # the hill the stair is cut into: faceted rock, a grassy crown
     n = fbm(WORLD_W, 1, 26, 3, 61)[0]
-    ht = 168 + 40 * ((xs - vx) / 104.0) ** 2 + 8 * n
+    ht = 170 + 118 * np.abs((xs - vx) / 104.0) ** 2.2 + 8 * n
     hill = (Y >= ht[None, :]) & (np.abs(X - vx) < 104) & (Y < BACK + 2)
     hill &= ~((Y > 270) & (np.abs(X - vx) > 92 - (Y - 270) * 0.8))
     rock(cv, hill, ('ink1', 'ink2', 'ink3', 'ink4', 'ink5'), (LANTERN[0] - 100, 120), seed=62, scale=16)
@@ -587,20 +594,12 @@ def fog(pid, x0, x1, inner_left):
     cv.put(area & edge_of(area) & (dens < 0.2), IDX['ink4'])
     cv.clean(mask=area, passes=1)
     m = crop_save(cv, pid)
-    hi_save(m & (dens < 0.35) & (dens > 0.12) | (m & edge_of(m) & (Y > 40) & (Y < WORLD_H - 2) & ((X > x0 + 1) & (X < x1 - 1))), pid, color='ink8')
+    # the mist's highlight: the whole bank one ramp step lighter (an outline would trace every wisp)
+    hi = Canvas(WORLD_W, WORLD_H)
+    hi.idx = np.where(m, LIGHTER[np.maximum(cv.idx, 0)], -1)
+    crop_save(hi, pid + '_hi')
     zx0, zx1 = (x0 + 24, x1) if inner_left else (x0, x1 - 24)
     place(pid, [zx0, 150, zx1 - zx0, 180], plate_y=170)
-
-
-def mist_band():
-    """A long low band of mist that drifts over the fog banks (drawn with partial alpha)."""
-    w, h = 260, 60
-    cv = Canvas(w, h)
-    n = fbm(w, h, 20, 3, 91)
-    d = np.clip(1 - np.abs(cv.y - h / 2) / (h / 2), 0, 1) * (0.6 + 0.8 * (n - 0.5))
-    cv.shade(d > 0.25, d, ramp('fade1', 'fade2', 'fade2', 'fade3'), 0.25, 1.0)
-    cv.clean(passes=1)
-    cv.save(os.path.join(OUT, 'mist.png'))
 
 
 def main():
@@ -614,7 +613,6 @@ def main():
     grounds()
     fog('fog_west', FOG_W[0], FOG_W[1], False)
     fog('fog_east', FOG_E[0], FOG_E[1], True)
-    mist_band()
     with open(os.path.join(OUT, 'layout.json'), 'w') as f:
         json.dump(layout, f, indent=1, sort_keys=True)
     print('lanternrest village done')

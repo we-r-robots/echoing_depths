@@ -545,8 +545,14 @@ func plate_rect(id: String, is_new := false) -> Rect2:
 ## Places whose name plates show now (the main places always; others while hovered or open).
 func shown_plates() -> Array[String]:
 	var out: Array[String] = []
+	var vw := view_w()
 	for id in visible_ids:
 		if bool(Village.PLACES[id].get("always_plate", false)) or id == hovered or id == selected:
+			# a place scrolled off screen shows no plate (it would sit clamped over another place)
+			var z := (places[id] as VillagePlace).world_zone()
+			var sx := to_screen(z.position).x
+			if sx + z.size.x * 0.5 < 0.0 or sx + z.size.x * 0.5 > vw:
+				continue
 			out.append(id)
 	return out
 

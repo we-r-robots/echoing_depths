@@ -765,6 +765,10 @@
     {
       "t": "20:50",
       "msg": "hires-ui PASSED at round 7: ours 5/7 incl. the Sea of Stars party pair; open review pass. Lanternrest village hub building; class options ready for user approval."
+    },
+    {
+      "t": "21:19",
+      "msg": "lanternrest-village built: scrollable pixel village hub (lantern, Vault entrance, plots, mist, Training Grounds yard after first run), title->Lanternrest->Vault flow, first-visit identity; 167 tests + probe, smoke PASS"
     }
   ],
   "questions": [

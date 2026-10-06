@@ -21,7 +21,7 @@ func _init() -> void:
 
 
 func _build() -> void:
-	body.add_child(FlowUI.para("Stairs down into the Memory Vaults. The lantern's light follows every party below and pulls home what they find.", W, Pal.INK9))
+	body.add_child(FlowUI.para("Stairs down into the Memory Vaults. The lantern's light follows every party that goes below.", W, Pal.INK9))
 	var who := FlowUI.hbox(6)
 	who.add_child(FlowUI.crest(GameState.crest(), 1))
 	who.add_child(FlowUI.label(GameState.team_name(), &"GoldLabel", null, W - 20))

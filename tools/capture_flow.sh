@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 OUT="${1:-captures/flow/latest}"
-for sc in title:60,180 pvp_splash:2,60,180 results:60,180 lanternrest:60,180 settings:60,180 run_encounter:120,300 road:60,180; do
+for sc in title:60,180 pvp_splash:2,60,180 results:60,180 settings:60,180 run_encounter:120,300 road:60,180; do
   n=${sc%%:*}; f=${sc#*:}
   tools/capture.sh res://scenes/flow/$n.tscn "$OUT/$n/1080" "$f" >/dev/null 2>&1 || true
   tools/capture.sh --phone res://scenes/flow/$n.tscn "$OUT/$n/phone" "$f" >/dev/null 2>&1 || true
@@ -19,4 +19,7 @@ for sc in results_victory:results:180:--outcome=victory pvp_splash_guardian:pvp_
   tools/capture.sh --phone res://scenes/flow/$scene.tscn "$OUT/$n/phone" "$f" 1 "$arg" >/dev/null 2>&1 || true
   echo "  $n"
 done
+tools/capture.sh res://scenes/lanternrest/lanternrest.tscn "$OUT/lanternrest/1080" 60,180 >/dev/null 2>&1 || true
+tools/capture.sh --phone res://scenes/lanternrest/lanternrest.tscn "$OUT/lanternrest/phone" 60,180 >/dev/null 2>&1 || true
+echo "  lanternrest (all states: tools/capture_lanternrest.sh)"
 echo "done: $OUT"

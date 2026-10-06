@@ -58,7 +58,7 @@ func _build() -> void:
 				b.draw_rect(Rect2(Vector2.ZERO, CREST_TILE), Pal.AMBER6, false, 1.0))
 		row.add_child(b)
 		_crest_btns[id] = b
-	var note := FlowUI.para("More crests, and Titles for your name, are remembered in Lanternrest later.", W - 3 * 36 - 8, Pal.INK9)
+	var note := FlowUI.para("More crests, and Titles for your name, come later.", W - 3 * 36 - 8, Pal.INK9)
 	row.add_child(note)
 	body.add_child(row)
 	var go := FlowUI.primary("Begin", 120)
