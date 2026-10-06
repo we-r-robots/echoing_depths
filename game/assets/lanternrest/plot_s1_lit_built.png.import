@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://q2ktex6j4oqq"
-path="res://.godot/imported/town.png-d0c197f4a171e4ec137e4ae54f0b2ad3.ctex"
+uid="uid://bf3f22pj7kqja"
+path="res://.godot/imported/plot_s1_lit_built.png-46ca068faa4ea3ff9bba9464979b5345.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/lanternrest/town.png"
-dest_files=["res://.godot/imported/town.png-d0c197f4a171e4ec137e4ae54f0b2ad3.ctex"]
+source_file="res://assets/lanternrest/plot_s1_lit_built.png"
+dest_files=["res://.godot/imported/plot_s1_lit_built.png-46ca068faa4ea3ff9bba9464979b5345.ctex"]
 
 [params]
 

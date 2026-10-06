@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ceg1c413osiv4"
-path="res://.godot/imported/mist_body.png-9b57f9863db4674084cebd03136a85ac.ctex"
+uid="uid://dh1w6sc3l8qba"
+path="res://.godot/imported/town_built.png-10beb9ae0a68089d28634dcb82a7ceea.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/lanternrest/mist_body.png"
-dest_files=["res://.godot/imported/mist_body.png-9b57f9863db4674084cebd03136a85ac.ctex"]
+source_file="res://assets/lanternrest/town_built.png"
+dest_files=["res://.godot/imported/town_built.png-10beb9ae0a68089d28634dcb82a7ceea.ctex"]
 
 [params]
 

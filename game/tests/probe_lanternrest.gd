@@ -2,7 +2,7 @@ extends Node
 ## Probe (run by tests/run_all.gd over frames, so containers lay out and _draw runs): the Lanternrest
 ## town at 1920x1080 and 2340x1080 (19.5:9). With the camera at the opening view, each corner and
 ## each edge, and every place hovered in turn, every signboard stays on screen, under the top bar
-## and clear of the other signs; edge cues stay off places. Every panel (the Lantern, the Vault
+## and clear of the other signs; the fixed edge cues never cover a sign or a pin. Every panel (the Lantern, the Vault
 ## entrance with and without a saved run, the Training Grounds with a shape picked, empty plots, the
 ## mist on each side, the first-visit identity) lies on screen under the top bar, beside its place
 ## and never over it, and each of its one-line texts fits its box and stays inside the panel.
@@ -89,8 +89,10 @@ func _check_plates(s: LanternrestScreen, at: String) -> void:
 		for j in range(i + 1, ids.size()):
 			check(not (rects[ids[i]] as Rect2).intersects(rects[ids[j]]), "%s: signs %s and %s overlap" % [at, ids[i], ids[j]])
 	for c: Dictionary in s.cue_rects():
-		for id in s.visible_ids:
-			check(not (c["rect"] as Rect2).intersects(s.zone_on_screen(id)), "%s: a cue sits on %s" % [at, id])
+		for id in rects:
+			check(not (c["rect"] as Rect2).intersects(rects[id]), "%s: a cue covers the %s sign" % [at, id])
+		for id in s.shown_pins():
+			check(not (c["rect"] as Rect2).intersects(s.pin_rect(id)), "%s: a cue covers the %s pin" % [at, id])
 
 
 func _check_panel(s: LanternrestScreen, at: String, place: String) -> void:

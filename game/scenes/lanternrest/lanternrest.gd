@@ -58,6 +58,9 @@ var panel_side := 1           # the panel's half of the view: 1 right, -1 left
 var lights: TownLayers.Lights
 var life: TownLayers.Life
 var mist: TownLayers.Mist
+var night: TownLayers.Night
+var overlay: TownLayers.Overlay
+var town_stage := ""          # Village.stage(): "fresh" or "built"
 var did_look := false         # this visit: the player has panned
 var did_tap := false          # this visit: the player has opened a place
 var _opened := false
@@ -66,6 +69,7 @@ var _shade: Control
 var _lift: Control
 var _gear: Button
 var _menu: PanelContainer
+var _menu_shade: Control
 var _settings: Control
 var _base: Sprite2D
 var _places_layer: Node2D
@@ -99,23 +103,28 @@ func _ready() -> void:
 	world = Node2D.new()
 	world.name = "World"
 	add_child(world)
+	# back to front: the albedo (town, places, life), the night's light multiplied over it, the
+	# mist, additive bloom, then what the night does not touch (flame, motes, outlines)
 	_base = Sprite2D.new()
 	_base.name = "Town"
 	_base.centered = false
-	_base.texture = Village.texture("town")
 	world.add_child(_base)
 	_places_layer = Node2D.new()
 	_places_layer.name = "Places"
 	world.add_child(_places_layer)
-	lights = TownLayers.Lights.new()
-	world.add_child(lights)
-	life = TownLayers.Life.new()
-	world.add_child(life)
-	mist = TownLayers.Mist.new()
-	world.add_child(mist)
 	_fog_layer = Node2D.new()
 	_fog_layer.name = "MistPlaces"
 	world.add_child(_fog_layer)
+	life = TownLayers.Life.new()
+	world.add_child(life)
+	night = TownLayers.Night.new()
+	world.add_child(night)
+	mist = TownLayers.Mist.new()
+	world.add_child(mist)
+	lights = TownLayers.Lights.new()
+	world.add_child(lights)
+	overlay = TownLayers.Overlay.new()
+	world.add_child(overlay)
 	_ui = Control.new()
 	_ui.name = "UI"
 	_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -127,6 +136,7 @@ func _ready() -> void:
 	_gear.icon = Village.texture("gear")
 	_gear.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_gear.tooltip_text = "Menu"
+	_gear.toggle_mode = true
 	_gear.pressed.connect(toggle_menu)
 	add_child(_gear)
 	rebuild()
@@ -153,15 +163,21 @@ func rebuild() -> void:
 		p.get_parent().remove_child(p)
 		p.queue_free()
 	places.clear()
+	town_stage = Village.stage(GameState.meta)
+	_base.texture = Village.texture("town_" + town_stage)
+	night.set_stage(town_stage)
+	mist.set_stage(town_stage)
 	visible_ids = Village.visible_places(GameState.meta)
 	for id in visible_ids:
-		var p := VillagePlace.make(id)
+		var p := VillagePlace.make(id, town_stage)
 		if id == "lantern":
 			p.crest_id = GameState.crest()
 		(_fog_layer if Village.kind(id) == "fog" else _places_layer).add_child(p)
 		places[id] = p
 	lights.places = places
-	life.places = places
+	overlay.places = places
+	lights.setup(GameState.meta)
+	life.setup(GameState.meta)
 	_refresh_highlights()
 
 
@@ -406,6 +422,7 @@ func _set_pressed(id: String) -> void:
 		pressed_id = id
 		if places.has(id):
 			(places[id] as VillagePlace).pressed = true
+		_ui.queue_redraw()
 
 
 func _refresh_highlights() -> void:
@@ -462,8 +479,28 @@ func hint_rect() -> Rect2:
 	var t := hint_text()
 	if t == "":
 		return Rect2()
-	var w := UIText.width(t, UIText.BOLD)
-	return Rect2(roundf((view_size().x - w) / 2.0) - 8.0, HINT_Y, w + 16.0, HINT_H)
+	return _hint_rect_for(t)
+
+
+## The hint sits on the bottom edge beside the down cue (never on it), on whichever side keeps it
+## off the plaza and the lantern.
+func _hint_rect_for(t: String) -> Rect2:
+	var w := UIText.width(t, UIText.BOLD) + 16.0
+	var view := view_size()
+	var cue_w := CUE.y
+	var left := Rect2(roundf(view.x / 2.0 - cue_w / 2.0 - 8.0 - w), HINT_Y, w, HINT_H)
+	var right := Rect2(roundf(view.x / 2.0 + cue_w / 2.0 + 8.0), HINT_Y, w, HINT_H)
+	var keep_off: Array[Rect2] = [Rect2(to_screen(Village.plaza_rect().position), Village.plaza_rect().size)]
+	if places.has("lantern"):
+		keep_off.append(zone_on_screen("lantern"))
+	for r: Rect2 in [left, right]:
+		var ok := true
+		for k: Rect2 in keep_off:
+			if k.intersects(r):
+				ok = false
+		if ok:
+			return r
+	return left
 
 
 func _looked() -> void:
@@ -629,6 +666,16 @@ func toggle_menu() -> void:
 		return
 	if panel != null and panel.closable:
 		close_panel()
+	# the same dim as a panel (a tap on it closes the menu); the gear shows pressed while open
+	_menu_shade = Control.new()
+	_menu_shade.name = "MenuShade"
+	_menu_shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_menu_shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	_menu_shade.draw.connect(func() -> void: _menu_shade.draw_rect(shade_rect(), Color(Pal.INK1, SHADE)))
+	_menu_shade.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and (e as InputEventMouseButton).pressed:
+			close_menu())
+	add_child(_menu_shade)
 	_menu = FlowUI.panel()
 	_menu.name = "GearMenu"
 	var v := FlowUI.vbox(4)
@@ -642,10 +689,21 @@ func toggle_menu() -> void:
 		close_menu()
 		to_title.emit())
 	v.add_child(t)
+	var c := FlowUI.button("Close", 132, 22)
+	c.name = "Close"
+	c.pressed.connect(close_menu)
+	v.add_child(c)
 	_menu.add_child(FlowUI.margin(v, 6))
 	add_child(_menu)
 	_menu.reset_size()
 	_menu.position = Vector2(roundf(_gear.position.x + _gear.size.x - _menu.size.x), TOP + 4.0)
+	_gear.set_pressed_no_signal(true)
+	move_child(_gear, get_child_count() - 1)
+	_ui.queue_redraw()
+
+
+func menu_open() -> bool:
+	return _menu != null
 
 
 func close_menu() -> void:
@@ -653,6 +711,14 @@ func close_menu() -> void:
 		_menu.queue_free()
 		remove_child(_menu)
 	_menu = null
+	if _menu_shade != null and is_instance_valid(_menu_shade):
+		_menu_shade.queue_free()
+		remove_child(_menu_shade)
+	_menu_shade = null
+	if _gear != null:
+		_gear.set_pressed_no_signal(false)
+	if _ui != null:
+		_ui.queue_redraw()
 
 
 func open_settings() -> void:
@@ -678,49 +744,47 @@ func _draw() -> void:
 	draw_rect(get_viewport_rect(), Pal.INK1)
 
 
-## Edge cues: where more town lies past the view's edges. Each sits mid-edge, slid along the edge
-## off any place, signboard or the hint (and left out where there is no clear spot).
+## Edge cues: where more town lies past the view's edges. Each sits fixed at the middle of its
+## edge (a tap there pages that way, before any place under it); none while a panel is open.
 func cue_rects() -> Array:
-	var out: Array = []
 	if panel != null:
-		return out
+		return []
+	return _edge_cues()
+
+
+func _edge_cues() -> Array:
+	var out: Array = []
+	var view := view_size()
+	var maxc := Village.clamp_cam(Vector2(INF, INF), view)
+	var spots := _cue_spots()
+	if cam.x > 0.5:
+		out.append({"dir": Vector2.LEFT, "rect": spots[0]})
+	if cam.x < maxc.x - 0.5:
+		out.append({"dir": Vector2.RIGHT, "rect": spots[1]})
+	if cam.y > 0.5:
+		out.append({"dir": Vector2.UP, "rect": spots[2]})
+	if cam.y < maxc.y - 0.5:
+		out.append({"dir": Vector2.DOWN, "rect": spots[3]})
+	return out
+
+
+## Where the edge cues sit (left, right, up, down; fixed at the edges' centres): signs keep off them.
+func _cue_spots() -> Array[Rect2]:
 	var view := view_size()
 	var sr := UIText.safe_rect(self)
-	var maxc := Village.clamp_cam(Vector2(INF, INF), view)
-	var avoid: Array[Rect2] = []
-	for id in visible_ids:
-		avoid.append(zone_on_screen(id).grow(2))
-	for id in shown_plates():
-		avoid.append(plate_rect(id).grow(2))
-	if hint_text() != "":
-		avoid.append(hint_rect().grow(2))
-	var dirs := []
-	if cam.x > 0.5:
-		dirs.append(Vector2.LEFT)
-	if cam.x < maxc.x - 0.5:
-		dirs.append(Vector2.RIGHT)
-	if cam.y > 0.5:
-		dirs.append(Vector2.UP)
-	if cam.y < maxc.y - 0.5:
-		dirs.append(Vector2.DOWN)
-	for dir: Vector2 in dirs:
-		for off: float in [0.0, -36.0, 36.0, -72.0, 72.0, -108.0, 108.0, -144.0, 144.0]:
-			var r: Rect2
-			if dir.x != 0.0:
-				var y := roundf(TOP + (view.y - TOP) / 2.0 - CUE.y / 2.0 + off)
-				r = Rect2(sr.position.x + 2.0 if dir.x < 0 else sr.end.x - 2.0 - CUE.x, y, CUE.x, CUE.y)
-			else:
-				var x := roundf(view.x / 2.0 - CUE.y / 2.0 + off)
-				r = Rect2(x, TOP + 4.0 if dir.y < 0 else view.y - 4.0 - CUE.x, CUE.y, CUE.x)
-			var clear := true
-			for a: Rect2 in avoid:
-				if a.intersects(r):
-					clear = false
-					break
-			if clear:
-				out.append({"dir": dir, "rect": r})
-				break
-	return out
+	var mid_y := roundf(TOP + (view.y - TOP) / 2.0 - CUE.y / 2.0)
+	var mid_x := roundf(view.x / 2.0 - CUE.y / 2.0)
+	return [Rect2(sr.position.x + 2.0, mid_y, CUE.x, CUE.y), Rect2(sr.end.x - 2.0 - CUE.x, mid_y, CUE.x, CUE.y),
+		Rect2(mid_x, TOP + 4.0, CUE.y, CUE.x), Rect2(mid_x, view.y - 4.0 - CUE.x, CUE.y, CUE.x)]
+
+
+## True when a world label at `r` would sit under the open panel or the gear menu (it is hidden:
+## no label is ever clipped at a panel's edge).
+func plate_hidden(r: Rect2) -> bool:
+	for c: Control in [panel, _menu]:
+		if c != null and is_instance_valid(c) and Rect2(c.position, c.size).grow(3).intersects(r):
+			return true
+	return false
 
 
 ## Signboards, edge cues, the top bar and the hint, on the UI layer (native resolution).
@@ -728,6 +792,8 @@ func _draw_ui() -> void:
 	var ui := _ui
 	var sr := UIText.safe_rect(self)
 	var unseen := Village.unseen(GameState.meta)
+	for id in shown_pins():
+		_draw_pin(ui, id)
 	for id in shown_plates():
 		if id != selected:
 			_draw_plate(ui, id, unseen.has(id))
@@ -772,8 +838,9 @@ func _draw_lift() -> void:
 	var id := _panel_place
 	if places.has(id):
 		var p := places[id] as VillagePlace
-		p.draw_on(_lift, to_screen(p.position))
-		_draw_plate(_lift, id, false)
+		p.draw_lifted(_lift, to_screen(p.position))
+		if not plate_hidden(plate_rect(id)):
+			_draw_plate(_lift, id, false)
 	var zs := zone_on_screen(id)
 	var pr := Rect2(panel.position, panel.size)
 	var px := pr.position.x if panel_side == 1 else pr.end.x
@@ -788,51 +855,118 @@ func _draw_lift() -> void:
 
 
 ## A signboard's rect on screen (design px): hanging above its place's sign point on a stem, kept
-## inside the safe edges and under the top bar.
+## inside the safe edges, under the top bar and off the edge cues' spots.
 func plate_rect(id: String, is_new := false) -> Rect2:
 	var sr := UIText.safe_rect(self)
-	var w := UIText.width(Village.place_name(id), UIText.BOLD)
+	var w := UIText.width(Village.sign_label(id), UIText.BOLD)
 	var tw := UIText.width("NEW", UIText.BOLD) + 8.0 if is_new else 0.0
 	var pw := roundf(w + 14.0 + tw)
 	var at := to_screen(Village.sign_at(id))
 	var x := clampf(roundf(at.x - pw / 2.0), sr.position.x + 4.0, sr.end.x - 4.0 - pw)
 	var y := maxf(roundf(at.y - STEM - SIGN_H), TOP + 4.0)
-	return Rect2(x, y, pw, SIGN_H)
+	var r := Rect2(x, y, pw, SIGN_H)
+	var spots := _cue_spots()
+	for i in spots.size():
+		var c: Rect2 = spots[i]
+		if c.grow(2).intersects(r):
+			if i == 0:
+				r.position.x = c.end.x + 3.0
+			elif i == 1:
+				r.position.x = c.position.x - 3.0 - pw
+			elif r.get_center().x >= c.get_center().x:
+				r.position.x = c.end.x + 3.0
+			else:
+				r.position.x = c.position.x - 3.0 - pw
+	return r
 
 
-## Places whose signboards show now: the main places always, others while hovered or open; a place
-## whose sign point is off screen shows none.
+## Places whose signboards show now: every place but the empty plots always (touch has no hover),
+## a plot while hovered, pressed or open; none whose sign point is off screen or that the open
+## panel would cover.
 func shown_plates() -> Array[String]:
 	var out: Array[String] = []
 	var view := view_size()
 	for id in visible_ids:
-		if bool(Village.PLACES[id].get("always_sign", false)) or id == hovered or id == selected:
+		if bool(Village.PLACES[id].get("always_sign", false)) or id == hovered or id == selected or id == pressed_id:
 			var at := to_screen(Village.sign_at(id))
 			if at.x < 0.0 or at.x > view.x or at.y < TOP or at.y > view.y:
+				continue
+			if id != selected and plate_hidden(plate_rect(id)):
 				continue
 			out.append(id)
 	return out
 
 
-func _draw_plate(ci: CanvasItem, id: String, is_new: bool) -> void:
-	var label := Village.place_name(id)
+const PIN := Vector2(11, 13)
+
+
+## Small always-visible pins on the places without a standing sign (the empty plots).
+func shown_pins() -> Array[String]:
+	var out: Array[String] = []
+	var view := view_size()
+	var plates := shown_plates()
+	for id in visible_ids:
+		if not Village.has_pin(id) or plates.has(id) or id == selected:
+			continue
+		var r := pin_rect(id)
+		if r.position.x < 0.0 or r.end.x > view.x or r.position.y < TOP or r.end.y > view.y or plate_hidden(r):
+			continue
+		out.append(id)
+	return out
+
+
+func pin_rect(id: String) -> Rect2:
+	var at := to_screen(Village.pin_at(id)).round()
+	var r := Rect2(at.x - floorf(PIN.x / 2.0), at.y - PIN.y - 3.0, PIN.x, PIN.y)
+	for c: Rect2 in _cue_spots():
+		if c.grow(2).intersects(r):
+			r.position.x = c.end.x + 3.0 if r.get_center().x >= c.get_center().x else c.position.x - 3.0 - PIN.x
+	return r
+
+
+func _draw_pin(ci: CanvasItem, id: String) -> void:
+	var r := pin_rect(id)
+	var at := to_screen(Village.pin_at(id)).round()
+	ci.draw_rect(Rect2(clampf(at.x, r.position.x + 1.0, r.end.x - 2.0), r.end.y, 1, maxf(0.0, at.y - r.end.y)), Pal.AMBER3)
+	ci.draw_rect(r, Color(Pal.INK1, 0.92))
+	ci.draw_rect(r, Pal.AMBER3, false, 1.0)
+	# a hammer: something could be built here
+	var o := r.position
+	ci.draw_rect(Rect2(o + Vector2(3, 3), Vector2(5, 2)), Pal.AMBER6)
+	ci.draw_rect(Rect2(o + Vector2(5, 5), Vector2(1, 5)), Pal.AMBER5)
+
+
+## How a signboard is drawn now: "idle", "hover" (lit edge) or "pressed" (pushed down a pixel, a
+## bright fill), for tests and captures.
+func plate_style(id: String) -> Dictionary:
+	if id == pressed_id:
+		return {"state": "pressed", "edge": Pal.AMBER7, "fill": Pal.AMBER2, "offset": Vector2(0, 1)}
+	if id == hovered or id == selected:
+		return {"state": "hover", "edge": Pal.AMBER5, "fill": Pal.INK1, "offset": Vector2.ZERO}
 	var main := Village.kind(id) in ["lantern", "vault", "building"]
-	var lit := id == hovered or id == selected
+	return {"state": "idle", "edge": Pal.AMBER3 if main else Pal.INK6, "fill": Pal.INK1, "offset": Vector2.ZERO}
+
+
+func _draw_plate(ci: CanvasItem, id: String, is_new: bool) -> void:
+	var label := Village.sign_label(id)
+	var main := Village.kind(id) in ["lantern", "vault", "building"]
+	var st := plate_style(id)
+	var state := String(st["state"])
 	var r := plate_rect(id, is_new)
-	var edge := Pal.AMBER5 if lit else (Pal.AMBER3 if main else Pal.INK6)
-	# the stem down to the place
 	var at := to_screen(Village.sign_at(id)).round()
+	r.position += st["offset"]
+	var edge: Color = st["edge"]
 	var sx := clampf(at.x, r.position.x + 3.0, r.end.x - 4.0)
 	if at.y > r.end.y:
 		ci.draw_rect(Rect2(sx, r.end.y, 1, at.y - r.end.y), edge)
 		ci.draw_rect(Rect2(sx - 1, at.y - 1, 3, 2), edge)
-	# the board: dark wood in the frame style, a lit top edge and corner nails
-	ci.draw_rect(r, Color(Pal.INK1, 0.92))
+	ci.draw_rect(r, Color(st["fill"], 0.92))
 	ci.draw_rect(r, edge, false, 1.0)
-	ci.draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 1)), Color(Pal.INK4, 0.9))
+	if state != "pressed":
+		ci.draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 1)), Color(Pal.INK4, 0.9))
 	for cx: float in [r.position.x + 2.0, r.end.x - 3.0]:
 		ci.draw_rect(Rect2(cx, r.position.y + 2.0, 1, 1), edge)
-	var col := Pal.AMBER6 if main or lit else Pal.INK9
+	var col := Pal.INK10 if state == "pressed" else (Pal.AMBER6 if main or state == "hover" else Pal.INK9)
 	UIText.draw(ci, Vector2(r.position.x + 7.0, UIText.centered_y(r.position.y, SIGN_H, UIText.BOLD)), label, col, UIText.BOLD)
 	if is_new:
 		var w := UIText.width(label, UIText.BOLD)

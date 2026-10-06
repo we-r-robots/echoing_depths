@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Captures Lanternrest, the top-down 3/4 town (scenes/lanternrest/lanternrest.tscn demo states), at
 # 1920x1080 and 2340x1080 (19.5:9 phone).
-# usage: tools/capture_lanternrest.sh [out_dir] [state ...]   (default captures/lanternrest/r2, all)
+# usage: tools/capture_lanternrest.sh [out_dir] [state ...]   (default captures/lanternrest/r3, all)
 #   writes <out_dir>/<state>/{1080,phone}/f00090.png
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-OUT="${1:-captures/lanternrest/r2}"
+OUT="${1:-captures/lanternrest/r3}"
 shift || true
 SCENE=res://scenes/lanternrest/lanternrest.tscn
 # <state name>|<scene args>

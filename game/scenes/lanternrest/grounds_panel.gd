@@ -4,17 +4,22 @@ extends VillagePanel
 ## following Formations.UNLOCK_TREE (a shape grows from one you know). Saves at once (GameState).
 
 const GameData = preload("res://core/game_data.gd")
-## Shape tiles: 3 columns of icon + name, and under the name the shape's state: a check and
-## "Learned", its Shard price when it can be learned now, or (dimmed) a lock and the shape it grows
-## from (GameState.shape_parents). One lock style. The longest name, "Lumari Chorus", is 66 px.
-const TILE := Vector2(94, 34)
+## Shape tiles: 3 columns of icon + name, and under the name the shape's state, every status line
+## starting with its icon at the name's left edge (one alignment): a check and "Learned", a Shard
+## and its price when it can be learned now, or (dimmed) a lock and the shape it grows from
+## (GameState.shape_parents). The icon is the shape on the whole 2 x 4 formation board in 6 px
+## cells (round 3: big enough to read). The longest name, "Lumari Chorus", is 66 px.
+const TILE := Vector2(98, 37)
 const TILE_COLS := 3
 const TILE_PAD := 8          # every name keeps at least this much room to the tile's edges
-const TILE_ICON_PX := 4      # shape icon cell size; a 4-tall shape is 19 px, centred in the tile
-const TILE_TEXT_X := 20      # names start here, right of the icon column
-const STATUS_ICON := 11      # the check / lock before the status line
+const TILE_ICON_PX := 6      # board cell size: the 4-row board is 27 px, centred in the tile
+const BOARD_ROWS := 4
+const TILE_TEXT_X := 23      # names and status lines start here, right of the icon column
+const STATUS_ICON := 11      # the check / Shard / lock before the status text
 const LOCK := preload("res://ui/effect_icons/lock.png")
-const GROUNDS_W := 290       # TILE_COLS * TILE.x + 2 * 4
+const GROUNDS_W := 302       # TILE_COLS * TILE.x + 2 * 4
+## The intro: one line that fits the panel (no orphaned word).
+const INTRO := ["Learn shapes with Shards. Each grows from one you know."]
 
 var _sel_shape := ""
 var _shape_tiles := {}
@@ -29,7 +34,10 @@ func _init() -> void:
 
 
 func _build() -> void:
-	body.add_child(FlowUI.para("Learn shapes with Shards. New ones grow from shapes you know.", GROUNDS_W, Pal.INK9))
+	for line: String in INTRO:
+		var l := FlowUI.para(line, GROUNDS_W, Pal.INK9)
+		l.name = "Intro"
+		body.add_child(l)
 	var grid := GridContainer.new()
 	grid.columns = TILE_COLS
 	grid.add_theme_constant_override("h_separation", 4)
@@ -54,27 +62,31 @@ func _shape_tile(s: Dictionary) -> Button:
 	b.pressed.connect(select_shape.bind(id))
 	var nm := FlowUI.label(String(s["name"]), &"HeaderLabel", null, TILE.x - TILE_TEXT_X - TILE_PAD)
 	nm.name = "Name"
-	nm.position = Vector2(TILE_TEXT_X, 1)
+	nm.position = Vector2(TILE_TEXT_X, 2)
 	nm.size = Vector2(TILE.x - TILE_TEXT_X - TILE_PAD, 16)
 	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	b.add_child(nm)
 	var st := FlowUI.label("", &"MutedLabel", null, TILE.x - TILE_TEXT_X - TILE_PAD - STATUS_ICON)
 	st.name = "Status"
-	st.position = Vector2(TILE_TEXT_X + STATUS_ICON, 17)
+	st.position = Vector2(TILE_TEXT_X + STATUS_ICON, 19)
 	st.size = Vector2(TILE.x - TILE_TEXT_X - TILE_PAD - STATUS_ICON, 15)
 	st.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	b.add_child(st)
 	b.draw.connect(func() -> void:
 		var state := shape_state(id)
 		var fill := Pal.AMBER5 if state == "learned" else (Pal.CRYSTAL4 if state == "learnable" else Pal.INK6)
-		FormationWords.draw_shape_glyph(b, shape_icon_pos(s), s, TILE_ICON_PX, fill, Pal.INK3)
-		var ic := Vector2(TILE_TEXT_X, 20)
+		FormationWords.draw_glyph(b, shape_icon_pos(s), s.get("cells", []), TILE_ICON_PX, fill, Pal.INK3, BOARD_ROWS)
+		var ic := Vector2(TILE_TEXT_X, 22)
 		if state == "learned":
 			# a check mark
 			for k in 3:
 				b.draw_rect(Rect2(ic + Vector2(k, 4 + k), Vector2(1, 1)), Pal.AMBER6)
 			for k in 5:
 				b.draw_rect(Rect2(ic + Vector2(3 + k, 5 - k), Vector2(1, 1)), Pal.AMBER6)
+		elif state == "learnable":
+			# a Shard: a small crystal
+			b.draw_colored_polygon(PackedVector2Array([ic + Vector2(4, 1), ic + Vector2(8, 5), ic + Vector2(4, 10), ic + Vector2(0, 5)]), Pal.CRYSTAL4)
+			b.draw_rect(Rect2(ic + Vector2(3, 3), Vector2(1, 3)), Pal.CRYSTAL5)
 		elif state == "locked":
 			b.draw_texture(LOCK, ic, Pal.INK8)
 			# dimmed: the tile sits back until the shape it grows from is learned
@@ -105,28 +117,16 @@ static func status_text(id: String) -> String:
 	return String(FormationWords.shape_by_id(parents[0]).get("name", parents[0]))
 
 
-## Top-left of a shape's icon inside its tile: centred vertically, in a fixed icon column.
-static func shape_icon_pos(s: Dictionary) -> Vector2:
-	var lo := 99
-	var hi := 0
-	for c: Array in s["cells"]:
-		lo = mini(lo, int(c[1]))
-		hi = maxi(hi, int(c[1]))
-	var rows := maxi(1, hi - lo + 1)
-	var gh := rows * TILE_ICON_PX + rows - 1
-	return Vector2(5, roundf((TILE.y - gh) / 2.0))
+## Top-left of a shape's board inside its tile: centred vertically, in a fixed icon column.
+static func shape_icon_pos(_s: Dictionary) -> Vector2:
+	var gh := BOARD_ROWS * TILE_ICON_PX + BOARD_ROWS - 1
+	return Vector2(5, floorf((TILE.y - gh) / 2.0))
 
 
-## The rect the shape icon covers inside its tile (frame included), for tests.
+## The rect the shape's board covers inside its tile (frame included), for tests.
 static func shape_icon_rect(s: Dictionary) -> Rect2:
 	var p := shape_icon_pos(s)
-	var lo := 99
-	var hi := 0
-	for c: Array in s["cells"]:
-		lo = mini(lo, int(c[1]))
-		hi = maxi(hi, int(c[1]))
-	var rows := maxi(1, hi - lo + 1)
-	return Rect2(p - Vector2.ONE, Vector2(2 * TILE_ICON_PX + 3, rows * TILE_ICON_PX + rows + 1))
+	return Rect2(p - Vector2.ONE, Vector2(2 * TILE_ICON_PX + 3, BOARD_ROWS * TILE_ICON_PX + BOARD_ROWS + 1))
 
 
 func select_shape(id: String) -> void:

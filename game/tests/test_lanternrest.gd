@@ -4,8 +4,11 @@ extends "res://tests/test_case.gd"
 ## panel slides its place aside and never covers it, the Vault entrance starts a run, the Training
 ## Grounds stand after the unlock rule, the first visit asks for the team's identity, the camera
 ## starts on the plaza (Vault and lantern in view at 16:9 and 19.5:9) and stays inside the town, the
-## hint learns and stays gone, edge cues stay off places, the bar's numbers keep their contrast with
-## a panel open, and the signboards meet the text floors. Uses a scratch user:// folder, never the
+## hint learns and stays gone, edge cues sit fixed at the edges' centres clear of signs, pins and the
+## hint, every place has an always-visible sign or pin (touch has no hover), panels hide the labels
+## they would clip, a press looks different from hover, the town lights up with progress (fresh vs
+## built), the gear menu dims and closes, the bar's numbers keep their contrast with a panel open,
+## and the signboards meet the text floors. Uses a scratch user:// folder, never the
 ## player's files.
 
 const DIR := "user://test_lanternrest"
@@ -403,14 +406,16 @@ func test_camera_starts_on_the_plaza_and_stays_in_the_town() -> void:
 		_done()
 
 
-func test_edge_cues_never_sit_on_a_place() -> void:
+func test_edge_cues_sit_fixed_at_the_edge_centres() -> void:
 	_fresh()
 	GameState.set_identity("The Wayfarers", "lantern")
 	GameState.meta["runs"] = 1
 	for res: Vector2i in [WIDE, PHONE]:
 		var s := _screen(res)
 		var view := s.view_size()
+		var sr := UIText.safe_rect(s)
 		var maxc := Village.clamp_cam(Vector2(INF, INF), view)
+		var mid_y := LanternrestScreen.TOP + (view.y - LanternrestScreen.TOP) / 2.0
 		var shown := 0
 		for fx in range(0, 9):
 			for fy in range(0, 5):
@@ -418,17 +423,24 @@ func test_edge_cues_never_sit_on_a_place() -> void:
 				for c: Dictionary in s.cue_rects():
 					shown += 1
 					var r: Rect2 = c["rect"]
+					var d: Vector2 = c["dir"]
 					check(Rect2(Vector2.ZERO, view).encloses(r), "cue %s on screen" % r)
 					check(r.position.y >= LanternrestScreen.TOP, "cue %s under the top bar" % r)
-					for id in s.visible_ids:
-						check(not r.intersects(s.zone_on_screen(id)), "cam %s: the %s cue %s sits on %s" % [s.cam, c["dir"], r, id])
+					# fixed: centred on its edge, hugging it
+					if d.x != 0.0:
+						check(absf(r.get_center().y - mid_y) <= 1.0, "%s cue %s centred on its edge" % [d, r])
+						check(r.position.x <= sr.position.x + 3.0 if d.x < 0 else r.end.x >= sr.end.x - 3.0, "%s cue hugs its edge" % d)
+					else:
+						check(absf(r.get_center().x - view.x / 2.0) <= 1.0, "%s cue %s centred on its edge" % [d, r])
 					for id in s.shown_plates():
 						check(not r.intersects(s.plate_rect(id)), "cam %s: a cue covers the %s sign" % [s.cam, id])
+					for id in s.shown_pins():
+						check(not r.intersects(s.pin_rect(id)), "cam %s: a cue covers the %s pin" % [s.cam, id])
 		check(shown > 40, "cues show where there is more town (%d)" % shown)
-		# at a corner only the two open directions are cued; a cue's tap pages that way
 		s.set_cam(Vector2.ZERO)
 		var dirs := s.cue_rects().map(func(c: Dictionary) -> Vector2: return c["dir"])
 		check(not dirs.has(Vector2.LEFT) and not dirs.has(Vector2.UP), "no cue toward the town's edge")
+		# a cue's tap pages that way, even over a place
 		for c: Dictionary in s.cue_rects():
 			if c["dir"] == Vector2.RIGHT:
 				s.tap((c["rect"] as Rect2).get_center())
@@ -436,6 +448,187 @@ func test_edge_cues_never_sit_on_a_place() -> void:
 				check(s.cam.x > 0.0 and s.panel == null, "the right cue pages right and is not a place")
 		_free(s)
 	_done()
+
+
+func test_hint_keeps_off_the_cues_and_the_plaza() -> void:
+	for res: Vector2i in [WIDE, PHONE]:
+		_fresh()
+		GameState.set_identity("The Wayfarers", "lantern")
+		var s := _screen(res)
+		var hr := s.hint_rect()
+		check(hr.size.x > 0.0, "a new player sees the hint")
+		check(Rect2(Vector2.ZERO, s.view_size()).encloses(hr), "the hint is on screen")
+		for c: Dictionary in s._edge_cues():
+			check(not hr.intersects(c["rect"]), "%dx%d: the hint %s keeps off the %s cue" % [res.x, res.y, hr, c["dir"]])
+		var pz := Rect2(s.to_screen(Village.plaza_rect().position), Village.plaza_rect().size)
+		check(not hr.intersects(pz), "%dx%d: the hint %s keeps off the plaza %s" % [res.x, res.y, hr, pz])
+		check(not hr.intersects(s.zone_on_screen("lantern")), "and off the lantern")
+		_free(s)
+	_done()
+
+
+func test_every_place_has_a_touch_marker() -> void:
+	_fresh()
+	GameState.set_identity("The Wayfarers", "lantern")
+	for res: Vector2i in [WIDE, PHONE]:
+		var s := _screen(res)
+		var view := s.view_size()
+		var maxc := Village.clamp_cam(Vector2(INF, INF), view)
+		var seen := {}
+		for fx in range(0, 7):
+			for fy in range(0, 4):
+				s.set_cam(Vector2(maxc.x * fx / 6.0, maxc.y * fy / 3.0))
+				s.hovered = ""
+				var plates := s.shown_plates()
+				var pins := s.shown_pins()
+				for id in s.visible_ids:
+					# a place whose marker point is well on screen shows a sign or a pin without hover
+					var pt := s.to_screen(Village.pin_at(id) if Village.has_pin(id) else Village.sign_at(id))
+					if pt.x < 24.0 or pt.x > view.x - 24.0 or pt.y < LanternrestScreen.TOP + 24.0 or pt.y > view.y - 8.0:
+						continue
+					check(plates.has(id) or pins.has(id), "cam %s: %s has an always-visible sign or pin" % [s.cam, id])
+					if plates.has(id) or pins.has(id):
+						seen[id] = true
+				for id in pins:
+					check(Village.kind(id) == "plot", "pins mark the empty plots (%s)" % id)
+		for id in s.visible_ids:
+			check(seen.has(id), "%s was marked somewhere in the sweep" % id)
+		# the mist's signs say where you are going
+		eq(Village.sign_label("fog_north"), "Unexplored", "the mist's signpost reads Unexplored")
+		_free(s)
+	_done()
+
+
+func test_panels_hide_the_labels_they_overlap() -> void:
+	for res: Vector2i in [WIDE, PHONE]:
+		_fresh()
+		GameState.set_identity("The Wayfarers", "lantern")
+		GameState.meta["runs"] = 1
+		var s := _screen(res)
+		var hid := 0
+		for id in s.visible_ids:
+			s.open_place(id)
+			s.finish_camera()
+			var pr := Rect2(s.panel.position, s.panel.size)
+			for pid in s.visible_ids:
+				if pid == id:
+					continue
+				if s.plate_hidden(s.plate_rect(pid)):
+					hid += 1
+			for pid in s.shown_plates():
+				if pid != id:
+					check(not pr.grow(2).intersects(s.plate_rect(pid)), "%s panel: the %s sign is not clipped at its edge" % [id, pid])
+			for pid in s.shown_pins():
+				check(not pr.grow(2).intersects(s.pin_rect(pid)), "%s panel: the %s pin is hidden under it" % [id, pid])
+			s.close_panel()
+		check(hid > 0, "some labels were hidden by a panel (%d)" % hid)
+		# the gear menu hides what it covers too
+		s.set_cam(s.start_cam())
+		s.toggle_menu()
+		var mr := Rect2(s._menu.position, s._menu.size)
+		for pid in s.shown_plates():
+			check(not mr.grow(2).intersects(s.plate_rect(pid)), "the menu does not clip the %s sign" % pid)
+		s.close_menu()
+		_free(s)
+	_done()
+
+
+func test_pressed_looks_different_from_hover() -> void:
+	_fresh()
+	GameState.set_identity("The Wayfarers", "lantern")
+	var s := _screen()
+	s.set_cam(s.start_cam())
+	var p := s.places["vault"] as VillagePlace
+	s._set_hover("vault")
+	var hover := p.look()
+	var hover_sign := s.plate_style("vault")
+	var hover_light := s.lights.level("vault")
+	eq(String(hover["outline"]), "hover", "hover: the standard outline")
+	# a press (mouse down on the place, not yet released)
+	var down := InputEventMouseButton.new()
+	down.button_index = MOUSE_BUTTON_LEFT
+	down.pressed = true
+	down.position = s.to_screen(Village.zone("vault").get_center())
+	s._gui_input(down)
+	var press := p.look()
+	eq(String(press["outline"]), "pressed", "a press shows the pressed outline")
+	check(int(press["width"]) > int(hover["width"]), "the pressed outline is heavier (%d > %d)" % [press["width"], hover["width"]])
+	check(press["offset"] != hover["offset"], "and pushed down a pixel")
+	check(float(press["boost"]) > float(hover["boost"]), "its light pulses brighter")
+	check(s.lights.level("vault") > hover_light, "the Vault's glow burns brighter while pressed")
+	var press_sign := s.plate_style("vault")
+	check(press_sign["fill"] != hover_sign["fill"] and press_sign["edge"] != hover_sign["edge"], "the sign changes colour when pressed")
+	check(Village.texture("vault_press") != null and Village.texture("vault_hi") != null, "both outlines exist")
+	var up := down.duplicate() as InputEventMouseButton
+	up.pressed = false
+	s._gui_input(up)
+	eq(String(p.look()["outline"]), "hover", "release opens the place, the press look ends")
+	_free(s)
+	_done()
+
+
+func test_town_lights_up_with_progress() -> void:
+	var fresh := GameState.default_meta()
+	eq(Village.stage(fresh), "fresh", "a new save: the fresh town")
+	var built := GameState.default_meta()
+	built["runs"] = 1
+	eq(Village.stage(built), "built", "the first run home rebuilds it")
+	var lit_fresh: Array = Village.lights().filter(func(l: Dictionary) -> bool: return Village.entry_on(l, fresh))
+	var lit_built: Array = Village.lights().filter(func(l: Dictionary) -> bool: return Village.entry_on(l, built))
+	var lamps_fresh := lit_fresh.filter(func(l: Dictionary) -> bool: return String(l["id"]).begins_with("lamp"))
+	check(lamps_fresh.size() <= 3, "at the start only the Lantern and at most 3 street lamps burn (%d)" % lamps_fresh.size())
+	check(lit_fresh.any(func(l: Dictionary) -> bool: return l["id"] == "lantern"), "the Lantern burns from the start")
+	check(not lit_fresh.any(func(l: Dictionary) -> bool: return String(l["id"]).begins_with("window")), "no lit windows at the start")
+	check(lit_built.size() > lit_fresh.size() + 4, "the rebuilt town has more lights (%d > %d)" % [lit_built.size(), lit_fresh.size()])
+	check(lit_built.any(func(l: Dictionary) -> bool: return l["id"] == "grounds_lamp"), "the Training Grounds bring their lamp")
+	# through the screen: textures and smoke follow the stage
+	_fresh()
+	GameState.set_identity("The Wayfarers", "lantern")
+	var s := _screen()
+	eq(s.town_stage, "fresh", "the screen shows the fresh town")
+	eq(s.life.smoke_count(), 0, "no chimney smokes in the fresh town")
+	eq(s.lights.ids().size(), lit_fresh.size(), "only the fresh lights glow")
+	_free(s)
+	GameState.apply_summary({"outcome": "fallen", "glimmers": 10, "floor": 1, "depth": 4})
+	var s2 := _screen()
+	eq(s2.town_stage, "built", "after a run the town is rebuilt")
+	check(s2.life.smoke_count() >= 3, "chimneys smoke again (%d)" % s2.life.smoke_count())
+	eq(s2.lights.ids().size(), lit_built.size(), "every rebuilt light glows")
+	check((s2.night.texture as Texture2D) == Village.texture("light_built"), "the night's light map is the built one")
+	_free(s2)
+	_done()
+
+
+func test_gear_menu_dims_shows_active_and_closes() -> void:
+	_fresh()
+	GameState.set_identity("The Wayfarers", "lantern")
+	var s := _screen()
+	var gear := s.find_child("GearButton", true, false) as Button
+	gear.pressed.emit()
+	check(s.menu_open(), "the gear opens the menu")
+	check(gear.button_pressed, "the gear shows pressed while its menu is open")
+	var shade := s.find_child("MenuShade", true, false) as Control
+	check(shade != null and shade.get_index() < s._menu.get_index(), "a dim sits under the menu")
+	check(s.find_child("GearMenu", true, false).find_child("Close", true, false) != null, "the menu has a Close button")
+	(s.find_child("GearMenu", true, false).find_child("Close", true, false) as Button).pressed.emit()
+	check(not s.menu_open() and not gear.button_pressed, "Close closes it and the gear comes up")
+	gear.pressed.emit()
+	var tap := InputEventMouseButton.new()
+	tap.button_index = MOUSE_BUTTON_LEFT
+	tap.pressed = true
+	tap.position = Vector2(100, 300)
+	(s.find_child("MenuShade", true, false) as Control).gui_input.emit(tap)
+	check(not s.menu_open(), "a tap on the dim closes it")
+	_free(s)
+	_done()
+
+
+func test_training_grounds_intro_and_tiles_read() -> void:
+	for line: String in TrainingGroundsPanel.INTRO:
+		var w := UIText.width(line, UIText.BOLD)
+		check(w <= TrainingGroundsPanel.GROUNDS_W, "intro line \"%s\" (%d px) fits one line: no orphaned word" % [line, w])
+	check(TrainingGroundsPanel.TILE_ICON_PX >= 6, "shape boards in 6 px cells")
+	check(TrainingGroundsPanel.BOARD_ROWS >= 3, "drawn on the whole board (at least 3 x 3 cells' room)")
 
 
 func test_hint_learns_and_stays_hidden() -> void:

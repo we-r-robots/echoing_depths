@@ -39,10 +39,10 @@ const PLACES := {
 		"on_plot": "plot_e1", "unlock": {"runs": 1}},
 	"vault": {"kind": "vault", "name": "Vault Entrance", "art": "vault", "always_sign": true},
 	"lantern": {"kind": "lantern", "name": "The Lantern", "art": "lantern", "always_sign": true},
-	"fog_north": {"kind": "fog", "name": "The mist", "text": FOG_TEXT},
-	"fog_west": {"kind": "fog", "name": "The mist", "text": FOG_TEXT},
-	"fog_east": {"kind": "fog", "name": "The mist", "text": FOG_TEXT},
-	"fog_south": {"kind": "fog", "name": "The mist", "text": FOG_TEXT},
+	"fog_north": {"kind": "fog", "name": "The mist", "sign": "Unexplored", "always_sign": true, "text": FOG_TEXT},
+	"fog_west": {"kind": "fog", "name": "The mist", "sign": "Unexplored", "always_sign": true, "text": FOG_TEXT},
+	"fog_east": {"kind": "fog", "name": "The mist", "sign": "Unexplored", "always_sign": true, "text": FOG_TEXT},
+	"fog_south": {"kind": "fog", "name": "The mist", "sign": "Unexplored", "always_sign": true, "text": FOG_TEXT},
 }
 ## Draw order, back to front (the mist's places last: they sit over the mist).
 const ORDER := ["plot_w2", "plot_e2", "plot_w1", "plot_e1", "plot_s1", "grounds", "vault", "lantern",
@@ -129,6 +129,59 @@ static func kind(id: String) -> String:
 
 static func place_name(id: String) -> String:
 	return String(PLACES[id]["name"])
+
+
+## What its signboard says ("Unexplored" for the mist; otherwise its name).
+static func sign_label(id: String) -> String:
+	return String(PLACES[id].get("sign", PLACES[id]["name"]))
+
+
+## Places marked by a small pin (no text) until hovered or opened: the empty plots. Every other
+## place has a signboard that always shows (touch has no hover).
+static func has_pin(id: String) -> bool:
+	return kind(id) == "plot"
+
+
+## Where a place's pin stands (world px): the top of its sign board.
+static func pin_at(id: String) -> Vector2:
+	var p: Dictionary = layout()["places"][id]
+	return _v(p.get("pin", p["sign"]))
+
+
+## The town's stage, from the progress signals (docs/tasks/lanternrest-critic2.md "Round-3 build"):
+## "fresh" on a new save (the Lantern and three street lamps lit, the cottages by the plaza dark and
+## boarded, the mist close); "built" once the first run has come home (meta.runs >= 1) or the
+## Training Grounds stand: the high street's lamps relit, the cottages reopened, the mist pushed back.
+static func stage(meta: Dictionary) -> String:
+	return "built" if int(meta.get("runs", 0)) >= 1 or is_built("grounds", meta) else "fresh"
+
+
+## Whether a light / chimney entry burns for this meta: its stage is reached and, if it belongs to
+## a place, that place stands.
+static func entry_on(e: Dictionary, meta: Dictionary) -> bool:
+	var st := String(e.get("stage", "fresh"))
+	if st == "built" and stage(meta) != "built":
+		return false
+	var pid := String(e.get("place", ""))
+	return pid == "" or visible_places(meta).has(pid)
+
+
+## The plaza's rect (world px): the hint keeps off it.
+static func plaza_rect() -> Rect2:
+	var r: Array = layout().get("plaza", [834, 330, 252, 160])
+	return Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3]))
+
+
+## The night light at the Lantern's banner for a stage (the lift tints the banner by it).
+static func banner_light(st: String) -> Color:
+	var c: Array = layout().get("banner_light", {}).get(st, [1, 1, 1])
+	return Color(float(c[0]), float(c[1]), float(c[2]))
+
+
+## The added ink that keeps lit black off (0, 0, 0) (layout "lift", 0..255).
+static func lift_color() -> Color:
+	var c: Array = layout().get("lift", [0, 0, 0])
+	return Color(float(c[0]) / 255.0, float(c[1]) / 255.0, float(c[2]) / 255.0)
 
 
 static func art(id: String) -> String:
