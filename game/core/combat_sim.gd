@@ -143,6 +143,8 @@ var _st_owned := 0             # of those, applied by an ability (ruling 4: the 
 var _followups: Array = []     # [unit, action id]: an ability's second half, due now (Unseen Warden)
 var _ko_n := 0                 # KO counter (ko_seq)
 var _cur_followup := false     # a follow-up action is resolving (its effects count as the ability's)
+var _in_status := false        # status ticks are resolving (their hit charge stops at 99, like an ability's)
+var _shown_hit := {}           # uid -> ms of the last hit on it that showed a number (Scattered cue truth)
 
 
 ## party_a / party_b: party dictionaries ({"heroes": [...]}) or Echo dictionaries.
@@ -244,7 +246,11 @@ func _run(seed_value: int, party_a: Dictionary, party_b: Dictionary, options: Di
 				_proc(u, "hp_pct", "start", 0)   # one cue per side/source (rate-limited)
 		for u: Unit in volley:
 			_beh_cue(u, "start", 0, -1, float(_beh[u.side]["gauge"]))
-	# tests and tools: statuses already on units at the start (see core/README.md "Options")
+	# tests and tools: units that start hurt, and statuses already on units (core/README.md "Options")
+	for sh: Dictionary in options.get("start_hp", []):
+		var hu := _unit_at(int(sh["side"]), sh["slot"])
+		if hu != null:
+			hu.hp = clampi(int(sh["hp"]), 1, hu.max_hp)
 	for ss: Dictionary in options.get("start_statuses", []):
 		var dst := _unit_at(int(ss["side"]), ss["slot"])
 		var src := dst
@@ -457,7 +463,8 @@ func _spawn_memory(id: String, t: int, reason: String) -> void:
 	_alive[1] += 1
 	if _log:
 		_emit(t, {"type": "spawn", "side": 1, "uid": u.uid, "slot": [u.col, u.row], "unit": _unit_snapshot(u),
-			"memory": id, "chapter": int(cdef["chapter"]), "lore": String(cdef["lore"]), "reason": reason})
+			"memory": id, "chapter": int(cdef["chapter"]), "lore": String(cdef["lore"]), "reason": reason,
+			"summon": "", "summoner": -1, "raised": -1})
 	match String(u.mem["id"]):
 		"mirror":   # copies the heroes' formation: guarding shapes make her sturdy, attacking ones sharp
 			_mirror = "guard" if GUARD_BEHAVIOURS.has(_bid[0]) else "strike"
@@ -885,8 +892,8 @@ func _do_action(u: Unit, followup := "") -> int:
 	if _bid[u.side] == "shardpoint" and u.col == 1 and u.in_shape:
 		for tip: Unit in _sides[u.side]:
 			if tip.alive and tip.roles.has("tip") and tip.col == 0 and tip.charge < _charge_max:
-				_gain_charge(tip, int(_beh[u.side]["charge"]), "effect", _now)
-				_beh_cue(tip, "charge", _now, u.uid, float(_beh[u.side]["charge"]))
+				if _gain_charge(tip, int(_beh[u.side]["charge"]), "effect", _now):
+					_beh_cue(tip, "charge", _now, u.uid, float(_beh[u.side]["charge"]))
 	_cur_ability = use_ability or followup != ""
 	_cur_followup = followup != ""
 	if use_ability:
@@ -979,7 +986,7 @@ func _apply_effect(u: Unit, a: Dictionary, eff: Dictionary, primary: Unit, t: in
 			for tg in targets:
 				if group.has(tg.uid):
 					kept.append(tg)
-			if kept.size() < targets.size() and primary.alive:
+			if kept.size() < targets.size() and primary.alive and int(_shown_hit.get(primary.uid, -1)) == t:
 				_beh_cue(primary, "defend", t, u.uid, 1.0)
 			targets = kept
 		for tgt in targets:
@@ -1160,7 +1167,8 @@ func _select(u: Unit, sel: String) -> Unit:
 			var bcol := 1 if _col_alive(foes, 1) else 0
 			var bot: Unit = null
 			for o: Unit in foes:
-				if o.alive and not o.hidden and o.col == bcol and (bot == null or o.row + o.span > bot.row + bot.span):
+				if o.alive and not o.hidden and not _ring_protected(o) and o.col == bcol \
+					and (bot == null or o.row + o.span > bot.row + bot.span):
 					bot = o
 			return bot
 		"random_ally":
@@ -1209,17 +1217,24 @@ static func _nearest_in_col(foes: Array, col: int, row: int) -> Unit:
 	return best
 
 
+## Lowest HP fraction on u's side. A branded ally (no healing reaches it) is passed over while
+## anyone else can be picked, so a heal never aims at a unit it can't touch.
 func _lowest_ally(u: Unit) -> Unit:
 	var best: Unit = null
 	var best_f := 2.0
+	var branded: Unit = null
 	for o: Unit in _sides[u.side]:
 		if not o.alive or o.inert:
+			continue
+		if not o.statuses.is_empty() and _has_kind(o, "heal_block"):
+			if branded == null:
+				branded = o
 			continue
 		var f := float(o.hp) / float(o.max_hp)
 		if f < best_f:
 			best = o
 			best_f = f
-	return best
+	return best if best != null else branded
 
 
 # ---------------------------------------------------------------- effects
@@ -1356,13 +1371,13 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 	for sh: Array in shares:
 		amount = maxi(1, amount - int(sh[1]))
 	# damage link (Threadmender): the partner takes its share as its own number
-	var linked := _link_partner(dst)
+	# (single-target hits only, like Brace: an area or multi-hit action keeps one number per unit)
+	var linked := _link_partner(dst) if single else null
 	var link_amt := 0
 	if linked != null:
 		link_amt = int(floor(float(amount) * float(_st["link_share"])))
 		amount -= link_amt
 	# a shield takes the hit before HP does (an "absorb" event; a fully absorbed hit shows no number)
-	var full := amount
 	amount -= _absorb(dst, amount, src.uid, t)
 	var stand := false
 	if String(dst.mem.get("id", "")) == "last_stand" and not dst.stand_used and amount >= dst.hp:
@@ -1371,31 +1386,38 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 	var dealt := mini(amount, dst.hp - (1 if stand else 0))
 	dst.hp -= dealt
 	if _log:
-		if amount > 0 or full == 0:
+		var shown := amount > 0   # a fully absorbed hit shows no number, so it cues nothing
+		if shown:
+			_shown_hit[dst.uid] = t
 			_emit(t, {"type": "damage", "src": src.uid, "dst": dst.uid, "amount": amount,
 				"kind": "magic" if magic else "physical", "crit": crit, "mods": mods,
 				"primary": _primary_mod(crit, mods), "hp": dst.hp, "action": aid})
-		for bc: Array in beh_cues:
-			_beh_cue(bc[0], bc[1], t, int(bc[2]), float(bc[3]), String(bc[4]))
+			for bc: Array in beh_cues:
+				_beh_cue(bc[0], bc[1], t, int(bc[2]), float(bc[3]), String(bc[4]))
 		if not _drawn.is_empty() and _drawn[0] == dst and src == _cur_actor:
-			_beh_cue(dst, "defend", t, src.uid, 1.0, String(_drawn[1]))
+			if shown:
+				_beh_cue(dst, "defend", t, src.uid, 1.0, String(_drawn[1]))
 			_drawn = []
 		if _ring_skip >= 0 and src == _cur_actor and dst.side == _units[_ring_skip].side:
-			_beh_cue(dst, "defend", t, _ring_skip, 1.0, "keepers_ring")
+			if shown:
+				_beh_cue(dst, "defend", t, _ring_skip, 1.0, "keepers_ring")
 			_ring_skip = -1
-		if not shares.is_empty():
+		if not shown:
+			pass
+		elif not shares.is_empty():
 			_beh_cue(dst, "defend", t, src.uid, float((shares[0] as Array)[3]), String((shares[0] as Array)[2]))
 		if not mods.is_empty() and String((mods[0] as Dictionary)["id"]) == "formation":
 			_pend_at(t)
 			_pend_blocked = true   # no cue at an instant whose hit already shows a formation tag
-		if not src.contribs.is_empty() or not dst.contribs.is_empty():
+		if shown and (not src.contribs.is_empty() or not dst.contribs.is_empty()):
 			if crit:
 				_proc(src, "crit_add", "crit", t)
 			_proc(src, "mag_pct" if magic else "atk_pct", "attack", t)
 			_proc(dst, "mag_pct" if magic else "def_pct", "defend", t)
 			_proc(dst, "dmg_taken_pct", "defend", t)
-	for mc: Array in mem_cues:
-		_mem_cue(mc[0], mc[1], t, int(mc[2]), float(mc[3]))
+	if amount > 0:
+		for mc: Array in mem_cues:
+			_mem_cue(mc[0], mc[1], t, int(mc[2]), float(mc[3]))
 	if dst.inert:
 		_check_fragments(t)
 	elif dst.hp <= 0:
@@ -1432,8 +1454,8 @@ func _damage(src: Unit, dst: Unit, eff: Dictionary, t: int, aid: String) -> void
 			for o: Unit in _sides[dst.side]:
 				if o != dst and o.alive and o.in_shape:
 					if bid == "shoulder_to_shoulder" and o.charge < _charge_max:
-						_gain_charge(o, int(beh_dst["charge"]), "effect", t)
-						_beh_cue(o, "charge", t, dst.uid, float(beh_dst["charge"]))
+						if _gain_charge(o, int(beh_dst["charge"]), "effect", t):
+							_beh_cue(o, "charge", t, dst.uid, float(beh_dst["charge"]))
 					elif bid == "covering_fire":
 						o.cover_target = src.uid
 	if eff.has("drain") and src.alive and dealt > 0:
@@ -1560,8 +1582,7 @@ func _heal_amount(src: Unit, power: float) -> float:
 func _heal(src: Unit, dst: Unit, power: float, t: int, aid: String, eff: Dictionary = {}) -> void:
 	var amt := int(round(_heal_amount(src, power)))
 	var missing := dst.max_hp - dst.hp
-	_apply_heal(src, dst, amt, t, aid)
-	if _log:
+	if _apply_heal(src, dst, amt, t, aid) > 0 and _log:
 		_proc(src, "heal_pct", "heal", t)
 	# Lumenward: healing past full HP becomes a shield of that size
 	if bool(eff.get("overheal_shield", false)) and dst.alive and amt > missing and not _has_kind(dst, "heal_block") \
@@ -1675,38 +1696,41 @@ func _proc_best(cands: Array, t: int) -> void:
 		"trigger": best[2], "related": -1})
 
 
-func _apply_heal(src: Unit, dst: Unit, amt: int, t: int, aid: String) -> void:
+## Returns the HP actually restored.
+func _apply_heal(src: Unit, dst: Unit, amt: int, t: int, aid: String) -> int:
 	if amt <= 0 or not dst.alive:
-		return
+		return 0
 	if dst.statuses.size() > 0:
 		if _has_kind(dst, "heal_block"):   # Confessor's brand: no healing reaches it
 			if _log:
 				_emit(t, {"type": "miss", "src": src.uid, "dst": dst.uid, "action": aid, "reason": "heal_block"})
-			return
+			return 0
 		if _has_kind(dst, "heal_invert"):  # hexed: the healing hurts instead
 			_status_damage(dst, src.uid, amt, t, aid, "heal_invert")
-			return
+			return 0
 	var healed := mini(amt, dst.max_hp - dst.hp)
 	if healed <= 0:
-		return
+		return 0
 	dst.hp += healed
 	if _log:
 		_emit(t, {"type": "heal", "src": src.uid, "dst": dst.uid, "amount": healed, "hp": dst.hp, "action": aid})
 		if String(src.mem.get("id", "")) == "kindle" and dst != src:
 			_mem_cue(src, "heal", t, dst.uid, float(healed))
+	return healed
 
 
-func _gain_charge(u: Unit, amount: int, reason: String, t: int) -> void:
+## Returns true if any charge was gained.
+func _gain_charge(u: Unit, amount: int, reason: String, t: int) -> bool:
 	if amount <= 0 or u.charge >= _charge_max or u.inert or u.summon != "":
-		return
+		return false
 	if _st_count > 0 and (_has_kind(u, "charge_seal") or _charge_locked(u)):
-		return   # sealed, or its own ability's effect is still in play (ruling 4)
+		return false   # sealed, or its own ability's effect is still in play (ruling 4)
 	var old := u.charge
 	var cap := _charge_max
-	if reason == "hit" and _cur_ability:
-		cap = _charge_max - 1   # cascade cap: an ability's hits can't ready another ability
+	if reason == "hit" and (_cur_ability or _in_status):
+		cap = _charge_max - 1   # cascade cap: an ability's (or a status tick's) hits can't ready an ability
 	if old >= cap:
-		return
+		return false
 	u.charge = mini(cap, u.charge + amount)
 	if (reason == "act" or reason == "hit") and _log:
 		_proc(u, "charge_pct", "charge", t)
@@ -1721,6 +1745,7 @@ func _gain_charge(u: Unit, amount: int, reason: String, t: int) -> void:
 	if _log:
 		_emit(t, {"type": "charge", "uid": u.uid, "charge": u.charge, "delta": u.charge - old, "reason": reason,
 			"ready": ready, "queue": queue})
+	return true
 
 
 func _ko(u: Unit, by: int, t: int) -> void:
@@ -1918,6 +1943,13 @@ func _end_status(u: Unit, st: Dictionary, t: int, reason: String) -> void:
 		_recalc(u)
 	if _log:
 		_emit(t, {"type": "status_end", "uid": u.uid, "status": String(st["id"]), "stat": String(st["stat"]), "reason": reason})
+	if kind == "stun" and u.alive and u.charge >= _charge_max and _k_jump:
+		# a charged unit whose turn the stun took acts as soon as the stun ends (the queue jump holds)
+		var queue := 0
+		for o in _units:
+			if o != u and o.alive and o.charge >= _charge_max and o.gauge >= _gauge_max:
+				queue += 1
+		u.gauge = maxi(u.gauge, _gauge_max) + _gauge_max - queue
 	if kind == "link":   # a link ends on both ends
 		var p := int(st["partner"])
 		if p >= 0 and p < _units.size():
@@ -1946,6 +1978,12 @@ func _next_status_ms() -> int:
 ## Fires every status tick, spread and expiry due by now, in unit order (stable, deterministic).
 ## Called between actions; anything that fell due during an action lands right after it.
 func _process_statuses() -> void:
+	_in_status = true
+	_process_statuses_now()
+	_in_status = false
+
+
+func _process_statuses_now() -> void:
 	for _guard in 64:
 		if _next_status_ms() > _now:
 			return

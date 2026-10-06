@@ -222,7 +222,7 @@ func test_melee_reaches_back_only_when_no_visible_front() -> void:
 
 
 func test_heal_block_stops_healing() -> void:
-	var a := party([hero("fighter", 0, 0), hero("healer", 1, 0, 6)])
+	var a := party([hero("fighter", 0, 0, 6), hero("cleric", 1, 0, 4)])   # Sanctuary heals everyone
 	var b := duo(hero("fighter", 0, 0, 6))
 	var r := _sim(23, a, b, [_st(0, [0, 0], "heal_block", 60000)])
 	for ev: Dictionary in of_type(r, "heal"):
@@ -232,6 +232,19 @@ func test_heal_block_stops_healing() -> void:
 		if String(ev["reason"]) == "heal_block":
 			blocked += 1
 	check(blocked >= 1, "blocked heals are reported (%d)" % blocked)
+
+
+func test_single_heals_pass_over_a_branded_ally() -> void:
+	# Mend aims at the most hurt ally it can heal: a branded fighter is passed over for the healer
+	var a := party([hero("fighter", 0, 0), hero("healer", 1, 0, 6)])
+	var b := duo(hero("fighter", 0, 0, 6))
+	var r := _sim(23, a, b, [_st(0, [0, 0], "heal_block", 60000)])
+	var mends := 0
+	for ev: Dictionary in of_type(r, "action_start"):
+		if ev["action"] == "mend":
+			mends += 1
+			check(int(ev["target"]) != 0, "Mend never aims at the branded unit")
+	check(mends >= 1, "the healer cast Mend (%d)" % mends)
 
 
 func test_heal_inversion_hurts() -> void:

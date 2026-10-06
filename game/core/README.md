@@ -123,7 +123,8 @@ Options: `{"log": false}` skips building events (same outcome, faster);
 `{"tuning": {...}}` overrides keys of `Tuning.COMBAT` and of `Statuses.TUNING` (used by tests);
 `{"start_statuses": [{"side", "slot": [col,row], "status", "dur_ms", ...effect keys, "src_side",
 "src_slot", "from_ability"}]}` puts statuses on units at t = 0 (tests and tools only; the effect keys
-are those of an ability's `status` effect, below).
+are those of an ability's `status` effect, below); `{"start_hp": [{"side", "slot", "hp"}]}` starts
+units hurt (tests and tools only; set after `fight_start`, whose snapshots show full HP).
 
 ## Event log schema
 

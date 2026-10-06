@@ -162,9 +162,9 @@
    ]
   },
   {
-   "id": "legend_necromancer",
+   "id": "legend_gravecaller",
    "kind": "legend",
-   "for_class": "necromancer",
+   "for_class": "gravecaller",
    "legend_name": "The Grey Shepherd",
    "title": "A Legend's Memory: The Grey Shepherd",
    "art": {},

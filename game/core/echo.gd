@@ -125,6 +125,7 @@ static func _migrate(d: Dictionary, v: int) -> Dictionary:
 			out["unlocked_formations"] = (GameData.Formations.DEFAULT_UNLOCKED as Array).duplicate()
 		v += 1
 	out["version"] = VERSION
+	GameData.migrate_heroes(out.get("heroes", null))   # renamed classes (Necromancer -> Gravecaller)
 	return out
 
 

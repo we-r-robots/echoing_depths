@@ -20,6 +20,28 @@ const COLS := 2
 const ROWS := 4
 
 
+## A class id as it is now: renamed or replaced ids (Classes.CLASS_RENAMES, e.g. the dropped
+## Necromancer -> Gravecaller) map to their successor; anything else is returned unchanged.
+static func canonical_class(id: String) -> String:
+	return String(Classes.CLASS_RENAMES.get(id, id))
+
+
+## Rewrites the class ids of a list of hero dictionaries in place (saved heroes, Echoes, pools,
+## monuments). Returns how many were changed.
+static func migrate_heroes(heroes: Variant) -> int:
+	var n := 0
+	if not (heroes is Array):
+		return 0
+	for h: Variant in heroes:
+		if h is Dictionary and (h as Dictionary).get("class", null) is String:
+			var old := String(h["class"])
+			var now := canonical_class(old)
+			if now != old:
+				h["class"] = now
+				n += 1
+	return n
+
+
 static func has_class(id: String) -> bool:
 	return Classes.CLASSES.has(id)
 

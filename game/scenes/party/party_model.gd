@@ -229,6 +229,8 @@ const SHORT_TARGET := {
 
 
 static func ability_short(a: Dictionary) -> String:
+	if a.has("short"):   # authored in data (advanced classes whose effects words can't phrase)
+		return String(a["short"])
 	var effs: Array = a.get("effects", [])
 	if effs.is_empty():
 		return String(a.get("name", ""))
@@ -266,6 +268,8 @@ static func ability_short(a: Dictionary) -> String:
 
 ## One-line description generated from an action's effects.
 static func ability_desc(a: Dictionary) -> String:
+	if a.has("text"):   # authored tooltip sentence
+		return String(a["text"])
 	var tgt := String(TARGET_WORDS.get(String(a.get("target", "")), "a foe"))
 	var parts := []
 	for e: Dictionary in a.get("effects", []):
