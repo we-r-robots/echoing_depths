@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 21:27",
+  "updated": "2026-10-05 21:35",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -773,6 +773,10 @@
     {
       "t": "21:26",
       "msg": "playtest-1 fixes: Awaken at 2 memories from Lantern Camp hub, recruit pacing, size-aware matching, player-file guard"
+    },
+    {
+      "t": "21:35",
+      "msg": "battle-scene critic round 10: FAIL 1/5 (wins SAP mid-fight, loses SoS on the central pile). Builder round 15 (presentation only) started."
     }
   ],
   "questions": [
