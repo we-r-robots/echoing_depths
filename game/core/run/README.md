@@ -83,7 +83,8 @@ it ends the run either way.
   never the memories. No retreat and no retry: `reason == "shard"` wins the run; otherwise the
   party falls there (health 0) and each chipped fragment pays `glimmers_per_fragment` (6) Glimmers.
   Memories knocked out (a `ko` on a uid from a `spawn`) are listed in `memories_defeated` for the
-  codex. Greedy bot: ~58 % win at the Crystal, ~21 % run victory.
+  codex. Greedy bot: ~75 % win at the Crystal, ~59 % run victory since playtest 1 (bigger parties and
+  Awakening at 2 memories; was ~58 % / ~21 %: guardian and Crystal difficulty awaits a balance pass).
 - **Rest:** 12 encounters carry a party-wide `rest` choice: +1 health, but nobody gains a memory there.
 - **Phases by floor:** Gathering floors 1–2 (recruitment weighted 4×), Advancement 3–4, Legend 5
   (a label; the Legendary gate does not use depth).
