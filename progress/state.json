@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 21:35",
+  "updated": "2026-10-05 23:01",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -108,7 +108,7 @@
       "name": "Battle scene presentation",
       "bar": "Sea of Stars + Super Auto Pets",
       "wave": 2,
-      "status": "building",
+      "status": "parked",
       "rounds": [
         {
           "winner": "bar",
@@ -154,6 +154,11 @@
           "winner": "bar",
           "gap": "Won 3 of 5 blind pairs; 12 of 16 shapes read. Lost 2 of 3 Sea of Stars pairs because area-ability moments turn into white soup or near-black darkness, with numbers piling up.",
           "image": "captures/battle-scene/r13/f00600.png"
+        },
+        {
+          "winner": "bar",
+          "gap": "Won 2 of 5 blind pairs (up from 1; the victory frame now wins). Hit-stop, victory team name and HUD clipping fixed. Still loses every Sea of Stars action frame: at area crits and backstabs, attacker, targets and numbers stack into one knot. Parked until the character redesign sets sprite footprint.",
+          "image": "captures/battle-scene/r15/battle/1080/mid_fight_numbers_cleave_crit.png"
         }
       ],
       "preview": "captures/battle-scene/r13/f00600.png",
@@ -781,6 +786,10 @@
     {
       "t": "22:33",
       "msg": "battle-scene round-15 build: drawn-position label attribution (root cause: home-slot geometry + box distance), stop-short lunges, hit-stop, victory beat and top band with team name, effects off HUD, side identity, area rings, Fading ticks, rear icon, Crystal fixes; captures/battle-scene/r15/"
+    },
+    {
+      "t": "23:05",
+      "msg": "battle-scene critic round 11: FAIL 2/5 (up from 1/5). Parked per 'a couple more rounds and move on': the top gap (sprites overlapping on lunges and in the grid) waits for the character redesign. Backlog in docs/tasks/battle-scene-round11.md."
     }
   ],
   "questions": [

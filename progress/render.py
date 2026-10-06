@@ -19,7 +19,7 @@ def thumb(path, w=560):
     b = io.BytesIO(); im.save(b, "JPEG", quality=78)
     return "data:image/jpeg;base64," + base64.b64encode(b.getvalue()).decode()
 
-LABEL = {"queued": "Queued", "building": "Building", "judging": "Judging", "won": "Beat the bar", "lost": "Lost round"}
+LABEL = {"queued": "Queued", "building": "Building", "judging": "Judging", "won": "Beat the bar", "lost": "Lost round", "parked": "Parked"}
 counts = {k: sum(1 for p in S["pieces"] if p["status"] == k) for k in LABEL}
 total_rounds = sum(len(p["rounds"]) for p in S["pieces"])
 
@@ -80,7 +80,7 @@ h1 em {{ font-style: normal; color: var(--amber); }}
 .piece header {{ display: flex; justify-content: space-between; align-items: center; }}
 .chip {{ font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 2px 8px; border-radius: 2px; border: 1px solid currentColor; color: var(--fade); }}
 .s-building .chip, .s-judging .chip {{ color: var(--amber); }}
-.s-won .chip {{ color: var(--win); }} .s-lost .chip {{ color: var(--lose); }}
+.s-parked .chip {{ color: var(--muted, #888); }} .s-won .chip {{ color: var(--win); }} .s-lost .chip {{ color: var(--lose); }}
 .wave {{ font: 11px var(--mono); color: var(--muted); }}
 .piece h3 {{ font: 700 18px/1.2 var(--display); margin: 4px 0 0; }}
 .bar {{ margin: 0; color: var(--crystal); font-size: 13px; }}
