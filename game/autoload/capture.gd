@@ -24,7 +24,7 @@ func _ready() -> void:
 	if args.has("shots"):
 		# a real pointer over the capture window must not steer the unattended demo (critic r6:
 		# the 1080 and phone shots of one named state showed different states)
-		get_tree().root.disable_input = true
+		get_tree().root.gui_disable_input = true
 		_shots_dir = args["shots"]
 		DirAccess.make_dir_recursive_absolute(_shots_dir)
 	if args.has("at"):
