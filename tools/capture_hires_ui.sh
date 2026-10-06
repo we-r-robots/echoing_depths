@@ -75,12 +75,15 @@ fi
 if want classes; then
   # round 17: the class showcase fights (timed statuses, the approved advanced classes)
   echo "classes"
-  group classes res://scenes/battle/battle_classes_a.tscn "a_hidden_silhouette:384 a_stun_blind_rows:548 a_skip_turn_lost:566 a_miss_blind:646 a_echo_summoned:770 a_shackle_caption:870 a_shackle_swap_walk:905 a_drive_on_gauges:1580 a_rune_seal_bind:1692 a_rekindled:3370"
-  group classes res://scenes/battle/battle_classes_b.tscn "b_vanishing_hidden:490 b_poisoned:700 b_poison_tick:752 b_brand_of_flame:815 b_lumen_ward_blocked:1180 b_shield_absorb:1478 b_wildfire:1795 b_fire_jumps:1950 b_link_tether:2040 b_link_share:2058"
-  group classes res://scenes/battle/battle_classes_c.tscn "c_start_statuses:172 c_tithe:452 c_hexed_heal_cost:566 c_hexfire_climbs:1008 c_hexfire_top:1020 c_slow_field:1185 c_pilfer_steals:1240 c_husk_raised:1435 c_column_ward:2032 c_shield_absorb:2090"
+  group classes res://scenes/battle/battle_classes_a.tscn "a_echo_summoned:680 a_hidden_silhouette:810 a_drive_on_gauges:945 a_stun_blind_rows:1012 a_nameless_husk:1196 a_shackle_caption:1530 a_shackle_swap_walk:1600 a_rune_seal_bind:2222 a_miss_blind:2268 a_skip_turn_lost:2294 a_rekindled:3036"
+  group classes res://scenes/battle/battle_classes_b.tscn "b_vanishing_hidden:386 b_retribution_flame:498 b_aegis_strike_shield:622 b_poisoned:800 b_shield_absorb:1224 b_wildfire:1332 b_fire_jumps:1497 b_lumen_ward:1600 b_link_tether:1822"
+  group classes res://scenes/battle/battle_classes_c.tscn "c_start_statuses:172 c_pilfer_steals:470 c_hexed_heal_cost:560 c_slow_field:875 c_tithe:1190 c_husk_raised:1424 c_column_ward:1522 c_shield_absorb:1684 c_hexfire_climbs:2262 c_hexfire_top:2275"
+  group classes res://scenes/battle/battle_classes_d.tscn "d_riposte_guard:282 d_parry:316 d_keep_watch:380 d_watch_catch:414 d_whirlwind:560 d_long_reach:760 d_reliquary:1040 d_read_the_orders:1145 d_raise_the_aegis:1590 d_bloodletting:1900"
+  group classes res://scenes/battle/battle_classes_e.tscn "e_parry:539 e_break_blade_disarm:612 e_cut_the_ropes:732 e_raise_the_aegis:890 e_disarmed_skip:927 e_nameless_husk:1200"
   group classes res://scenes/battle/battle_classes_c.tscn "c_status_tooltip:240" --status-tip=1.0
-  group classes res://scenes/battle/battle_classes_b.tscn "b_unit_card:720" --unit-tip=6.4
+  group classes res://scenes/battle/battle_classes_b.tscn "b_unit_card:420" --unit-tip=1.0
 fi
+
 
 WIDE=""
 if want setup; then
@@ -115,8 +118,8 @@ if want videos; then
   CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle.tscn "$OUT/battle/fight.mp4" 2300 >/dev/null
   CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle_crystal.tscn "$OUT/crystal/crystal_demo.mp4" 3560 >/dev/null
   mkdir -p "$OUT/classes"
-  for q in a b c; do
-    n=2300; [[ $q == a ]] && n=3560
+  for q in a b c d e; do
+    case $q in a) n=3400 ;; b) n=2000 ;; c) n=2400 ;; d) n=2050 ;; e) n=2700 ;; esac
     CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle_classes_$q.tscn "$OUT/classes/classes_$q.mp4" $n >/dev/null
   done
 fi

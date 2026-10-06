@@ -605,7 +605,22 @@ func _draw_timer() -> void:
 ## The caption's layout (pure: the draw and the label solver's walls both use it, so a test that
 ## never draws still sees the caption as drawn). {} when no caption shows; else its "rect" (UI px),
 ## "two" (two lines), its strings, widths and colours.
+var _cap_key := ""
+var _cap_memo: Dictionary = {}
+
+
 func caption_layout() -> Dictionary:
+	# memoized on everything it reads (the solver, the clip rects and the draw all ask each frame)
+	var key := "%d|%s|%d|%d|%s|%d|%d|%s|%s|%s|%s|%s|%s|%.0f|%.0f" % [caption_uid, caption_text, caption_target, caption_extra,
+		caption_tail_verb, caption_tail, caption_tail_extra, caption_note, caption_lead_label, caption_area,
+		end_t >= 0.0, cutin_t < cutin_hold, lore_bottom() > 0.0 or (b != null and fading_line_on() and b.sim_t >= b.sd_at), _vw, _vh]
+	if key != _cap_key:
+		_cap_key = key
+		_cap_memo = _caption_layout()
+	return _cap_memo
+
+
+func _caption_layout() -> Dictionary:
 	if b == null or caption_uid < 0 or caption_uid >= b.units.size() or end_t >= 0.0 or cutin_t < cutin_hold \
 			or lore_bottom() > 0.0 or (fading_line_on() and b.sim_t >= b.sd_at):
 		return {}   # the slot is the lore's or the Fading line's while they show

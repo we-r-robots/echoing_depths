@@ -415,6 +415,7 @@ func _clear() -> void:
 	_held_ev = -1
 	_fading_tagged = 0
 	status_fx.clear()
+	hud._cap_key = ""   # a new fight: the memoized caption layout is stale
 
 
 # ---------------------------------------------------------------------------------------- frame
