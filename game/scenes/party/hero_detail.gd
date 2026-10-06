@@ -253,7 +253,7 @@ func _process(delta: float) -> void:
 
 
 ## Unattended demo: ~60 Ilse at rest, ~240 Brannoc (at threshold), ~420 advancement prompt,
-## ~600 after Advancing (Paladin recorded in the codex).
+## ~600 after Advancing (Lightsworn recorded in the codex).
 func _run_demo() -> void:
 	var f := roundi(_t * 60.0)
 	match _demo_step:

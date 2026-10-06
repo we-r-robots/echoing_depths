@@ -69,6 +69,13 @@ const ICONS := {
 	"status_heal_invert": preload("res://ui/effect_icons/status_heal_invert.png"),
 	"status_charge_seal": preload("res://ui/effect_icons/status_charge_seal.png"),
 	"status_link": preload("res://ui/effect_icons/status_link.png"),
+	# round-2 statuses (placeholders, 2026-10-06)
+	"status_disarm": preload("res://ui/effect_icons/status_disarm.png"),
+	"status_sabotage": preload("res://ui/effect_icons/status_sabotage.png"),
+	"status_riposte": preload("res://ui/effect_icons/status_riposte.png"),
+	"status_watch": preload("res://ui/effect_icons/status_watch.png"),
+	"status_enshrine": preload("res://ui/effect_icons/status_enshrine.png"),
+	"status_seal_immune": preload("res://ui/effect_icons/status_seal_immune.png"),
 }
 const STAT_ICON := {
 	"def_pct": "stat_def", "atk_pct": "stat_atk", "mag_pct": "stat_mag", "spd_pct": "stat_spd",

@@ -264,16 +264,25 @@ func test_keepers_ring_untargetable_while_ring_stands() -> void:
 			else:
 				front[int(u["uid"])] = true
 		var dead := {}
+		var sealed := {}     # round 2: a sealed front unit leaves the shape (Enshriner)
+		var sabotaged := {}  # round 2: a Saboteur stops the ring while its foes are sabotaged
 		for ev: Dictionary in r["events"]:
 			if ev["type"] == "ko":
 				dead[int(ev["uid"])] = true
+			elif ev["type"] == "status" or ev["type"] == "status_end":
+				var on: bool = ev["type"] == "status"
+				var tbl: Dictionary = sealed if ev["status"] == "enshrine" else (sabotaged if ev["status"] == "sabotage" else {})
+				if on:
+					tbl[int(ev["uid"])] = true
+				else:
+					tbl.erase(int(ev["uid"]))
 			elif ev["type"] == "action_start" and int(ev["target"]) == keeper:
 				var standing := 0
 				for f: int in front:
-					if not dead.has(f):
+					if not dead.has(f) and not sealed.has(f):
 						standing += 1
 				checked += 1
-				if standing >= 3:
+				if standing >= 3 and sabotaged.is_empty():
 					check(false, "fight %d: keeper targeted while the ring stands" % i)
 					return
 	check(true, "keeper never single-targeted while all three front units stand (%d later targetings)" % checked)
@@ -290,13 +299,23 @@ func test_lighthouse_post_draws_single_target_ranged() -> void:
 				post = int(u["uid"])
 		var post_alive := true
 		var post_hidden := false   # a hidden post can't be targeted at all (Fadewalker, Unseen Warden)
+		var post_sealed := false   # round 2: nor a post sealed in crystal (Enshriner)
+		var sabotaged := {}        # round 2: a Saboteur's cut ropes put the lantern out (no taunt)
 		for ev: Dictionary in r["events"]:
 			if ev["type"] == "ko" and int(ev["uid"]) == post:
 				post_alive = false
 			if (ev["type"] == "status" or ev["type"] == "status_end") and int(ev["uid"]) == post and ev["status"] == "hidden":
 				post_hidden = ev["type"] == "status"
+			if (ev["type"] == "status" or ev["type"] == "status_end") and int(ev["uid"]) == post and ev["status"] == "enshrine":
+				post_sealed = ev["type"] == "status"
+			if (ev["type"] == "status" or ev["type"] == "status_end") and ev["status"] == "sabotage" and int(ev["uid"]) < 4:
+				if ev["type"] == "status":
+					sabotaged[int(ev["uid"])] = true
+				else:
+					sabotaged.erase(int(ev["uid"]))
 			if ev["type"] == "action_start" and int(ev["target_side"]) == 0 and ev["area"] == "single" \
-					and int(ev["uid"]) >= 4 and post_alive and not post_hidden and int(ev["target"]) >= 0:
+					and int(ev["uid"]) >= 4 and post_alive and not post_hidden and not post_sealed and sabotaged.is_empty() \
+					and int(ev["target"]) >= 0:
 				eq(int(ev["target"]), post, "fight %d: single-target attack goes to the lit post" % i)
 				drawn += 1
 	check(drawn > 50, "single-target attacks sampled (%d)" % drawn)

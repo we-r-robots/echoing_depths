@@ -257,9 +257,9 @@ func test_awakens_mark_explains_itself() -> void:
 func test_camp_detail_hero_format() -> void:
 	var h := {"name": "Vael", "class": "fighter", "base": "fighter", "tier": "base", "level": 3, "memories": 2,
 		"trail": [[0, 1], [1, 0]], "trail_before": [], "held": false, "awaken_ready": true, "awaken_new": true,
-		"awaken_class": "paladin", "alignment": [1, 1], "items": {}, "slot": [0, 1]}
+		"awaken_class": "lightsworn", "alignment": [1, 1], "items": {}, "slot": [0, 1]}
 	var d := RunHub.detail_hero(h)
 	eq(PartyModel.memory_count(d), 2, "hero detail counts the run's memories")
 	check(PartyModel.ready_to_advance(d), "ready in hero detail")
-	eq(PartyModel.advance_target(d), "paladin", "hero detail Awakens into the run's class")
-	eq(String(PartyModel.advanced_copy(d)["class"]), "paladin", "the preview matches the run")
+	eq(PartyModel.advance_target(d), "lightsworn", "hero detail Awakens into the run's class")
+	eq(String(PartyModel.advanced_copy(d)["class"]), "lightsworn", "the preview matches the run")

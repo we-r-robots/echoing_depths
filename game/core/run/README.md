@@ -101,7 +101,8 @@ it ends the run either way.
   (relic offset included) via `Alignment.advanced_class_for`; when the region's class is not
   authored yet, the nearest authored advanced class of that base stands in (`placeholder_class`).
 - **Legendary gate (`legend_gate.gd`, 05-formations.md):** only offered when the hero's advanced
-  class has an authored Legendary (today only Paladin → Lantern Saint); the other 7 templates in
+  class has an authored Legendary (today only Lightsworn → Lantern Saint; the parent is PROVISIONAL
+  since Paladin retired in round 2); the other 7 templates in
   `legend_memories.json` stay dormant until their Legendaries exist. Once a hero reaches advanced level 3,
   each later encounter node rolls 8 %, +8 % after each node where it does not appear, cap 60 %.
   On success that node *becomes* the hero's legend's memory (its own title, text and choices:

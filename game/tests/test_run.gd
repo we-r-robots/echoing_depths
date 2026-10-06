@@ -191,12 +191,12 @@ func test_set_formation() -> void:
 
 func test_legend_gate() -> void:
 	var st := {"legendaries": 0, "appeared": false, "misses": 0}
-	check(LegendGate.eligible({"class": "paladin", "level": 3}, st), "eligible at advanced level 3, no depth gate")
+	check(LegendGate.eligible({"class": "lightsworn", "level": 3}, st), "eligible at advanced level 3, no depth gate")
 	check(not LegendGate.eligible({"class": "warlock", "level": 4}, st), "no offer while the class has no authored Legendary")
-	check(not LegendGate.eligible({"class": "paladin", "level": 2}, st), "not before advanced level 3")
+	check(not LegendGate.eligible({"class": "lightsworn", "level": 2}, st), "not before advanced level 3")
 	check(not LegendGate.eligible({"class": "fighter", "level": 6}, st), "base heroes not eligible")
-	check(not LegendGate.eligible({"class": "paladin", "level": 3}, {"legendaries": 1}), "1 Legendary per party")
-	check(not LegendGate.eligible({"class": "paladin", "level": 3}, {"appeared": true}), "at most once per run")
+	check(not LegendGate.eligible({"class": "lightsworn", "level": 3}, {"legendaries": 1}), "1 Legendary per party")
+	check(not LegendGate.eligible({"class": "lightsworn", "level": 3}, {"appeared": true}), "at most once per run")
 	eq(LegendGate.chance({"misses": 0}), 0.08, "starts at 8%")
 	eq(LegendGate.chance({"misses": 2}), 0.24, "+8% per node without it")
 	eq(LegendGate.chance({"misses": 50}), 0.6, "capped at 60%")
@@ -214,7 +214,7 @@ func test_legend_gate() -> void:
 func test_legend_memory_is_an_encounter_once_per_run() -> void:
 	var offers := 0
 	var accepted := 0
-	for s in 120:
+	for s in 360:   # round 2: only Lightsworn (Fighter Mercy+Order) has a Legendary now, so offers are rarer
 		var run := _new_run(600 + s)
 		var rng := Rng.new(s)
 		var seen := 0

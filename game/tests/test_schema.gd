@@ -18,7 +18,7 @@ const A := TYPE_ARRAY
 const D := TYPE_DICTIONARY
 
 const STATUS_IDS := ["stun", "blind", "sap", "boon", "slow", "poison", "burn", "regen", "shield", "hidden",
-	"heal_block", "heal_invert", "charge_seal", "link"]
+	"heal_block", "heal_invert", "charge_seal", "link", "disarm", "sabotage", "riposte", "watch", "enshrine", "seal_immune"]
 ## type -> {field: TYPE or [TYPE, allowed values]}; "t" and "type" are implied.
 const EVENTS := {
 	"fight_start": {"seed": I, "data_version": I, "sudden_death_at": F, "gauge_fill_per_spd": F, "sides": A},
@@ -41,9 +41,9 @@ const EVENTS := {
 	"status": {"uid": I, "status": [S, STATUS_IDS], "src": I, "stat": [S, ["", "atk", "def", "mag", "spd"]], "value": F,
 		"stacks": [I, [1, 2, 3]], "duration": F, "action": S},
 	"status_end": {"uid": I, "status": [S, STATUS_IDS], "stat": [S, ["", "atk", "def", "mag", "spd"]],
-		"reason": [S, ["expired", "ko", "broken", "replaced"]]},
-	"miss": {"src": I, "dst": I, "action": S, "reason": [S, ["blind", "heal_block"]]},
-	"skip": {"uid": I, "reason": [S, ["stun"]], "duration": F},
+		"reason": [S, ["expired", "ko", "broken", "replaced", "triggered"]]},
+	"miss": {"src": I, "dst": I, "action": S, "reason": [S, ["blind", "heal_block", "parry"]]},
+	"skip": {"uid": I, "reason": [S, ["stun", "disarm"]], "duration": F},
 	"absorb": {"uid": I, "src": I, "amount": I, "shield": I},
 	"move": {"side": [I, [0, 1]], "uid": I, "from": A, "to": A, "src": I, "effect": [S, ["pulled", "pushed"]]},
 	"gauge": {"uid": I, "src": I, "gauge": F},

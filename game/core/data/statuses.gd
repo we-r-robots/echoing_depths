@@ -22,6 +22,8 @@ extends RefCounted
 ##   kind:   what the sim does with it (see core/README.md):
 ##           "stun" "blind" "stat" "slow" "dot" "regen" "shield" "hidden" "heal_block"
 ##           "heal_invert" "charge_seal" "link"
+##           and (round-2 classes, 2026-10-06) "disarm" "sabotage" "riposte" "watch" "enshrine"
+##           "seal_immune"
 
 const STATUSES := {
 	"stun": {"name": "Stunned", "short": "Loses its turns", "icon": "status_stun", "sign": -1,
@@ -66,6 +68,25 @@ const STATUSES := {
 	"link": {"name": "Linked", "short": "Shares damage", "icon": "status_link", "sign": 1,
 		"stack": "replace", "tick": 0, "kind": "link",
 		"text": "Linked: it and its partner split every hit either of them takes."},
+	# ---- round-2 classes (docs/design/class-verdicts-round2.md)
+	"disarm": {"name": "Disarmed", "short": "No basic attacks", "icon": "status_disarm", "sign": -1,
+		"stack": "refresh", "tick": 0, "kind": "disarm",
+		"text": "Disarmed: it makes no basic attacks, so it builds no charge from acting. Hits still charge it, and a full bar still fires its ability."},
+	"sabotage": {"name": "Sabotaged", "short": "Formation halted", "icon": "status_sabotage", "sign": -1,
+		"stack": "refresh", "tick": 0, "kind": "sabotage",
+		"text": "Sabotaged: its side's formation behaviour stops while this lasts. The formation's stat bonus stays."},
+	"riposte": {"name": "En garde", "short": "Parries next melee", "icon": "status_riposte", "sign": 1,
+		"stack": "refresh", "tick": 0, "kind": "riposte",
+		"text": "En garde: the next melee hit on it is parried (no damage) and answered with a critical counter. If nobody swings in time, it lunges at the front foe."},
+	"watch": {"name": "On watch", "short": "Guards neighbours", "icon": "status_watch", "sign": 1,
+		"stack": "refresh", "tick": 0, "kind": "watch",
+		"text": "On watch: the next foe to hit an ally beside it is struck and stunned. One catch, then the watch ends."},
+	"enshrine": {"name": "Enshrined", "short": "Sealed in crystal", "icon": "status_enshrine", "sign": -1,
+		"stack": "refresh", "tick": 0, "kind": "enshrine",
+		"text": "Enshrined: sealed in crystal. It can't act, nothing can hit or heal it, and its formation loses it. It still counts as standing, and the Fading still reaches it."},
+	"seal_immune": {"name": "Crystal-worn", "short": "Can't be resealed", "icon": "status_seal_immune", "sign": 1,
+		"stack": "refresh", "tick": 0, "kind": "seal_immune",
+		"text": "Crystal-worn: just freed from a crystal seal, it can't be sealed again for a while."},
 }
 
 ## Global status tuning.
@@ -75,4 +96,5 @@ const TUNING := {
 	"stat_floor": 0.2,        # saps never take a stat below 20% of its fight-start value
 	"slow_floor": 0.2,        # slows never take the gauge rate below 20%
 	"link_share": 0.5,        # share of a linked unit's hit its partner takes
+	"seal_immune_ms": 8000,   # Enshriner rule (c), PROVISIONAL: after a seal ends, no reseal for this long
 }

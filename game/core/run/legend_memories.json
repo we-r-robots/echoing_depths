@@ -2,9 +2,9 @@
  "_doc": "Legend's-memory encounters (05-formations.md), one per authored advanced class. Same shape as data/encounters (art empty). Choice 'legend': true makes the hero Legendary; the other is an ordinary memory and closes the gate for this run. Used only by legend_gate.gd.",
  "encounters": [
   {
-   "id": "legend_paladin",
+   "id": "legend_lightsworn",
    "kind": "legend",
-   "for_class": "paladin",
+   "for_class": "lightsworn",
    "legend_name": "The Lantern Saint",
    "title": "A Legend's Memory: The Lantern Saint",
    "art": {},

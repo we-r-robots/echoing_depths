@@ -19,7 +19,7 @@ const GameData = preload("res://core/game_data.gd")
 
 const FORMAT := "echoing_depths.meta"
 ## Run saves replay actions under the run's rules; version 2: Awakening at 2 memories from the camp.
-const RUN_SAVE_VERSION := 3   # 3: approved advanced classes + statuses (2026-10-06): older replays differ
+const RUN_SAVE_VERSION := 4   # 3: approved advanced classes + statuses; 4: round-2 classes (Paladin -> Lightsworn), older replays differ
 const DEFAULT_TEAM := "The Lanternrest Company"
 const TEAM_MAX := 32
 
