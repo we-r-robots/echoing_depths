@@ -8,6 +8,7 @@ const Actions = preload("res://core/data/abilities.gd")
 const Items = preload("res://core/data/items.gd")
 const Formations = preload("res://core/data/formations.gd")
 const Memories = preload("res://core/data/memories.gd")
+const Statuses = preload("res://core/data/statuses.gd")
 
 const STATS := ["hp", "atk", "def", "mag", "spd"]
 const MAX_PARTY_HEROES := 4      # player parties / Echoes
