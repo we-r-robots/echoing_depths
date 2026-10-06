@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://btag7ti6rjjr3"
-path="res://.godot/imported/ground.png-36e3949a507ed98dcd0769137c588b38.ctex"
+uid="uid://b5sfjlkeoo8wn"
+path="res://.godot/imported/glow_lamp.png-96f91041b3fb598181068ed0812e70e8.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/lanternrest/ground.png"
-dest_files=["res://.godot/imported/ground.png-36e3949a507ed98dcd0769137c588b38.ctex"]
+source_file="res://assets/lanternrest/glow_lamp.png"
+dest_files=["res://.godot/imported/glow_lamp.png-96f91041b3fb598181068ed0812e70e8.ctex"]
 
 [params]
 
