@@ -114,5 +114,6 @@ Built against the round-6 fix list. Captures for critic round 7 in `captures/hir
   - Setup: a disabled Confirm says why on the note line ("Place 1 more hero to confirm").
   - Encounter: "Awakens" is always on line 1, against the mini grid; when the title leaves no room, the glyph alone holds the same spot. The now/after legend sits on the first grid, with markers at grid-cell size.
   - Run encounter: the encounter screen's heading (rule, kind icon, KIND, rule; divider ornament) and a full-width Continue under the same result card.
-  - Capture states: captures now block real pointer input (`capture.gd`: `gui_disable_input`). A pointer over the floating capture window had steered the 1080 setup demo in round 6 (a hero never left the bench). The 1080 and phone shots of each named state now match, and setup_whole's before/after is the same Keeper's Ring tooltip moment.
+  - Capture states: the round-6 mismatch (the 1080 setup demo left a hero on the bench) did not reproduce. Every r7 setup state was checked side by side, panel against panel, and the 1080 and phone shots show the same state. As a guard, captures now ignore real GUI input (`capture.gd`: `gui_disable_input`). setup_whole's before/after is the same Keeper's Ring tooltip moment.
+  - Hero detail: the NEW tag rides on the class name plate. As a corner badge on the cell's top edge it touched the step label of the cell above.
 - **Not done:** sprite crowding (separate task). The growth block is not shown on a 6-row card (no room above the note line; Details lists it).

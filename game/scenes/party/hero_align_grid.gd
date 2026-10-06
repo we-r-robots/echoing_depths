@@ -288,9 +288,10 @@ func _draw_plaques() -> void:
 	var here := PartyModel.region_of(effective)
 	var er := cell_rect(effective)
 	var nm := hero_class if hero_class != "" else String(names.get(here, "???"))
-	_plaque(er.position.x + C / 2.0, er.position.y + 31, nm, Pal.INK10 if nm != "???" else Pal.INK8, HI)
-	if here in new_regions:
-		_corner_badge(er, "NEW")
+	# a new class's NEW tag rides on its name plate (r7: a corner badge on the cell's top edge
+	# touched the step label of the cell above)
+	_plaque(er.position.x + C / 2.0, er.position.y + 31, nm, Pal.INK10 if nm != "???" else Pal.INK8, HI,
+		"NEW" if here in new_regions else "")
 	if focus_region != "" and focus_region != here:
 		var fc := center(PartyModel.region_cell(focus_region))
 		var fn := String(names.get(focus_region, "???"))
@@ -306,15 +307,6 @@ func _draw_plaques() -> void:
 
 
 ## A small badge straddling a cell's top-right corner (the codex's NEW mark), inside the grid frame.
-func _corner_badge(cell: Rect2, tag: String) -> void:
-	var tw := PartyDraw.text_w(tag, PartyDraw.BOLD) + 6
-	var x := minf(cell.end.x - tw + 3, total() - FRAME - 1 - tw)
-	var r := Rect2(x, maxf(cell.position.y - 4, FRAME), tw, 11)
-	draw_rect(r.grow(1), Pal.INK1)
-	draw_rect(r, Pal.CRYSTAL4)
-	PartyDraw.text(self, Vector2(r.position.x + 3, UIText.centered_y(r.position.y, r.size.y, PartyDraw.BOLD)), tag, Pal.INK1, PartyDraw.BOLD, PartyDraw.SANS_SIZE, false)
-
-
 func _brackets(r: Rect2, c: Color) -> void:
 	var L := 6
 	for corner: Vector2 in [r.position, Vector2(r.end.x - 1, r.position.y), Vector2(r.position.x, r.end.y - 1), r.end - Vector2(1, 1)]:

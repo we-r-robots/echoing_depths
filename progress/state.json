@@ -757,6 +757,10 @@
     {
       "t": "19:51",
       "msg": "hires-ui critic round 6: 4/7, first majority, but no Sea of Stars pair; open review fails on 2 overlaps only. Round 7 next."
+    },
+    {
+      "t": "20:33",
+      "msg": "hires-ui round-7 build: setup overlap + tooltip anchor fixed and probed, banner margins in label solver, draft/hero detail restyled toward SoS, intro chips labelled, Awakens pinned; captures r7"
     }
   ],
   "questions": [
