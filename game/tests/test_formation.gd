@@ -289,11 +289,14 @@ func test_lighthouse_post_draws_single_target_ranged() -> void:
 			if int(u["col"]) == 0:
 				post = int(u["uid"])
 		var post_alive := true
+		var post_hidden := false   # a hidden post can't be targeted at all (Fadewalker, Unseen Warden)
 		for ev: Dictionary in r["events"]:
 			if ev["type"] == "ko" and int(ev["uid"]) == post:
 				post_alive = false
+			if (ev["type"] == "status" or ev["type"] == "status_end") and int(ev["uid"]) == post and ev["status"] == "hidden":
+				post_hidden = ev["type"] == "status"
 			if ev["type"] == "action_start" and int(ev["target_side"]) == 0 and ev["area"] == "single" \
-					and int(ev["uid"]) >= 4 and post_alive and int(ev["target"]) >= 0:
+					and int(ev["uid"]) >= 4 and post_alive and not post_hidden and int(ev["target"]) >= 0:
 				eq(int(ev["target"]), post, "fight %d: single-target attack goes to the lit post" % i)
 				drawn += 1
 	check(drawn > 50, "single-target attacks sampled (%d)" % drawn)

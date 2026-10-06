@@ -14,6 +14,7 @@ extends RefCounted
 ##       shape = a core/data/formations.gd entry; who = role -> [hero names] (who_of) so sentences
 ##       name the hero ("Ilse can't be targeted ..."); bonds = core Formation.compositions(...) entries.
 ##   EffectIcons.stat_icon("def_pct") / behaviour_icon("brace") / icon("cost_draws_melee")
+##   EffectIcons.status_icon("poison") / status_effect("poison")   # timed statuses (battle `status` events)
 ##   EffectIcons.draw_effect(canvas_item, pos, effect)   # 18x18 chip, non-interactive (banners)
 ##   EffectChip.new() + setup(effect)                    # interactive chip with the shared Tip
 
@@ -53,6 +54,21 @@ const ICONS := {
 	"stat_mag": preload("res://ui/effect_icons/stat_mag.png"),
 	"stat_spd": preload("res://ui/effect_icons/stat_spd.png"),
 	"up": preload("res://ui/effect_icons/up.png"),
+	# timed statuses (core/data/statuses.gd "icon")
+	"status_stun": preload("res://ui/effect_icons/status_stun.png"),
+	"status_blind": preload("res://ui/effect_icons/status_blind.png"),
+	"status_sap": preload("res://ui/effect_icons/status_sap.png"),
+	"status_boon": preload("res://ui/effect_icons/status_boon.png"),
+	"status_slow": preload("res://ui/effect_icons/status_slow.png"),
+	"status_poison": preload("res://ui/effect_icons/status_poison.png"),
+	"status_burn": preload("res://ui/effect_icons/status_burn.png"),
+	"status_regen": preload("res://ui/effect_icons/status_regen.png"),
+	"status_shield": preload("res://ui/effect_icons/status_shield.png"),
+	"status_hidden": preload("res://ui/effect_icons/status_hidden.png"),
+	"status_heal_block": preload("res://ui/effect_icons/status_heal_block.png"),
+	"status_heal_invert": preload("res://ui/effect_icons/status_heal_invert.png"),
+	"status_charge_seal": preload("res://ui/effect_icons/status_charge_seal.png"),
+	"status_link": preload("res://ui/effect_icons/status_link.png"),
 }
 const STAT_ICON := {
 	"def_pct": "stat_def", "atk_pct": "stat_atk", "mag_pct": "stat_mag", "spd_pct": "stat_spd",
@@ -78,6 +94,19 @@ static func icon(name: String) -> Texture2D:
 
 static func stat_icon(stat: String) -> Texture2D:
 	return icon(String(STAT_ICON.get(stat, "stat_def")))
+
+
+## A timed status's icon (core/data/statuses.gd).
+static func status_icon(status_id: String) -> Texture2D:
+	return icon("status_" + status_id)
+
+
+## A timed status as an effect chip: its icon (green ▲ helpful / red ▼ harmful), short label and
+## tooltip sentence, all from core/data/statuses.gd.
+static func status_effect(status_id: String) -> Dictionary:
+	var st: Dictionary = preload("res://core/data/statuses.gd").STATUSES.get(status_id, {})
+	return {"icon": icon(String(st.get("icon", "status_" + status_id))), "sign": int(st.get("sign", -1)), "kind": "stat",
+		"title": String(st.get("short", status_id)), "name": String(st.get("name", status_id)), "text": String(st.get("text", ""))}
 
 
 static func behaviour_icon(id: String) -> Texture2D:

@@ -200,10 +200,15 @@ func test_legend_gate() -> void:
 	eq(LegendGate.chance({"misses": 0}), 0.08, "starts at 8%")
 	eq(LegendGate.chance({"misses": 2}), 0.24, "+8% per node without it")
 	eq(LegendGate.chance({"misses": 50}), 0.6, "capped at 60%")
+	# a legend's memory exists for every class with an authored Legendary (the only ones offered);
+	# the approved round-1 classes (2026-10-06) have none yet, so they're never offered one
 	for cid: String in GameData.Classes.CLASSES:
-		if String(GameData.Classes.CLASSES[cid]["tier"]) == "advanced":
-			var e := LegendGate.encounter_for(cid)
+		if String(GameData.Classes.CLASSES[cid]["tier"]) == "legendary":
+			var e := LegendGate.encounter_for(String(GameData.Classes.CLASSES[cid]["advances_from"]))
 			check(not e.is_empty() and e["choices"].size() >= 2, "legend's memory written for " + cid)
+	var j: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://core/run/legend_memories.json"))
+	for e: Dictionary in (j as Dictionary)["encounters"]:
+		check(GameData.has_class(String(e["for_class"])), "legend memory %s names a live class" % e["id"])
 
 
 func test_legend_memory_is_an_encounter_once_per_run() -> void:

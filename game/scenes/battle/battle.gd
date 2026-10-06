@@ -648,6 +648,8 @@ func _dispatch(ev: Dictionary) -> void:
 		"formation_move": _on_formation_move(ev)
 		"spawn": _on_spawn(ev)
 		"crystal_fragment": _on_crystal_fragment(ev)
+		"move": _on_move(ev)
+		"revive": _on_revive(ev)
 		_: _on_other(ev)    # unknown / future event types are ignored safely
 
 
@@ -935,6 +937,43 @@ func _on_formation_move(ev: Dictionary) -> void:
 	_pending_moves.append([u.uid, dest])
 
 
+## An ability moved a unit (Shackler: "pulled" forward / "pushed" back; core README `move`). The
+## walk plays like Hold the door's, with its own cue; the side's live cells are rebuilt from the units.
+func _on_move(ev: Dictionary) -> void:
+	var uid := int(ev.get("uid", -1))
+	if uid < 0 or uid >= units.size():
+		return
+	var u = units[uid]
+	var to: Array = ev.get("to", [u.col, u.row])
+	u.col = int(to[0])
+	u.row = int(to[1])
+	var s: int = u.side
+	stage.alive_cells[s].clear()
+	for n in units:
+		if n != null and n.alive and n.side == s:
+			stage.alive_cells[s][Vector2i(n.col, n.row)] = true
+	var dest := Layout.slot_pos(s, u.col, u.row)
+	if _instant:
+		u.home = dest
+		u.position = dest
+		return
+	_pending_moves.append([u.uid, dest, "Dragged forward" if String(ev.get("effect", "")) == "pulled" else "Shoved back"])
+
+
+## A fallen unit stands again (Rekindler; core README `revive`).
+func _on_revive(ev: Dictionary) -> void:
+	var uid := int(ev.get("uid", -1))
+	if uid < 0 or uid >= units.size():
+		return
+	var u = units[uid]
+	u.revive(int(ev.get("hp", 1)))
+	stage.alive_cells[u.side][Vector2i(u.col, u.row)] = true
+	if _instant:
+		return
+	fx.pillar(u.position.x, u.position.y, 10.0, 0.8, Pal.AMBER6)
+	fx.light(u.chest(), Pal.AMBER5, 2, 0.6, 0.8)
+
+
 ## Hold the door plays once the KO and the action's focus have settled: its own brief focus,
 ## the clock paused while the unit walks (visual time) into the fallen unit's slot.
 func _play_pending_move() -> void:
@@ -952,10 +991,12 @@ func _play_pending_move() -> void:
 	u.buff_color = side_colors[s].lerp(Pal.INK10, 0.4)
 	fx.light(dest + Vector2(0, -12), side_colors[s], 2, 0.6, 1.2)
 	_layout_ctx()
-	fx.cue(_plate_case("Hold the door"), u.uid, sc, 0.0)
+	var label := String(m[2]) if m.size() > 2 else "Hold the door"
+	fx.cue(_plate_case(label), u.uid, sc, 0.0)
 	fx.trail(u.position, dest, sc)
 	stage.slot_pulse[Vector3i(s, u.col, u.row)] = 1.8
-	hud.pulse_badge(s, 9)
+	if m.size() <= 2:
+		hud.pulse_badge(s, 9)
 	_move_lit_until = _vclock + 1.3
 
 

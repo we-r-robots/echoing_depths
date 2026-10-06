@@ -56,6 +56,33 @@ At the threshold, the player can choose to suppress a hero's Advancement. The he
 - **Variants:** A hero's exact cell within a region adds a lean modifier (e.g. Lawful lean, Good lean). These come from a shared modifier system rather than being designed cell by cell.
 - **Total:** 9 classes per base class, or 36 across 4 base classes.
 
+### Approved Advanced Classes (round 1, 2026-10-06)
+The user approves every class personally (`docs/design/class-verdicts-round1.md`; abilities in `docs/design/advanced-class-options.md`). Built so far, one per approved region (codes: `LG` Mercy+Order, `CG` Mercy+Freedom, `LE` Cruelty+Order, `CE` Cruelty+Freedom, `N` neutral cross, `*` corner):
+
+| Base (start) | Approved region → class | No approved class yet |
+|---|---|---|
+| Fighter (N) | LG Paladin, LE Shackler (name to change), CE Berserker, LE★ Iron Marshal, CG★ Echoblade | N, CG, LG★, CE★ |
+| Rogue (CE) | CE Cutpurse, CE★ Fadewalker, CG Duelist, LE Assassin, LE★ Nightshade, LG★ Unseen Warden | N, LG, CG★ |
+| Healer (LG) | LG Cleric, N Threadmender, LG★ Lumenward, CG Rekindler, LE Tithekeeper, CG★ Wickburner, LE★ Confessor, CE★ Gravecaller | CE (pick one: Bloodletter or Hexmender) |
+| Mage (CG) | CG Stormwake, N Archmage, CG★ Starcaller, LG Lampwright, CE Warlock, LE Runebinder, LG★ Chronist, CE★ Wildfire | LE★ |
+
+- Paladin (Fighter LG, a pick-one region) and Duelist (Rogue CG, voted maybe) stay as they are until the user decides.
+- The Necromancer was dropped; the Gravecaller holds the Healer's far corner, and saved Necromancers load as Gravecallers.
+- **PROVISIONAL:** a hero who advances in a region with no approved class gets the approved class of the nearest region by grid steps from its cell (ties: the region nearer its base's starting cell). This stands in until every region has an approved class.
+- **PROVISIONAL:** the Gravecaller's behaviour when nobody has fallen yet is "hits the weakest foe", until the user decides.
+
+### Stat Budget (ruling 8)
+Each base class has one stat budget for its advanced classes: they differ only in how it is spread. Total = HP ÷ 5 + Atk + Def + Mag + Spd at level 1, and the same sum of the per-level growth.
+
+| Base | Level-1 total | Growth total |
+|---|---|---|
+| Fighter | 104 | 10.0 |
+| Rogue | 95 | 8.2 |
+| Healer | 89 | 7.5 |
+| Mage | 84 | 7.5 |
+
+The budgets are the averages of each base's live advanced classes before the rule; Paladin, Berserker, Duelist, Assassin, Archmage and Warlock were adjusted to them. Crit chance and charge rates are class identity and sit outside the budget.
+
 ### Corner Rarity
 Rarity comes from each corner's distance from the class's fixed starting position. For a Healer starting at (+1, +1), with a threshold of 3 and single-axis steps:
 

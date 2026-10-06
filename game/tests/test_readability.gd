@@ -6,6 +6,8 @@ extends "res://tests/test_case.gd"
 const CombatSim = preload("res://core/combat_sim.gd")
 const PartyGen = preload("res://core/party_gen.gd")
 const Rng = preload("res://core/rng.gd")
+const GameData = preload("res://core/game_data.gd")
+const TestEvents = preload("res://tests/test_events.gd")
 
 
 func _measure(monsters: bool) -> Dictionary:
@@ -69,22 +71,37 @@ func test_monster_targets() -> void:
 func test_full_charge_jumps_queue() -> void:
 	# After a "ready" charge event, the charged unit's ability is the next action that
 	# starts (unless another unit was already charged and queued first).
+	# Statuses (2026-10-06): a stunned charged unit loses its turn (others act meanwhile); charge
+	# drained away un-readies a unit; an ability's follow-up half (Unseen Arrest) is not a turn.
 	var rng := Rng.new(9)
 	var waits := 0
 	var ready_total := 0
+	var fu := TestEvents.followups()
 	for i in 50:
 		var r := CombatSim.simulate(i, PartyGen.random_party(rng), PartyGen.random_party(rng))
 		var queue: Array = []
+		var stunned := {}
 		for ev: Dictionary in r["events"]:
 			match String(ev["type"]):
 				"charge":
 					if ev["ready"]:
 						queue.append(int(ev["uid"]))
 						ready_total += 1
+					elif int(ev["charge"]) < 100:
+						queue.erase(int(ev["uid"]))
+				"status", "status_end":
+					if ev["status"] == "stun":
+						stunned[int(ev["uid"])] = ev["type"] == "status"
 				"ko":
 					queue.erase(int(ev["uid"]))
 				"action_start":
-					if not queue.is_empty():
+					if fu.has(String(ev["action"])):
+						continue
+					var held := false
+					for q: int in queue:
+						if bool(stunned.get(q, false)):
+							held = true
+					if not queue.is_empty() and not held:
 						if queue.has(int(ev["uid"])):
 							# its ability, or a held heal (nobody wounded): either way it got its turn
 							if ev["kind"] != "ability":
@@ -145,6 +162,9 @@ func test_unique_labels() -> void:
 
 func test_ability_pacing() -> void:
 	# Round-2 critique: abilities ~25-30% of actions, spread out, no cascades, few numbers at once.
+	# An ability's follow-up half (Unseen Arrest after its stealth) is the same ability: it doesn't
+	# count again; status ticks between actions belong to no action.
+	var fu := TestEvents.followups()
 	for monsters in [false, true]:
 		var rng := Rng.new(2)
 		var acts := 0
@@ -157,12 +177,19 @@ func test_ability_pacing() -> void:
 			var b := PartyGen.monster_group(rng, 1 + i % 10) if monsters else PartyGen.random_party(rng)
 			var r := CombatSim.simulate(i, a, b)
 			var cur_kind := ""
+			var cur_end := 0.0
 			var ready_by_ability := {}
 			var streak := 0
 			var at := {}
 			for ev: Dictionary in r["events"]:
+				if float(ev["t"]) > cur_end + 0.0001:
+					cur_kind = ""   # past the action's window (status ticks, skips)
 				match String(ev["type"]):
 					"action_start":
+						cur_end = float(ev["t"]) + float(ev["duration"])
+						if fu.has(String(ev["action"])):
+							cur_kind = "ability"
+							continue
 						acts += 1
 						cur_kind = String(ev["kind"])
 						if cur_kind == "ability":
@@ -191,6 +218,16 @@ func test_ability_pacing() -> void:
 
 func test_abilities_beat_basics() -> void:
 	# An ability's total effect must beat the same unit's average basic action, in >= 95% of casts.
+	# Counted for abilities whose effect is numbers (damage / healing); utility abilities (statuses,
+	# summons, tempo, links, shields: 2026-10-06 classes) do their work off the numbers and are exempt.
+	# Only the actor's own direct numbers count (not status ticks or links landing meanwhile).
+	var numeric := {}
+	for aid: String in GameData.Actions.ACTIONS:
+		var ok := true
+		for e: Dictionary in GameData.Actions.ACTIONS[aid]["effects"]:
+			if not (String(e["op"]) in ["damage", "heal", "charge"]) or e.has("overheal_shield"):
+				ok = false
+		numeric[aid] = ok
 	var rng := Rng.new(11)
 	var weak := 0
 	var total := 0
@@ -206,13 +243,15 @@ func test_abilities_beat_basics() -> void:
 				"action_start":
 					if not cur.is_empty():
 						if cur["kind"] == "ability":
-							abil.append(cur)
+							if bool(numeric.get(cur["action"], true)):
+								abil.append(cur)
 						else:
 							basic_sum[cur["uid"]] = float(basic_sum.get(cur["uid"], 0.0)) + float(cur["total"])
 							basic_n[cur["uid"]] = int(basic_n.get(cur["uid"], 0)) + 1
-					cur = {"uid": int(ev["uid"]), "kind": ev["kind"], "total": 0.0}
+					cur = {"uid": int(ev["uid"]), "kind": ev["kind"], "total": 0.0, "action": String(ev.get("action", ""))}
 				"damage", "heal":
-					if int(ev["src"]) >= 0 and not cur.is_empty():
+					if int(ev["src"]) >= 0 and not cur.is_empty() and int(ev["src"]) == int(cur["uid"]) \
+							and String(ev.get("kind", "")) != "status":
 						cur["total"] = float(cur["total"]) + float(ev["amount"])
 		for ab: Dictionary in abil:
 			if basic_n.has(ab["uid"]):
@@ -285,7 +324,9 @@ func test_ready_unit_beats_sudden_death_tick() -> void:
 				"charge":
 					if ev["ready"]:
 						pending.append(int(ev["uid"]))
-				"ko":
+					elif int(ev["charge"]) < 100:
+						pending.erase(int(ev["uid"]))   # charge drained away
+				"ko", "skip":   # a stunned unit's turn came and was lost
 					pending.erase(int(ev["uid"]))
 				"sudden_death":
 					if not pending.is_empty():
@@ -339,7 +380,11 @@ func test_heal_never_announced_empty() -> void:
 				var healed := false
 				var j := k + 1
 				while j < evs.size() and evs[j]["type"] != "action_start" and evs[j]["type"] != "sudden_death":
-					healed = healed or evs[j]["type"] == "heal"
+					# HP restored, a fallen ally rekindled, overflow turned into a shield (Lumen Ward), or
+					# a heal visibly blocked by a brand (miss: heal_block)
+					healed = healed or evs[j]["type"] in ["heal", "revive"] \
+						or (evs[j]["type"] == "status" and evs[j]["status"] == "shield") \
+						or (evs[j]["type"] == "miss" and evs[j]["reason"] == "heal_block")
 					j += 1
 				if not healed:
 					check(false, "fight %d: a heal was announced but healed nothing" % i)

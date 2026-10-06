@@ -97,8 +97,14 @@ func test_memories_shield_the_crystal_from_melee() -> void:
 		for ev: Dictionary in r["events"]:
 			match String(ev["type"]):
 				"spawn":
-					if int(ev["slot"][0]) == 0:
+					if int(ev["slot"][0]) == 0 and int(ev["side"]) == 1:
 						front[int(ev["uid"])] = true
+				"move":   # Shackler pulls / pushes memories between the columns
+					if int(ev["side"]) == 1:
+						if int(ev["to"][0]) == 0:
+							front[int(ev["uid"])] = true
+						else:
+							front.erase(int(ev["uid"]))
 				"ko":
 					front.erase(int(ev["uid"]))
 				"action_start":

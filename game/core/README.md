@@ -20,11 +20,12 @@ All numbers are placeholders and live in `core/data/*.gd` (plain const Dictionar
 | `narrator.gd` | `narrate(events) -> PackedStringArray` human-readable log (demo CLI, captions, debugging) |
 | `party_gen.gd` | Seeded generators: `random_party(rng)`, `monster_group(rng, depth)`, `demo_party()`, `demo_rival()` |
 | `data/tuning.gd` | Timeline, damage, crit, back-row, sudden-death numbers; level caps; `DATA_VERSION` |
-| `data/classes.gd` | Base classes, illustrative advanced/legendary classes, Vault monsters |
+| `data/classes.gd` | Base classes, the approved advanced classes (one per approved region), the Legendary, Vault monsters; stat budgets (`BUDGET`) and class renames (`CLASS_RENAMES`) |
 | `data/abilities.gd` | Basic attacks and abilities (one schema, data-driven effects) |
 | `data/items.gd` | Weapons, armor (flat stats), relics (stats + alignment offset) |
 | `data/formations.gd` | Formation shapes (buff + debuff each) and composition buffs |
 | `data/memories.gd` | Crystal of Remembrance: the Crystal's tuning and the authored memories (chapter, lore, behaviour) |
+| `data/statuses.gd` | Timed statuses (stun, blind, sap/boon, slow, poison, burn, regen, shield, hidden, heal block, heal inversion, charge seal, link): names, short labels, tooltips, icons, stacking rules, tick rates |
 
 Load scripts with `preload` (no `class_name` globals are registered):
 
@@ -119,7 +120,11 @@ default (`Memories.CRYSTAL`); a late-run party breaks it about half the time.
 | `events` | Array[Dictionary] | the event log below (empty if `options.log == false`) |
 
 Options: `{"log": false}` skips building events (same outcome, faster);
-`{"tuning": {...}}` overrides keys of `Tuning.COMBAT` (used by tests).
+`{"tuning": {...}}` overrides keys of `Tuning.COMBAT` and of `Statuses.TUNING` (used by tests);
+`{"start_statuses": [{"side", "slot": [col,row], "status", "dur_ms", ...effect keys, "src_side",
+"src_slot", "from_ability"}]}` puts statuses on units at t = 0 (tests and tools only; the effect keys
+are those of an ability's `status` effect, below); `{"start_hp": [{"side", "slot", "hp"}]}` starts
+units hurt (tests and tools only; set after `fight_start`, whose snapshots show full HP).
 
 ## Event log schema
 
@@ -127,6 +132,18 @@ Options: `{"log": false}` skips building events (same outcome, faster);
 this section: exact field set, types and enumerated values. If the two ever disagree, that test fails.
 
 **Schema changelog** (for consumers):
+- *Latest: timed statuses, approved advanced classes, rulings (2026-10-06, class-verdicts-round1.md).*
+  New events **`status`**, **`status_end`**, **`miss`**, **`skip`**, **`absorb`**, **`move`**,
+  **`gauge`**, **`revive`** (below). Damage kind **`"status"`** (poison/burn ticks, hexed heals, HP
+  costs; never halved by the back column) with mod/primary ids `poison`, `burn`, `heal_invert`,
+  `cost`, `tithe`, `link` (a linked partner's share; it can also appear on physical/magic hits).
+  `action_start.area` gains **`"column"`** (Hexfire's column of fire, hit space by space up the
+  column; each unit's `damage` is stamped when the fire reaches it). `spawn` gains **`summon`**
+  (`""`, `"echo"`, `"husk"`), **`summoner`** (uid, −1 for Crystal memories) and **`raised`** (the
+  fallen uid a husk was raised from, else −1); summons use `reason` `"summon"` / `"raise"`, empty
+  `memory`/`lore`, `chapter` 0, and unit `tier` **`"summon"`**. A fully absorbed hit has no
+  `damage` event (only its `absorb`). Hidden units are never single-targeted (melee skips a hidden
+  front unit to the nearest visible one, and reaches the back only when no visible front unit stands).
 - *Latest: formation states (05-formations.md, user decision).* `Formation.effective(party)` returns
   `{"state", "shape", "effective", "sub_cells", "locked"}` (contract below). **Strays** = no two
   heroes edge-adjacent (always available); **Unformed** = partly joined, no shape (no bonus, cost or
@@ -362,7 +379,7 @@ detected at fight start.
 | `anim` | String | animation hint: `melee`, `melee_big`, `shoot`, `cast`, `cast_big`, `heal`, `heal_big`, `dash`, `slam`, `slam_big` |
 | `target` | int | primary target uid, or `-1` for pure area actions (`all_allies` heals) |
 | `target_side` | int | side being targeted (own side for heals) |
-| `area` | String | `"single"`, `"all_enemies"` or `"all_allies"`. `"all_enemies"` with `target >= 0` = big hit on `target` plus splash on every other enemy (Firestorm, Hexfire, Unravel, Shard Burst) |
+| `area` | String | `"single"`, `"all_enemies"`, `"all_allies"` or `"column"` (Hexfire: `target` is the bottom unit; the fire climbs the column one space at a time). `"all_enemies"` with `target >= 0` = big hit on `target` plus splash on every other enemy (Firestorm, Hexfire, Unravel, Shard Burst) |
 | `duration` | float | seconds this action occupies the timeline |
 | `impact` | float | absolute time (seconds) its effects land |
 | `gauges` | Array[float] | every unit's ATB gauge fraction at this moment, indexed by uid (actor = 1.0, KO'd = 0.0). Between actions gauges rise linearly at `spd * gauge_fill_per_spd` per second, clamped at 1.0; during an action they are frozen; a unit whose `charge` event has `ready: true` snaps to 1.0 |
@@ -379,7 +396,7 @@ Fields: `uid`, `action`, `name`.
 | `src` | int | attacker uid, `-1` for sudden death |
 | `dst` | int | target uid |
 | `amount` | int | damage number to display (may exceed remaining HP; HP clamps at 0) |
-| `kind` | String | `"physical"`, `"magic"` or `"sudden_death"` |
+| `kind` | String | `"physical"`, `"magic"`, `"sudden_death"` or `"status"` (poison/burn ticks, hexed heals, HP costs: `src` is who caused it, `action` is `"status:<id>"` for ticks, `primary`/`mods` `[{id: <status or cost>, mult: 1.0}]`) |
 | `crit` | bool | critical hit |
 | `mods` | Array[Dictionary] | every modifier that shaped this hit, each `{"id", "mult", ...}`, see below (detail) |
 | `primary` | Dictionary | **the one annotation to show on this number**, or `{}` for a plain hit. Same shape as a `mods` entry, plus ids `crit` (`mult` 1.5), `back_row_attacker` (attacker in the back column, 0.5), `back_row_target` (target in the back column, 0.5) and `back_row_both` (both, 0.25). Priority: `crit` > `execute` > back row > `formation` > `sudden_death` |
@@ -436,6 +453,64 @@ A tick that occupies the timeline like an action. Fields: `tick` (1, 2, ...),
 (`sudden_death_side_stagger_ms`), so at most 4 numbers land at once; a tick that wipes both
 sides lands both sides' numbers together, so the screen matches the HP-fraction tiebreak.
 
+### `status`
+
+A status lands on a unit, or an application stacks onto / refreshes one it already has.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `uid` | int | the unit that has it |
+| `status` | String | id in `data/statuses.gd`: `stun`, `blind`, `sap`, `boon`, `slow`, `poison`, `burn`, `regen`, `shield`, `hidden`, `heal_block`, `heal_invert`, `charge_seal`, `link` |
+| `src` | int | who applied it (the unit itself for self-buffs) |
+| `stat` | String | `atk`/`def`/`mag`/`spd` for `sap`/`boon`, else `""` |
+| `value` | float | its size now: stat fraction (−0.3 = −30 %), slow fraction, damage or healing per tick, shield HP, link share |
+| `stacks` | int | 1, or the poison stack count (max 3) |
+| `duration` | float | seconds left from this event |
+| `action` | String | the action that applied it (`""` for `start_statuses`) |
+
+Show it as the status's icon on the unit (`EffectIcons.status_icon(id)`, with its `short` label and
+`text` tooltip from `data/statuses.gd`), until its `status_end`.
+
+### `status_end`
+
+Fields: `uid`, `status`, `stat`, `reason`: `"expired"`, `"ko"` (the unit fell), `"broken"` (a used-up
+shield, or the other end of a link fell), `"replaced"` (a new link replaced the old one).
+
+### `miss`
+
+Fields: `src`, `dst`, `action`, `reason`: `"blind"` (a blinded unit's hit missed: no `damage`
+event) or `"heal_block"` (a heal on a branded unit did nothing: no `heal` event).
+
+### `skip`
+
+A stunned unit's turn comes and is lost. Fields: `uid`, `reason` (`"stun"`), `duration` (seconds the
+lost turn occupies the timeline, 0.3; then the usual gap). Its gauge resets as if it had acted; its
+charge is kept.
+
+### `absorb`
+
+A shield took (part of) a hit. Fields: `uid`, `src` (attacker, −1 for none), `amount` (absorbed),
+`shield` (shield HP left; 0 = it broke, a `status_end` with reason `"broken"` follows). Emitted just
+before the hit's `damage` event, which carries only what got through (no `damage` event if nothing did).
+
+### `move`
+
+A unit is moved by an ability (Shackler): fields `side`, `uid`, `from` `[col,row]`, `to`
+`[col,row]`, `src` (the actor), `effect` (`"pulled"` for the back unit drawn forward, `"pushed"` for
+the front unit sent back). Two `move` events per swap (pulled first). From then on the unit is in its
+new column (melee targeting and the back-row halving follow it); the side's formation stays the one
+detected at fight start.
+
+### `gauge`
+
+An ally's ATB gauge is filled (Iron Marshal): fields `uid`, `src`, `gauge` (new fraction 0..1;
+1.0 = it acts next, after any fully charged unit already waiting).
+
+### `revive`
+
+A fallen unit stands again (Rekindler): fields `uid`, `src`, `hp`. It is alive in its old slot with
+0 charge and an empty gauge; its old statuses are gone.
+
 ### `fight_end`
 
 Fields: `winner` (0, 1, -1), `reason` (as in the result), `survivors` (uids; never the Crystal), `fragments` (int). Its `t` is the
@@ -485,13 +560,51 @@ actions; ~88 % of units fire at least once per fight.
 | `lowest_hp_enemy` | lowest current HP (ties → lower uid) |
 | `lowest_hp_ally` | lowest HP fraction on own side, including self |
 | `random_enemy` | seeded random |
+| `most_charged_enemy` / `highest_hp_enemy` | most charge / most current HP (never the Crystal; ties → lower uid) |
+| `column_bottom` | the bottom unit of the enemy back column (the front if the back is empty) |
+| `random_ally` | seeded random living ally (self included) |
 | `all_enemies` / `all_allies` / `self` | as named |
+
+Every single-target enemy selector skips **hidden** units and the ringed Keeper; area effects still
+reach them.
 
 Effect `to`: `primary` (re-picked with the selector if the primary fell mid-action), `primary_adjacent`
 (rows ±1 in the primary's column), `primary_column`, `primary_column_rest` (the column minus the
 primary), `other_enemies` (every enemy but the primary), `melee_enemy` (whoever melee targeting
 would hit), `front_enemies` (the column melee would hit), `front_random`, `random_enemy`,
-`all_enemies`, `all_allies`, `lowest_hp_ally`, `self`.
+`all_enemies`, `all_allies`, `lowest_hp_ally`, `self`; and (advanced classes) `adjacent_allies`
+(the effect's `adjacency`: `"edge"` or `"all"`), `column_allies`, `other_allies`,
+`primary_neighbours` (edge-adjacent to the primary on its side, both columns), `most_charged_enemy`,
+`highest_hp_enemy`, `random_ally`, `column_sweep` (Hexfire). `lowest_hp_ally` passes over a branded
+(heal-blocked) ally while anyone else can be picked.
+
+**Statuses** (`data/statuses.gd`): timed effects on units, applied by an ability effect
+`{"op": "status", "status": id, "to": ..., "dur_ms": ms, ...}`. Durations run on fight time (the
+Fading's clock, action time included); ticks (1 s), burn jumps (`spread_ms`) and expiries are
+processed between actions (one that falls due during an action lands right after it, at the action's
+end), in uid order, so the log stays deterministic. Stacking per status: `refresh` (one instance; the
+longer duration and the larger size win), `stack` (poison: up to 3 stacks, each adds its per-tick
+damage and refreshes the duration), `replace` (link). Sap and boon keep one instance per stat.
+
+| Status | What the sim does |
+|---|---|
+| `stun` | every turn the unit would take before it wears off is lost (`skip` event) |
+| `blind` | each of its hits on a foe misses with chance `blind_miss` (0.5; `miss` event). The RNG is drawn only while blinded |
+| `sap` / `boon` | `value` × the stat (from its fight-start value; floor 20 %) |
+| `slow` | its gauge fills `value` slower (floor 20 % speed) |
+| `poison` / `burn` | **status damage** every second: `power × damage_scale × Mag² / (Mag + target Mag)`, fixed when applied. Burn jumps every `spread_ms` to one edge-adjacent unburnt unit beside it (a copy with the time left) |
+| `regen` | heals `power × heal_scale × Mag` every second (scaled by the Fading's healing cut) |
+| `shield` | absorbs damage (attacks, status damage, shares) before HP; `amount`, or `power × heal_scale × Mag`. The Fading and HP costs go straight through |
+| `hidden` | no single-target selector picks it (melee, back-first, lowest/highest HP, most charged, random, draws, covering fire); area and splash still hit it. Melee skips a hidden front unit to the nearest visible front unit and reaches the back column only when no visible front unit stands (ruling 1) |
+| `heal_block` | heals on it do nothing (`miss` reason `heal_block`) |
+| `heal_invert` | heals on it deal that much status damage instead |
+| `charge_seal` | it gains no charge |
+| `link` | it and its `partner` split every hit either takes (`link_share` 0.5 goes to the partner, primary id `link`); ends on both when either falls |
+
+**Status damage is non-physical** (ruling 2, user 2026-10-06): damage kind `"status"`, never halved
+by the back column at either end, never a crit, not raised by the Fading's damage multiplier. It
+builds hit charge like any damage. HP costs (Iron Marshal, Wickburner, the Tithe) are status damage
+too, but never drop a unit below 1 HP, ignore shields and links, and build no charge.
 
 **Sudden death (the Fading):** time-based only. From 36 s (`sudden_death_at`), a tick every 1.5 s
 (measured from when the previous tick actually fired; a tick waits for a fully charged unit's action): every living unit loses `tick × 8 %` max HP,
@@ -517,8 +630,75 @@ Fighters), Night Pack (2+ Rogues), Choir of Healers (2+ Healers), Arcane Circle 
 
 **Alignment:** positions `[good_evil, lawful_chaotic]` in −2..+2. `apply_shift` keeps the underlying
 position on the grid; `effective = clamp(underlying + relic offset)`. Only relics carry offsets.
-`region_of` gives `N`, `LG/CG/LE/CE`, or a corner `LG*/CG*/LE*/CE*`. `advanced_class_for(base, pos)`
-prefers the exact corner class, then the quadrant/neutral class, else `""` (not authored yet).
+`region_of` gives `N`, `LG/CG/LE/CE`, or a corner `LG*/CG*/LE*/CE*`. `region_class(base, region)` is
+the approved class of exactly that region (`""` if none yet). `advanced_class_for(base, pos)` returns
+the region's class; in a region with no approved class it returns the approved class of the
+**nearest region by grid steps** from the hero's cell (ties: the region nearer the base's start
+cell, then the order N, LG, CG, LE, CE, LG\*, CG\*, LE\*, CE\*). **PROVISIONAL** (2026-10-06)
+until the user approves a class for every region; `is_fallback(base, pos)` marks the stand-ins (the
+run records them as `placeholder`).
+
+**Advanced classes (round 1, `docs/design/class-verdicts-round1.md`).** Only APPROVED regions have a
+class; PICK ONE regions and regions whose live class was voted maybe keep the live class (Paladin,
+Duelist); everything else falls back as above.
+
+| Base | Region → class |
+|---|---|
+| Fighter | LG Paladin · LE Shackler · CE Berserker · LE\* Iron Marshal · CG\* Echoblade (N, CG, LG\*, CE\* fall back) |
+| Rogue | CE Cutpurse · CE\* Fadewalker · CG Duelist · LE Assassin · LE\* Nightshade · LG\* Unseen Warden (N, LG, CG\* fall back) |
+| Healer | LG Cleric · N Threadmender · LG\* Lumenward · CG Rekindler · LE Tithekeeper · CG\* Wickburner · LE\* Confessor · CE\* Gravecaller (CE falls back) |
+| Mage | CG Stormwake · N Archmage · CG\* Starcaller · LG Lampwright · CE Warlock · LE Runebinder · LG\* Chronist · CE\* Wildfire (LE\* falls back) |
+
+Ability mechanics (numbers in `data/abilities.gd`):
+
+| Class | Ability | What the sim does |
+|---|---|---|
+| Shackler | Shackle | hits the front foe, then the foe behind it (same row, back column) is pulled forward and the struck foe pushed back (`move` ×2). The id stays `shackler`; the display name is data only |
+| Iron Marshal | Drive On | each ally adjacent to it (effect field `adjacency`: `"edge"` as written, `"all"` = each adjacent) gets a full gauge (`gauge`) and pays 6 % max HP (`damage` kind `status`, primary `cost`, never below 1 HP). No ally beside it: Marshal's Blow |
+| Echoblade | Call Echo | an echo (40 % HP, its stats, basic Strike only, never charges) in the empty front slot nearest its row (`spawn`, `summon: "echo"`). Front column full: Echo Strike |
+| Cutpurse | Pilfer | hits the most charged foe and moves up to 30 of its charge to itself (`charge` reason `drain` on the foe) |
+| Fadewalker | Vanishing Cut | hits the weakest foe, then `hidden` for 2 s |
+| Nightshade | Slow Venom | `poison` on the healthiest foe for 6 s (stacks ×3) |
+| Unseen Warden | Unseen Arrest | `hidden` for 1.5 s; when it ends, a follow-up action (also `kind: "ability"`, no charge spent): `stun` 2.5 s on the most charged foe, `blind` 4 s on the units edge-adjacent to it |
+| Threadmender | Bind Lives | `link` the healthiest and the weakest ally for 5 s. Fewer than two: Smite |
+| Lumenward | Lumen Ward | a small heal on every ally; healing past full HP becomes a `shield` of that size (user tweak) |
+| Rekindler | Rekindle | the first fallen ally (its slot free) stands again at 30 % HP, once per fight (`revive`); otherwise Kindle Mend (heal the weakest + smite) |
+| Tithekeeper | Tithe | the healthiest ally pays 12 % max HP (primary `tithe`), the weakest is healed 1.6× that |
+| Wickburner | Burn to Mend | pays 12 % of its max HP (primary `cost`), heals every other ally |
+| Confessor | Brand of Flame | hits the weakest foe and brands it: `heal_block` 5 s (flame-themed, user note) |
+| Gravecaller | Raise Husk | the most recently fallen unit of either side (not a summon, not raised before) returns on the Gravecaller's side as a husk in an empty front slot: 50 % of its HP/Atk/Def/Mag, 75 % Spd, its basic action only (`spawn`, `summon: "husk"`, `raised`). **PROVISIONAL**: with nobody fallen (or no free front slot) it casts Grave Bolt (hits the weakest foe) until the user decides (ruling 7) |
+| Stormwake | Chain Storm | three separate magic hits on random foes |
+| Starcaller | Draw a Star | one random gift to a random ally: Atk, Mag or Spd +30 % (`boon`, 6 s), a `shield`, or +40 charge |
+| Lampwright | Column Ward | `shield` on every ally in its column |
+| Runebinder | Rune Seal | hits the most charged foe and `charge_seal`s it for 4 s |
+| Chronist | Slow the Field | `slow` (40 %) on every foe for 5 s |
+| Wildfire | Wildfire | hits a random foe and sets it burning (`burn` 6 s); every 2 s the fire jumps to an unburnt foe beside it |
+| Warlock | Hexfire (user tweak) | a column of fire from the bottom of the foes' back column (the front if the back is empty) climbing one space at a time (`area: "column"`) |
+
+An ability with `requires` plays its `fallback` action when it has nothing to work on (the charge is
+still spent; `action_start.action` names the fallback).
+
+**Summons** (echo, husk; ruling 6): unit `tier: "summon"`, new uids after the existing ones. They act
+with their basic action, never gain charge, are never in the shape (no bonus, cost, role or
+behaviour, they don't connect Strays), never count as standing (a side whose last hero falls has
+lost even if summons stand; they're never `survivors` and don't enter the Fading's HP-fraction
+tiebreak). They do stand in a front slot, so they shield the back column from melee.
+
+**Rulings 4 (fight end and charge):** a unit at 1 HP is standing, so a side with any standing unit
+has not lost. A unit gains **no charge while an effect of its own ability is in play** (a status it
+applied with its ability, on anyone, or its summon still standing). The Fading builds no charge.
+Charge from status-damage ticks stops at 99, like an ability's hits (the unit readies on its next
+hit or action). A stunned unit that was fully charged acts as soon as the stun ends.
+
+**Stat budget (ruling 8):** every advanced class of a base spends the same level-1 total and growth
+total, `Σ stat × weight` with HP weighted 1/5 (`Classes.BUDGET_WEIGHTS`): Fighter 104 / 10.0, Rogue
+95 / 8.2, Healer 89 / 7.5, Mage 84 / 7.5 (`Classes.BUDGET`, the mean of each base's live classes
+before the rule). Crit and charge rates are identity, not budget. Paladin, Berserker, Duelist,
+Assassin, Archmage and Warlock were normalised to it.
+
+**Renamed classes:** `Classes.CLASS_RENAMES` (`necromancer` → `gravecaller`) is applied to every
+loaded Echo (`Echo._migrate`, so pools too), to Monument heroes in meta, and through
+`GameData.canonical_class`; run saves from older rules are dropped (`RUN_SAVE_VERSION` 3).
 
 **Monster groups** (`PartyGen.monster_group(rng, depth)`): 3 monsters below depth 6, else 4, all at
 level `3 + (depth − 1) / 3`: shallow groups are a real fight for a mid-run party, deep ones out-power it.

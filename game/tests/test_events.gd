@@ -5,10 +5,23 @@ const PartyGen = preload("res://core/party_gen.gd")
 const GameData = preload("res://core/game_data.gd")
 const Rng = preload("res://core/rng.gd")
 
-const TYPES := ["fight_start", "formation", "formation_proc", "formation_move", "action_start", "ability", "damage", "heal", "charge", "ko", "sudden_death", "fight_end"]
+const TYPES := ["fight_start", "formation", "formation_proc", "formation_move", "action_start", "ability", "damage", "heal", "charge", "ko", "sudden_death", "fight_end",
+	"spawn", "status", "status_end", "miss", "skip", "absorb", "move", "gauge", "revive"]
 const TOS := ["primary", "primary_adjacent", "primary_column", "primary_column_rest", "other_enemies", "melee_enemy", "all_enemies", "front_enemies", "front_random",
-	"random_enemy", "self", "all_allies", "lowest_hp_ally"]
-const SELECTORS := ["melee", "back_first", "lowest_hp_enemy", "random_enemy", "lowest_hp_ally", "self", "all_enemies", "all_allies"]
+	"random_enemy", "self", "all_allies", "lowest_hp_ally", "adjacent_allies", "column_allies", "other_allies", "primary_neighbours",
+	"most_charged_enemy", "highest_hp_enemy", "random_ally", "column_sweep"]
+const SELECTORS := ["melee", "back_first", "lowest_hp_enemy", "random_enemy", "lowest_hp_ally", "self", "all_enemies", "all_allies",
+	"most_charged_enemy", "highest_hp_enemy", "random_ally", "column_bottom"]
+
+
+## Actions that are an ability's second half (a status's "then"): shown as an ability, no charge spent.
+static func followups() -> Dictionary:
+	var out := {}
+	for aid: String in GameData.Actions.ACTIONS:
+		for e: Dictionary in GameData.Actions.ACTIONS[aid]["effects"]:
+			if String(e.get("then", "")) != "":
+				out[String(e["then"])] = true
+	return out
 
 
 func test_log_invariants() -> void:
@@ -22,6 +35,7 @@ func test_log_invariants() -> void:
 			check(false, "fight %d: log must start with fight_start and end with fight_end" % i)
 			return
 		var last_t := 0.0
+		var fu := followups()
 		var hp := {}
 		var dead := {}
 		var ch := {}
@@ -45,8 +59,18 @@ func test_log_invariants() -> void:
 						check(false, "fight %d: charge event inconsistent with previous charge %s" % [i, ev])
 						return
 					ch[cu] = int(ev["charge"])
+				"spawn":
+					hp[int(ev["uid"])] = int(ev["unit"]["hp"])
+					ch[int(ev["uid"])] = int(ev["unit"]["charge"])
+				"revive":
+					if not dead.has(int(ev["uid"])):
+						check(false, "fight %d: revived a unit that was standing" % i)
+						return
+					dead.erase(int(ev["uid"]))
+					hp[int(ev["uid"])] = int(ev["hp"])
+					ch[int(ev["uid"])] = 0
 				"action_start":
-					if ev["kind"] == "ability" and int(ch[int(ev["uid"])]) < 100:
+					if ev["kind"] == "ability" and int(ch[int(ev["uid"])]) < 100 and not fu.has(String(ev["action"])):
 						check(false, "fight %d: ability without full charge" % i)
 						return
 					if dead.has(int(ev["uid"])):

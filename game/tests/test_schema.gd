@@ -17,6 +17,8 @@ const B := TYPE_BOOL
 const A := TYPE_ARRAY
 const D := TYPE_DICTIONARY
 
+const STATUS_IDS := ["stun", "blind", "sap", "boon", "slow", "poison", "burn", "regen", "shield", "hidden",
+	"heal_block", "heal_invert", "charge_seal", "link"]
 ## type -> {field: TYPE or [TYPE, allowed values]}; "t" and "type" are implied.
 const EVENTS := {
 	"fight_start": {"seed": I, "data_version": I, "sudden_death_at": F, "gauge_fill_per_spd": F, "sides": A},
@@ -27,14 +29,25 @@ const EVENTS := {
 		"trigger": [S, ["start", "turn", "attack", "defend", "crit", "charge", "heal"]], "related": I},
 	"formation_move": {"side": [I, [0, 1]], "uid": I, "from": A, "to": A, "source": S, "effect": [S, ["hold_the_door"]], "replaces": I},
 	"action_start": {"uid": I, "action": S, "name": S, "kind": [S, ["basic", "ability"]], "anim": S, "target": I,
-		"target_side": [I, [0, 1]], "area": [S, ["single", "all_enemies", "all_allies"]], "duration": F, "impact": F,
+		"target_side": [I, [0, 1]], "area": [S, ["single", "all_enemies", "all_allies", "column"]], "duration": F, "impact": F,
 		"gauges": A},
 	"ability": {"uid": I, "action": S, "name": S},
-	"damage": {"src": I, "dst": I, "amount": I, "kind": [S, ["physical", "magic", "sudden_death"]], "crit": B,
+	"damage": {"src": I, "dst": I, "amount": I, "kind": [S, ["physical", "magic", "sudden_death", "status"]], "crit": B,
 		"mods": A, "primary": D, "hp": I, "action": S},
 	"heal": {"src": I, "dst": I, "amount": I, "hp": I, "action": S},
 	"charge": {"uid": I, "charge": I, "delta": I, "reason": [S, ["act", "hit", "effect", "spent", "drain"]], "ready": B, "queue": I},
-	"spawn": {"side": [I, [1]], "uid": I, "slot": A, "unit": D, "memory": S, "chapter": I, "lore": S, "reason": [S, ["start", "fragment"]]},
+	"spawn": {"side": [I, [0, 1]], "uid": I, "slot": A, "unit": D, "memory": S, "chapter": I, "lore": S,
+		"reason": [S, ["start", "fragment", "summon", "raise"]], "summon": [S, ["", "echo", "husk"]], "summoner": I, "raised": I},
+	"status": {"uid": I, "status": [S, STATUS_IDS], "src": I, "stat": [S, ["", "atk", "def", "mag", "spd"]], "value": F,
+		"stacks": [I, [1, 2, 3]], "duration": F, "action": S},
+	"status_end": {"uid": I, "status": [S, STATUS_IDS], "stat": [S, ["", "atk", "def", "mag", "spd"]],
+		"reason": [S, ["expired", "ko", "broken", "replaced"]]},
+	"miss": {"src": I, "dst": I, "action": S, "reason": [S, ["blind", "heal_block"]]},
+	"skip": {"uid": I, "reason": [S, ["stun"]], "duration": F},
+	"absorb": {"uid": I, "src": I, "amount": I, "shield": I},
+	"move": {"side": [I, [0, 1]], "uid": I, "from": A, "to": A, "src": I, "effect": [S, ["pulled", "pushed"]]},
+	"gauge": {"uid": I, "src": I, "gauge": F},
+	"revive": {"uid": I, "src": I, "hp": I},
 	"crystal_fragment": {"index": [I, [1, 2, 3, 4]], "integrity": I, "max_integrity": I},
 	"ko": {"uid": I, "by": I},
 	"sudden_death": {"tick": I, "hp_pct": F, "damage_mult": F, "heal_mult": F, "duration": F},
@@ -48,16 +61,18 @@ const FORMATION := {"id": S, "name": S, "shape": S, "shape_name": S,
 const MODIFIER := {"scope": [S, ["all", "front", "back", "class", "post", "tip", "keeper", "flanker", "gap", "middle"]], "stat": S, "value": F}
 const COMPOSITION := {"id": S, "name": S, "mods": A}
 const UNIT := {"uid": I, "side": I, "name": S, "label": S, "class": S, "class_name": S, "span": [I, [1, 2]], "base_class": S,
-	"tier": [S, ["base", "advanced", "legendary", "monster", "memory", "crystal"]], "level": I, "col": [I, [0, 1]], "row": [I, [0, 1, 2, 3]],
+	"tier": [S, ["base", "advanced", "legendary", "monster", "memory", "crystal", "summon"]], "level": I, "col": [I, [0, 1]], "row": [I, [0, 1, 2, 3]],
 	"hp": I, "max_hp": I, "atk": I, "def": I, "mag": I, "spd": I, "crit": F, "charge": I, "charge_max": I,
 	"gauge": F, "basic": D, "ability": D}
 const ACTION_REF := {"id": S, "name": S}
 const MOD_IDS := ["formation", "back_row_attacker", "back_row_target", "execute", "sudden_death", "brace",
-	"share_the_blow", "flank", "hearthguard", "echo_step", "chorus_splash", "harvest", "mirror"]
+	"share_the_blow", "flank", "hearthguard", "echo_step", "chorus_splash", "harvest", "mirror",
+	"poison", "burn", "heal_invert", "cost", "tithe", "link"]
 const MOD_FORMATION := {"id": S, "mult": F, "source": S, "name": S, "side": [I, [0, 1]]}
 const MOD_PLAIN := {"id": S, "mult": F}
 const PRIMARY_IDS := ["crit", "execute", "back_row_attacker", "back_row_target", "back_row_both", "formation", "sudden_death",
-	"brace", "share_the_blow", "flank", "hearthguard", "echo_step", "chorus_splash", "harvest", "mirror"]
+	"brace", "share_the_blow", "flank", "hearthguard", "echo_step", "chorus_splash", "harvest", "mirror",
+	"poison", "burn", "heal_invert", "cost", "tithe", "link"]
 
 var _bad := 0
 

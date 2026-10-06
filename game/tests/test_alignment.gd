@@ -39,7 +39,7 @@ func test_regions() -> void:
 func test_advanced_class_lookup() -> void:
 	eq(Alignment.start_for("healer"), [1, 1], "healer fixed start")
 	eq(Alignment.advanced_class_for("healer", [1, 1]), "cleric", "healer LG -> cleric")
-	eq(Alignment.advanced_class_for("healer", [-2, -2]), "necromancer", "far corner -> necromancer")
-	eq(Alignment.advanced_class_for("healer", [-1, -1]), "", "unauthored region -> ''")
+	eq(Alignment.advanced_class_for("healer", [-2, -2]), "gravecaller", "far corner -> gravecaller (Necromancer dropped)")
+	eq(Alignment.advanced_class_for("healer", [-1, -1]), "threadmender", "region without an approved class -> nearest approved region (N, 1 step)")
 	eq(Alignment.advanced_class_for("fighter", [2, 2]), "paladin", "corner without its own class falls back to quadrant")
 	eq(Alignment.legendary_class_for("paladin"), "lantern_saint", "legendary lookup")

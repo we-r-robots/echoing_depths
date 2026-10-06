@@ -19,7 +19,7 @@ const GameData = preload("res://core/game_data.gd")
 
 const FORMAT := "echoing_depths.meta"
 ## Run saves replay actions under the run's rules; version 2: Awakening at 2 memories from the camp.
-const RUN_SAVE_VERSION := 2
+const RUN_SAVE_VERSION := 3   # 3: approved advanced classes + statuses (2026-10-06): older replays differ
 const DEFAULT_TEAM := "The Lanternrest Company"
 const TEAM_MAX := 32
 
@@ -81,6 +81,9 @@ static func load_all() -> void:
 	var m := _read(meta_path)
 	if String(m.get("format", FORMAT)) == FORMAT:
 		meta.merge(m, true)
+	for mon: Variant in meta.get("monuments", []):   # renamed classes (Necromancer -> Gravecaller)
+		if mon is Dictionary:
+			GameData.migrate_heroes((mon as Dictionary).get("heroes", null))
 	_loaded = true
 
 

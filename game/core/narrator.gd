@@ -1,13 +1,16 @@
 extends RefCounted
 ## Turns an event log into human-readable lines (demo CLI, debug overlay, captions).
 
+const GameData = preload("res://core/game_data.gd")
+
 const COL_NAMES := ["front", "back"]
 ## Modifiers worth a word in the story. Formation/composition tags are summarised
 ## once at the top instead of on every hit.
 const MOD_TEXT := {"back_row_attacker": "attacker in back row", "back_row_target": "target in back row",
 	"back_row_both": "both in back row", "execute": "EXECUTE", "crit": "CRIT",
 	"sudden_death": "the Fading", "brace": "braced", "share_the_blow": "shared blow", "flank": "flank",
-	"hearthguard": "hearthguard", "echo_step": "echo step", "chorus_splash": "chorus splash", "harvest": "grief", "mirror": "woven"}
+	"hearthguard": "hearthguard", "echo_step": "echo step", "chorus_splash": "chorus splash", "harvest": "grief", "mirror": "woven",
+	"poison": "poison", "burn": "burn", "heal_invert": "hexed heal", "cost": "cost", "tithe": "tithe", "link": "linked"}
 const BEH_TEXT := {"shoulder_to_shoulder": "shoulder to shoulder, gains charge", "covering_fire": "covering fire, targets the attacker",
 	"guardian": "guardian intercepts the hit", "brace": "braces, neighbours share the blow", "opening_volley": "opening volley, acts early",
 	"flank": "flanks the enemy in its row", "hearthguard": "hearthguard, takes less damage", "share_the_blow": "shares the blow down the wall",
@@ -51,6 +54,8 @@ static func narrate(events: Array) -> PackedStringArray:
 					tgt = " -> all enemies"
 				elif ev["area"] == "all_allies":
 					tgt = " -> all allies"
+				if ev["area"] == "column":
+					tgt += " (up the column)"
 				lines.append(t + "%s %s%s" % [_tag(who), what, tgt])
 			"damage":
 				var dst: Dictionary = units[int(ev["dst"])]
@@ -59,8 +64,8 @@ static func narrate(events: Array) -> PackedStringArray:
 				if not pm.is_empty():
 					extra.append(_mod_text(pm))
 				var verb := "fades for %d" % int(ev["amount"]) if ev["kind"] == "sudden_death" \
-					else "takes %d %s" % [int(ev["amount"]), ev["kind"]]
-				if ev["kind"] == "sudden_death":
+					else "takes %d %s" % [int(ev["amount"]), ev["kind"] if ev["kind"] != "status" else String(pm.get("id", "status")).replace("_", " ")]
+				if ev["kind"] == "sudden_death" or ev["kind"] == "status":
 					extra.clear()   # "fades" already says it: the Fading
 				lines.append(t + "    %s %s%s  (HP %d/%d)" % [_tag(dst), verb,
 					(" [" + ", ".join(extra) + "]") if not extra.is_empty() else "",
@@ -88,8 +93,36 @@ static func narrate(events: Array) -> PackedStringArray:
 			"spawn":
 				var su: Dictionary = ev["unit"]
 				units[int(ev["uid"])] = su
-				lines.append(t + "** The Crystal releases a memory: %s (%s row %d). \"%s\"" % [_tag(su),
-					COL_NAMES[int(ev["slot"][0])], int(ev["slot"][1]) + 1, ev["lore"]])
+				if String(ev.get("summon", "")) != "":
+					lines.append(t + "    + %s %s %s (%s row %d)" % [_tag(units[int(ev["summoner"])]),
+						"raises" if ev["summon"] == "husk" else "calls", _tag(su), COL_NAMES[int(ev["slot"][0])], int(ev["slot"][1]) + 1])
+				else:
+					lines.append(t + "** The Crystal releases a memory: %s (%s row %d). \"%s\"" % [_tag(su),
+						COL_NAMES[int(ev["slot"][0])], int(ev["slot"][1]) + 1, ev["lore"]])
+			"status":
+				var sn: String = GameData.Statuses.STATUSES[ev["status"]]["name"]
+				var extra2 := ""
+				if String(ev["stat"]) != "":
+					extra2 = " (%s %+d%%)" % [String(ev["stat"]).capitalize(), roundi(float(ev["value"]) * 100.0)]
+				elif int(ev["stacks"]) > 1:
+					extra2 = " x%d" % int(ev["stacks"])
+				lines.append(t + "    + %s is %s%s for %.1fs" % [_tag(units[int(ev["uid"])]), sn.to_lower(), extra2, float(ev["duration"])])
+			"status_end":
+				lines.append(t + "    - %s is no longer %s (%s)" % [_tag(units[int(ev["uid"])]),
+					String(GameData.Statuses.STATUSES[ev["status"]]["name"]).to_lower(), ev["reason"]])
+			"miss":
+				lines.append(t + "    %s" % ("%s misses %s (blinded)" % [_tag(units[int(ev["src"])]), _tag(units[int(ev["dst"])])]
+					if ev["reason"] == "blind" else "%s can't be healed (branded)" % _tag(units[int(ev["dst"])])))
+			"skip":
+				lines.append(t + "%s is stunned and loses its turn" % _tag(units[int(ev["uid"])]))
+			"absorb":
+				lines.append(t + "    %s's shield absorbs %d (%d left)" % [_tag(units[int(ev["uid"])]), int(ev["amount"]), int(ev["shield"])])
+			"move":
+				lines.append(t + "    ~ %s is %s to the %s row" % [_tag(units[int(ev["uid"])]), ev["effect"], COL_NAMES[int(ev["to"][0])]])
+			"gauge":
+				lines.append(t + "    ~ %s is driven on: acts next" % _tag(units[int(ev["uid"])]))
+			"revive":
+				lines.append(t + "    + %s rekindles %s (HP %d)" % [_tag(units[int(ev["src"])]), _tag(units[int(ev["uid"])]), int(ev["hp"])])
 			"crystal_fragment":
 				lines.append(t + "** The Crystal cracks: fragment %d of 4 (integrity %d/%d)" % [int(ev["index"]),
 					int(ev["integrity"]), int(ev["max_integrity"])])

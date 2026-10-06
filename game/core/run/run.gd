@@ -765,12 +765,10 @@ func _drop_decisions(hi: int) -> void:
 	_decisions = _decisions.filter(func(d: Dictionary) -> bool: return int(d["hero_index"]) != hi)
 
 
-## The advanced class Awakening gives now: the effective region's class, else the nearest
-## authored one of that base (content gap).
+## The advanced class Awakening gives now: the effective region's approved class, else the nearest
+## approved region's class (core/alignment.gd; PROVISIONAL until every region has an approved class).
 static func _awaken_class(h: Dictionary) -> String:
-	var eff := Alignment.effective_for_hero(h)
-	var cid := Alignment.advanced_class_for(String(h["base"]), eff)
-	return cid if cid != "" else _nearest_advanced(String(h["base"]), eff)
+	return Alignment.advanced_class_for(String(h["base"]), Alignment.effective_for_hero(h))
 
 
 func _advance_hero(h: Dictionary) -> void:
@@ -786,25 +784,7 @@ func _advance_hero(h: Dictionary) -> void:
 	h["trail_before"] = h["trail_before"] + h["trail"]
 	h["trail"] = []
 	_say("  %s ADVANCES at %s (%s) -> %s%s" % [h["name"], eff, region, GameData.get_class_def(cid)["name"],
-		" [placeholder: region class not authored]" if h["placeholder"] else ""])
-
-
-## Authored advanced class of this base whose region centre is nearest (content-gap fallback).
-static func _nearest_advanced(base: String, pos: Array) -> String:
-	var centres := {"N": [0, 0], "LG": [1.5, 1.5], "CG": [1.5, -1.5], "LE": [-1.5, 1.5], "CE": [-1.5, -1.5],
-		"LG*": [2, 2], "CG*": [2, -2], "LE*": [-2, 2], "CE*": [-2, -2]}
-	var best := ""
-	var best_d := INF
-	for id: String in GameData.Classes.CLASSES:
-		var c: Dictionary = GameData.Classes.CLASSES[id]
-		if String(c.get("tier", "")) != "advanced" or String(c.get("base", "")) != base:
-			continue
-		var ctr: Array = centres.get(String(c.get("region", "N")), [0, 0])
-		var d := pow(float(ctr[0]) - pos[0], 2) + pow(float(ctr[1]) - pos[1], 2)
-		if d < best_d:
-			best_d = d
-			best = id
-	return best
+		" [stand-in: no approved class for this region yet]" if h["placeholder"] else ""])
 
 
 func _ascend(h: Dictionary) -> void:
