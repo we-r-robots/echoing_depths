@@ -23,7 +23,7 @@ func _by_hand(cid: String, lv: int) -> Dictionary:
 
 func test_level_gain_is_the_real_floored_difference() -> void:
 	var saw_floored_zero := false
-	for cid: String in ["fighter", "rogue", "healer", "mage", "paladin"]:
+	for cid: String in ["fighter", "rogue", "healer", "mage", "lightsworn"]:
 		var mx := GameData.max_level(cid)
 		for lv in range(1, mx):
 			var g := HeroStats.level_gain({"class": cid, "level": lv})
@@ -85,7 +85,7 @@ func test_camp_memory_line_names_the_gains() -> void:
 			green = (l as Label).get_theme_color("font_color") == UIText.legible(Pal.LIFE4)
 	check(green, "the gains are green (LIFE4)")
 	# Awakened at camp since: the levels were the base class's
-	var adv := {"name": "Vael", "class": "paladin", "base": "fighter", "tier": "advanced", "level": 1, "items": {}}
+	var adv := {"name": "Vael", "class": "lightsworn", "base": "fighter", "tier": "advanced", "level": 1, "items": {}}
 	var l2 := RunHub.memory_line(adv, {"hero_index": 0, "level_before": 2, "level": 3})
 	check(String(l2.get_meta("text")).ends_with(PartyModel.gain_words(HeroStats.gain_between({"class": "fighter"}, 2, 3))),
 		"after an Awakening the line keeps the base class's gains")
@@ -126,12 +126,12 @@ func test_encounter_choice_previews_the_gain() -> void:
 		t2.append((l as Label).text)
 	check("Max level: Awaken to grow" in t2, "it says so: %s" % [t2])
 	# an Awakened hero's gain uses its real class, not the base class the row's portrait shows
-	var ah := RunEncounter._hero_for_button({"name": "Vael", "class": "paladin", "base": "fighter", "tier": "advanced",
+	var ah := RunEncounter._hero_for_button({"name": "Vael", "class": "lightsworn", "base": "fighter", "tier": "advanced",
 		"level": 2, "memories": 2, "alignment": [0, 0], "items": {}})
 	var b3 := EncounterChoiceButton.new()
 	root.add_child(b3)
 	b3.setup({"id": "z", "class": "fighter", "label": "Go", "shift": {"good": 1, "law": 0}}, ah, 0, 276)
-	eq(var_to_str(b3.gain), var_to_str(HeroStats.level_gain({"class": "paladin", "level": 2})), "advanced: its own growth")
+	eq(var_to_str(b3.gain), var_to_str(HeroStats.level_gain({"class": "lightsworn", "level": 2})), "advanced: its own growth")
 	root.free()
 
 
