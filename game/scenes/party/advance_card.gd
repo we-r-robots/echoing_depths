@@ -13,7 +13,9 @@ const H := 312
 const GEM := preload("res://ui/icons/memory_gem.png")
 const STAR := preload("res://ui/icons/star.png")
 const POINTER := preload("res://assets/party/pointer.png")
-const STAT_PITCH := 14
+const HeroStats = preload("res://core/hero_stats.gd")
+const BAR_W := 38   # the old / new stat bars (narrowed for the growth-per-level column)
+const STAT_PITCH := 13   # (13: room for the line on what a level gives, playtest "make it more clear")
 
 var hero: Dictionary = {}
 var codex: Array = []
@@ -22,6 +24,7 @@ var _t := 0.0
 var _btn_adv: Button
 var _btn_hold: Button
 var _reach: Dictionary = {}
+var level_tip: Control = null   # over the Awaken box's stats: Lv 1 again, higher base, its growth
 
 
 class ActionButton extends Button:
@@ -92,6 +95,18 @@ func set_hero(h: Dictionary, cdx: Array) -> void:
 	hero = h
 	codex = cdx
 	_reach = hold_reach(h)
+	# the stats, growth column and level line explain themselves in the shared tooltip
+	if level_tip == null:
+		level_tip = Control.new()
+		level_tip.position = Vector2(8, 52 + 42)
+		level_tip.size = Vector2(W - 16, 5 * STAT_PITCH + 3 + 13 + 13)
+		level_tip.mouse_filter = Control.MOUSE_FILTER_STOP
+		add_child(level_tip)
+	var why := level_explain(h)
+	if why != "":
+		Tip.attach(level_tip, "Awakening and levels", why, Pal.LIFE4)
+	else:
+		Tip.detach(level_tip)
 	queue_redraw()
 
 
@@ -137,8 +152,8 @@ func _draw() -> void:
 	var eff := PartyModel.effective(hero)
 	var region := PartyModel.region_of(eff)
 	PartyDraw.text(self, Vector2(x, 38), "They stand in %s." % PartyModel.region_words(region).replace("Neutral cross", "the neutral cross"), Pal.INK8, PartyDraw.BOLD)
-	_draw_advance(Rect2(6, 52, W - 12, 134))
-	_draw_hold(Rect2(6, 190, W - 12, 76))
+	_draw_advance(Rect2(6, 52, W - 12, 138))
+	_draw_hold(Rect2(6, 194, W - 12, 76))
 	# pointer hand beside the focused button
 	var b := _btn_adv if focus == 0 else _btn_hold
 	var bob := 1 if fmod(_t, 0.6) < 0.3 else 0
@@ -158,7 +173,7 @@ func _draw_advance(r: Rect2) -> void:
 	var x := r.position.x + 5
 	var y := r.position.y
 	PartyDraw.text(self, Vector2(x, y + 2), "AWAKEN", Pal.AMBER6 if lit else Pal.AMBER5, PartyDraw.BOLD)
-	var lv := "new class from Lv 1"   # (critic r2: "Lv 4 → 1" read like a loss)
+	var lv := "restarts at Lv 1"   # (critic r2: "Lv 4 → 1" read like a loss)
 	PartyDraw.text(self, Vector2(r.position.x, y + 2), lv, Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, r.size.x - 6, HORIZONTAL_ALIGNMENT_RIGHT)
 	var adv := PartyModel.advanced_copy(hero)
 	var id := String(adv["class"])
@@ -177,6 +192,9 @@ func _draw_advance(r: Rect2) -> void:
 	var sub := ("%s  ·  " % lean if lean != "" and PartyModel.region_of(PartyModel.effective(hero)) != "N" else "")
 	sub += "joins the codex" if not known else "known path"
 	PartyDraw.text(self, Vector2(x, y + 31), sub, Pal.INK8, PartyDraw.BOLD)
+	if id != "":
+		# the head of the growth column on the right
+		PartyDraw.text(self, Vector2(r.position.x, y + 31), "per Lv", Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, r.size.x - 5, HORIZONTAL_ALIGNMENT_RIGHT)
 	# stats: before > after (change), one row pitch with room between rows (critic r6: the block
 	# was small and dense)
 	var a := PartyModel.stats(hero)
@@ -199,15 +217,22 @@ func _draw_advance(r: Rect2) -> void:
 		var ds := "(%+d)" % d if d != 0 else "(=)"
 		PartyDraw.text(self, Vector2(cx[4], ry + 1), ds, dc, PartyDraw.BOLD)
 	# bars to the right: a quick visual of the new stat line vs the old
-	var bx := r.position.x + 140
+	var bx := r.position.x + 136
+	var bw := BAR_W
+	var grow := HeroStats.growth_range(id) if id != "" else {}
 	for i in keys.size():
 		var k: String = keys[i]
 		var ry := sy + i * STAT_PITCH + 4
 		var mx := 240.0 if k == "hp" else 40.0
-		var wa := clampi(roundi(float(a[k]) / mx * 66.0), 1, 66)
-		var wb := clampi(roundi(float(b[k]) / mx * 66.0), 1, 66)
+		var wa := clampi(roundi(float(a[k]) / mx * bw), 1, bw)
+		var wb := clampi(roundi(float(b[k]) / mx * bw), 1, bw)
+		# the new class's own growth per level, in green, as it really lands ("+2–3": flooring)
+		if grow.has(k):
+			var gr: Array = grow[k]
+			PartyDraw.text(self, Vector2(r.end.x - 5 - 34, ry - 3), PartyModel.range_words(gr),
+				Pal.LIFE4 if int(gr[1]) > 0 else Pal.INK8, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, 34, HORIZONTAL_ALIGNMENT_RIGHT)
 		# kept part neutral; a gain in green and a loss in red, matching the (+N) / (-N) text
-		draw_rect(Rect2(bx, ry, 66, 5), Pal.INK1)
+		draw_rect(Rect2(bx, ry, bw, 5), Pal.INK1)
 		draw_rect(Rect2(bx, ry + 1, mini(wa, wb), 3), Pal.INK6)
 		if wb > wa:
 			draw_rect(Rect2(bx + wa, ry + 1, wb - wa, 3), Pal.LIFE4)
@@ -223,6 +248,26 @@ func _draw_advance(r: Rect2) -> void:
 	ox += PartyDraw.text_w(old_ab, PartyDraw.BOLD) + 5
 	PartyDraw.tint_tex(self, preload("res://ui/icons/arrow_right.png"), Vector2(ox, ab_y + 1), Pal.AMBER5)
 	PartyDraw.text(self, Vector2(ox + 10, ab_y), new_ab, Pal.AMBER6, PartyDraw.BOLD)
+	# what Lv 1 means here (playtest: "Does each hero level give bonus stats?"): the right column
+	# is the new class's growth per level
+	if id != "":
+		PartyDraw.text(self, Vector2(x, ab_y + 13), LEVEL_NOTE, Pal.INK9, PartyDraw.BOLD)
+
+
+## The advancement's level line, under the ability; its tooltip has the full sentence.
+const LEVEL_NOTE := "Higher base stats, its own growth per Lv"
+
+
+## The tooltip on the Awaken box's stats: Lv 1 again, a higher base, the new class's growth.
+static func level_explain(h: Dictionary) -> String:
+	var adv := PartyModel.advanced_copy(h)
+	var id := String(adv["class"])
+	if id == "":
+		return ""
+	var to := PartyModel.class_name_of(id)
+	return "Awakening starts the %s at Lv 1 (of %d) with higher base stats than this Lv %d %s, then each memory adds a level: %s per level (whole numbers as they land; \"+2–3\" alternates)." % [
+		to, PartyModel.max_level(adv), int(h.get("level", 1)), PartyModel.class_name_of(String(h["class"])),
+		PartyModel.growth_words(id, ", ")]
 
 
 func _draw_hold(r: Rect2) -> void:

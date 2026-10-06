@@ -9,7 +9,7 @@ extends "res://tests/test_case.gd"
 const BATTLE = preload("res://scenes/battle/battle.tscn")
 const SHAPES := [Vector2i(1920, 1080), Vector2i(2340, 1080), Vector2i(1890, 730), Vector2i(1440, 1080)]
 ## [demo_fight, demo_sequence]
-const FIGHTS := [["pvp", ""], ["monsters", ""], ["crystal", "ch1"], ["classes", "a"], ["classes", "b"], ["classes", "c"]]
+const FIGHTS := [["pvp", ""], ["monsters", ""], ["crystal", "ch1"], ["classes", "a"], ["classes", "b"], ["classes", "c"], ["classes", "d"], ["classes", "e"]]
 
 
 func _play(fight: Array, res: Vector2i) -> void:

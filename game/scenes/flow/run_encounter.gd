@@ -25,6 +25,7 @@ const COL_W := 276   # the encounter screen's column: 24 px clear of the frame's
 const FALLBACK_ART := {"riddle": "colossus", "chance": "odds", "moral": "hollowmere", "monster": "hound",
 	"recruitment": "campfire", "legend": "colossus"}
 const ITEMS := preload("res://core/data/items.gd")
+const HeroStats = preload("res://core/hero_stats.gd")
 
 var run: RefCounted = null
 var demo := false
@@ -220,7 +221,9 @@ static func _hero_for_button(h: Dictionary) -> Dictionary:
 	var tier := String(h.get("tier", "base"))
 	return {"name": h.get("name", ""), "class": String(h.get("base", h.get("class", ""))),
 		"level": int(h.get("level", 1)), "pos": Vector2i(int(al[0]), int(al[1])), "tier": tier,
-		"memories": int(h.get("memories", 0)) if tier == "base" else maxi(0, int(h.get("level", 1)) - 1)}
+		"memories": int(h.get("memories", 0)) if tier == "base" else maxi(0, int(h.get("level", 1)) - 1),
+		# the hero's real class and items, for what a level gives (the choice row's line 3)
+		"stat_class": String(h.get("class", "")), "items": (h.get("items", {}) as Dictionary).duplicate()}
 
 
 ## The run's choice view in the encounter screen's format (shift as {good, law}).
@@ -258,6 +261,7 @@ func choose(i: int) -> void:
 			card = EncounterResultCard.new()
 			card.setup(_hero_for_button(party_after[hi]), _hero_for_button(before_party[hi]), _choice_for_button(picked), COL_W)
 			_result.add_child(card)
+			_result.add_child(gain_line(party_after[hi], m))
 	for line: Array in _result_lines(res, after, card != null):
 		_result.add_child(FlowUI.label(String(line[0]), &"GoldLabel", line[1], COL_W, HORIZONTAL_ALIGNMENT_CENTER))
 	_result.visible = true
@@ -278,8 +282,9 @@ func _result_lines(res: Dictionary, after: Dictionary, on_card := false) -> Arra
 	if res.has("memory") and not on_card:
 		var m: Dictionary = res["memory"]
 		var h: Dictionary = party[int(m["hero_index"])]
-		var lv := "Level %d → %d" % [int(m["level_before"]), int(m["level"])] if int(m["level"]) > int(m["level_before"]) \
-			else "Level %d (at its cap)" % int(m["level"])
+		var gw := PartyModel.gain_words(HeroStats.gain_between(h, int(m["level_before"]), int(m["level"])))
+		var lv := "Level %d → %d%s" % [int(m["level_before"]), int(m["level"]), (" · " + gw) if gw != "" else ""] \
+			if int(m["level"]) > int(m["level_before"]) else "Level %d (the max for its class)" % int(m["level"])
 		out.append(["%s absorbs a memory.  %s" % [h["name"], lv], Pal.CRYSTAL5])
 		var sh: Array = m.get("shift", [0, 0])
 		var words := EncounterDB.shift_words(Vector2i(int(sh[0]), int(sh[1])))
@@ -306,6 +311,18 @@ func _result_lines(res: Dictionary, after: Dictionary, on_card := false) -> Arra
 	if String(after.get("step", "")) == "fight":
 		out.append(["A fight! Arrange your party next.", Pal.BLOOD4])
 	return out
+
+
+## Under the result card (which shows "LEVEL 2 → 3"): what that level gave, "Level 3 gives Wren:
+## HP +8 · Mag +2" in green, or that a hero at its class's max level didn't level.
+static func gain_line(h: Dictionary, m: Dictionary) -> Control:
+	var before := int(m["level_before"])
+	var after := int(m["level"])
+	if after <= before:
+		var why := ": Awaken to grow" if String(h.get("tier", "base")) == "base" else ""
+		return FlowUI.gain_line("No level: Lv %d is the max for its class%s" % [after, why], Pal.INK9, {}, COL_W)
+	return FlowUI.gain_line("Level %d gives %s" % [after, h["name"]], Pal.CRYSTAL5,
+		HeroStats.gain_between(h, before, after), COL_W, ": ")
 
 
 static func item_name(id: String) -> String:

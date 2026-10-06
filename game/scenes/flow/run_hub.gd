@@ -25,6 +25,7 @@ const BACKDROP := preload("res://assets/encounter/campfire/bg.png")
 const Run = preload("res://core/run/run.gd")
 const EchoPool = preload("res://core/run/echo_pool.gd")
 const Rng = preload("res://core/rng.gd")
+const HeroStats = preload("res://core/hero_stats.gd")
 const TITLE := "Lantern Camp"
 const CARD_W := 150
 const CARD_H := 104
@@ -187,7 +188,7 @@ func _outcome_box() -> VBoxContainer:
 			var m: Dictionary = last["memory"]
 			var hi := int(m["hero_index"])
 			if hi < party.size():
-				lines.append(["%s absorbed a memory: Lv %d → %d" % [party[hi]["name"], int(m["level_before"]), int(m["level"])], Pal.CRYSTAL5])
+				lines.append([memory_line(party[hi], m), Pal.CRYSTAL5])
 		if last.has("recruited") and int(last["recruited"]) < party.size():
 			var r: Dictionary = party[int(last["recruited"])]
 			lines.append(["%s the %s joined the party" % [r["name"], PartyModel.class_name_of(String(r["class"]))], Pal.LIFE4])
@@ -199,8 +200,33 @@ func _outcome_box() -> VBoxContainer:
 			lines.append(["The party rests a moment before going deeper.", Pal.INK8])
 	lines.append(["Health %d of %d" % [int(view.get("health", 0)), int(view.get("max_health", 0))], Pal.INK9])
 	for l: Array in lines:
-		v.add_child(FlowUI.label(String(l[0]), &"GoldLabel", l[1], PANEL_W, HORIZONTAL_ALIGNMENT_CENTER))
+		if l[0] is Control:
+			v.add_child(l[0])
+		else:
+			v.add_child(FlowUI.label(String(l[0]), &"GoldLabel", l[1], PANEL_W, HORIZONTAL_ALIGNMENT_CENTER))
 	return v
+
+
+## The camp's memory line, naming what the level gave: "Ilse absorbed a memory: Lv 2 → 3 · HP +10 ·
+## Mag +2" (gains in green, the real compute() difference), or that a hero at its class's max level
+## didn't level. `h` is the party_view hero now, `m` the run's memory result.
+static func memory_line(h: Dictionary, m: Dictionary) -> Control:
+	var before := int(m["level_before"])
+	var after := int(m["level"])
+	if after <= before:
+		return FlowUI.gain_line("%s absorbed a memory: no level (Lv %d is a %s's max)" % [h["name"], after,
+			PartyModel.class_name_of(String(h["class"]))], Pal.CRYSTAL5, {}, PANEL_W)
+	return FlowUI.gain_line("%s absorbed a memory: Lv %d → %d" % [h["name"], before, after], Pal.CRYSTAL5,
+		HeroStats.gain_between(_class_at_memory(h, after), before, after), PANEL_W)
+
+
+## The hero as it was when the memory landed: an Awakening since (back to Lv 1 in a new class)
+## means the levels were the base class's.
+static func _class_at_memory(h: Dictionary, level_after: int) -> Dictionary:
+	var o := h.duplicate()
+	if int(h.get("level", 1)) != level_after and String(h.get("base", "")) != "":
+		o["class"] = String(h["base"])
+	return o
 
 
 ## Opens hero i's details (read-only but for Awakening); `awaken` opens the advancement card.

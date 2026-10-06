@@ -253,9 +253,16 @@ func _process(delta: float) -> void:
 
 
 ## Unattended demo: ~60 Ilse at rest, ~240 Brannoc (at threshold), ~420 advancement prompt,
-## ~600 after Advancing (Lightsworn recorded in the codex).
+## ~600 after Advancing (Lightsworn recorded in the codex). `-- --demo=level-tip` holds Ilse with
+## her Lv tooltip open instead.
 func _run_demo() -> void:
 	var f := roundi(_t * 60.0)
+	# `-- --demo=level-tip`: Ilse's Lv tooltip (what a level gives) open, nothing else happens
+	if "--demo=level-tip" in OS.get_cmdline_user_args():
+		if f >= 30 and _demo_step == 0 and _card.level_tip != null:
+			Tip.show_for(_card.level_tip)
+			_demo_step = 9
+		return
 	match _demo_step:
 		0:
 			if f >= 140:
