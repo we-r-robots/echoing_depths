@@ -769,6 +769,10 @@
     {
       "t": "21:19",
       "msg": "lanternrest-village built: scrollable pixel village hub (lantern, Vault entrance, plots, mist, Training Grounds yard after first run), title->Lanternrest->Vault flow, first-visit identity; 167 tests + probe, smoke PASS"
+    },
+    {
+      "t": "21:26",
+      "msg": "playtest-1 fixes: Awaken at 2 memories from Lantern Camp hub, recruit pacing, size-aware matching, player-file guard"
     }
   ],
   "questions": [
