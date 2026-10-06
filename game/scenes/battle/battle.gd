@@ -10,6 +10,9 @@ extends Node2D
 ##   # or: battle.play_result(CombatSim.simulate(...), display)
 ##   battle.finished.connect(func(winner: int, result: Dictionary): ...)
 ## display (all optional): {"player_side": 0, "echo_side": 1 (draw that side as an Echo), "speed": 1.0}
+## Without "speed" a fight starts at the speed the player last picked (GameState.battle_speed; the
+## demo always at x1, so captures stay deterministic). Picking a speed with the x1 / x2 / x4 button
+## saves it; SKIP is a one-off and isn't remembered.
 ## Controls: set_speed(x), skip(). No input is needed to watch.
 ##
 ## Demo (no API call within the first frame): fixed-seed PvP (hero party vs an Echo party).
@@ -111,7 +114,9 @@ const FX_COL := {
 ## The caption's word for a status landing on a unit ("Tamsin Rune Seal ▸ Vael · sealed").
 const STATUS_VERB := {"stun": "stunned", "blind": "blinded", "sap": "sapped", "boon": "blessed", "slow": "slowed",
 	"poison": "poisoned", "burn": "set alight", "regen": "regenerating", "shield": "shielded", "hidden": "hidden",
-	"heal_block": "branded", "heal_invert": "hexed", "charge_seal": "sealed", "link": "bound"}
+	"heal_block": "branded", "heal_invert": "flame-branded", "charge_seal": "sealed", "link": "bound",
+	"disarm": "disarmed", "sabotage": "sabotaged", "riposte": "en garde", "watch": "on watch",
+	"enshrine": "enshrined", "seal_immune": "crystal-worn"}
 
 enum State { IDLE, INTRO, PLAY, END }
 
@@ -315,8 +320,12 @@ func play_result(res: Dictionary, display: Dictionary = {}) -> void:
 		return
 	player_side = int(display.get("player_side", 0))
 	echo_side = int(display.get("echo_side", -1))
-	var sp := float(display.get("speed", 1.0))
-	_speed_i = maxi(0, SPEEDS.find(sp))
+	if display.has("speed"):
+		_speed_i = maxi(0, SPEEDS.find(float(display["speed"])))
+	elif _demo_running:
+		_speed_i = 0
+	else:
+		_speed_i = clampi(GameState.battle_speed(), 0, SPEEDS.size() - 1)
 	_clear()
 	_ev_i = 0
 	sim_t = 0.0
@@ -357,6 +366,7 @@ func set_speed(x: float) -> void:
 
 func _cycle_speed() -> void:
 	_speed_i = (_speed_i + 1) % SPEEDS.size()
+	GameState.set_battle_speed(_speed_i)   # every later fight starts at it (user request)
 	hud.speed_btn.text = "x%d" % int(SPEEDS[_speed_i])
 
 
@@ -1058,7 +1068,8 @@ func _on_formation_move(ev: Dictionary) -> void:
 	_pending_moves.append([u.uid, dest])
 
 
-## An ability moved a unit (Shackler: "pulled" forward / "pushed" back; core README `move`). The
+## An ability moved a unit (Warden of Chains, id `shackler`: "pulled" forward / "pushed" back; core
+## README `move`). The
 ## walk plays like Hold the door's, with its own cue; the side's live cells are rebuilt from the units.
 func _on_move(ev: Dictionary) -> void:
 	var uid := int(ev.get("uid", -1))
@@ -1313,7 +1324,8 @@ func _on_action_start(ev: Dictionary) -> void:
 		units[i].g_base = float(g[i])
 		units[i].t_base = t_end
 	var a = units[int(ev["uid"])]
-	a.g_base = 0.0
+	if String(ev.get("kind", "basic")) != "ability":
+		a.g_base = 0.0   # a basic turn spends the gauge; an ability runs on its own timer (classes r3)
 	_focus_end = t_end
 	var area := String(ev.get("area", "single"))
 	var tside := int(ev.get("target_side", -1))
@@ -1560,6 +1572,8 @@ func _on_damage(ev: Dictionary) -> void:
 	else:
 		if aid == "smite":
 			_beam_on(T, 0.45, cols[0], cols[1])
+		elif (aid == "watch_strike" or aid == "riposte_counter") and S != null:
+			pass
 		elif aid == "chain_storm" and S != null:
 			# Stormwake: each of the three strikes is its own bolt from the caster
 			fx.sweep(S.chest() + Vector2(S.facing * 8, -10), c, Pal.CRYSTAL5)
@@ -1630,6 +1644,14 @@ func _on_damage(ev: Dictionary) -> void:
 	var pid := String((ev.get("primary", {}) as Dictionary).get("id", "")) if ev.get("primary", null) is Dictionary else ""
 	if pid == "link":
 		status_fx.tether_flash(dst)
+	if (aid == "watch_strike" or aid == "riposte_counter") and S != null:
+		# a reaction from a unit that isn't acting: a strike line from it, and its own word
+		fx.sweep(S.chest(), T.chest(), Pal.CRYSTAL5 if aid == "watch_strike" else Pal.AMBER6)
+		S.flash(Pal.CRYSTAL5 if aid == "watch_strike" else Pal.AMBER6, 0.8)
+		S.dimmed = false
+		S.lit = true
+		_layout_ctx()
+		fx.cue("Caught" if aid == "watch_strike" else "Riposte", S.uid, Pal.CRYSTAL5 if aid == "watch_strike" else Pal.AMBER6, 0.0)
 	if was_split or pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
 		var main := int(_cur_action.get("target", -1))
 		if main >= 0 and main < units.size() and main != dst:
@@ -1850,6 +1872,7 @@ func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: St
 	var hexed: Array = []
 	var self_cost := false
 	var stolen := 0
+	var caught_by := -1
 	var gifts: Array = []
 	var stat_of := {}         # sap / boon -> "Mag +30%"
 	var i := _ev_i
@@ -1891,6 +1914,8 @@ func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: St
 				elif cr == "effect" and int(e.get("delta", 0)) > 0 and int(e["uid"]) != actor and _gives_charge(aid):
 					gifts.append(e)
 			"damage":
+				if String(e.get("action", "")) == "watch_strike" and int(e.get("dst", -1)) == actor:
+					caught_by = int(e.get("src", -1))
 				# status damage the action deals (a hexed heal, an HP cost): named, not "strikes"
 				var pr: Variant = e.get("primary", {})
 				if int(e.get("src", -1)) == actor and String(e.get("action", "")) == aid and String(e.get("kind", "")) == "status" and pr is Dictionary:
@@ -1931,7 +1956,7 @@ func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: St
 		var verb := String(stat_of.get(id, STATUS_VERB.get(id, id)))
 		if id == "link" and who.size() == 2 and who.has(lead):
 			var other := int(who[0]) if int(who[1]) == lead else int(who[1])
-			notes.append("bound to %s" % ("self" if other == actor else units[other].label))
+			notes.append("bound to %s" % units[other].label)
 		elif who.size() == 1 and int(who[0]) == actor and actor != lead:
 			notes.append("vanishes" if id == "hidden" else "self %s" % verb)
 		elif who.has(lead) and who.size() == 1 + ext:
@@ -1942,17 +1967,27 @@ func _caption_effects(actor: int, aid: String, t_end: float, lead: int, area: St
 			notes.append("%d %s" % [who.size(), verb])
 	if stolen > 0:
 		notes.append("steals %d charge" % stolen)
+	# charge handed out: one note when every gift is the same (Drive On's +20 to each ally it drives)
+	var deltas := {}
 	for g: Dictionary in gifts:
-		var gu := int(g["uid"])
-		notes.append("%scharge +%d" % ["" if gu == lead else units[gu].label + " ", int(g["delta"])])
+		deltas[int(g["delta"])] = true
+	if gifts.size() == 1:
+		var gu := int(gifts[0]["uid"])
+		notes.append("%scharge +%d" % ["" if gu == lead else units[gu].label + " ", int(gifts[0]["delta"])])
+	elif gifts.size() > 1:
+		notes.append("charge +%d each" % int(gifts[0]["delta"]) if deltas.size() == 1 else "charge to %d" % gifts.size())
 	if self_cost:
 		notes.append("pays HP")
+	if caught_by >= 0 and caught_by < units.size():
+		notes.append("caught by %s" % units[caught_by].label)
 	for h: int in hexed:
 		notes.append("heal hurts %s" % units[h].label)
 	for m: Dictionary in missed:
 		var d := int(m.get("dst", -1))
 		if String(m.get("reason", "")) == "heal_block":
 			notes.append("%s blocked" % (units[d].label if d >= 0 and d < units.size() else "heal"))
+		elif String(m.get("reason", "")) == "parry":
+			notes.append("%s parries" % (units[d].label if d >= 0 and d < units.size() else "parried"))
 		elif not notes.has("misses"):
 			notes.append("misses")
 	out["note"] = " · ".join(notes)
@@ -2084,9 +2119,7 @@ func _on_charge(ev: Dictionary) -> void:
 			u.charge_pulse = 0.6
 	var r := bool(ev.get("ready", false))
 	if r and not u.is_ready and u.alive:
-		u.g_base = 1.0
-		u.t_base = float(ev["t"])
-		u.set_ready(true)
+		u.set_ready(true)   # (the gauge is untouched: the ability fires on its own timer, classes r3)
 		if not _instant:
 			fx.particles(u.chest(), 6, Pal.VIOLET4, 30.0, 20.0, 0.5, -10.0, 1, 3.0)
 	elif not r:
@@ -2180,6 +2213,24 @@ func _on_status(ev: Dictionary) -> void:
 		"link":
 			fx.light(c, Pal.AMBER6, 1, 0.4, 0.5)
 			fx.ring(c, 4, 14, 0.4, Pal.AMBER6, 1.0)
+		"disarm":   # Bladebreaker: the weapon knocked aside
+			fx.particles(c + Vector2(u.facing * 10.0, -4.0), 10, Pal.INK9, 50.0, 30.0, 0.5, 120.0, 1, 2.0)
+			fx.ring(c + Vector2(u.facing * 10.0, -4.0), 2, 12, 0.35, Pal.INK10, 1.0)
+		"sabotage":  # Saboteur: the side's formation behaviour halts (its badge dims with it)
+			fx.particles(u.position, 6, Pal.BLOOD4, 12.0, 6.0, 0.5, 20.0, 1, 6.0)
+			hud.pulse_badge(u.side, -1)
+			stage.glyph_pulse[u.side] = 1.0
+		"riposte":   # Duelist on guard: a blade glint
+			fx.sweep(c + Vector2(-u.facing * 6.0, 10.0), c + Vector2(u.facing * 10.0, -14.0), Pal.INK10)
+			u.buff_glow = 0.5
+			u.buff_color = Pal.AMBER6
+		"watch":     # Nightwatch: a lantern-ring round it and its neighbours
+			fx.ring(u.position, 6, 30, 0.6, Pal.CRYSTAL4, 0.35)
+			fx.light(c, Pal.CRYSTAL4, 1, 0.4, 0.6)
+		"enshrine":  # Reliquarist: crystal closes round it
+			fx.ring(c, 26, 10, 0.5, Pal.CRYSTAL5, 0.9)
+			fx.particles(c, 20, Pal.CRYSTAL5, 30.0, 10.0, 0.6, 0.0, 1, 8.0)
+			u.flash(Pal.CRYSTAL5, 0.9)
 
 
 func _on_status_end(ev: Dictionary) -> void:
@@ -2233,7 +2284,15 @@ func _on_miss(ev: Dictionary) -> void:
 		return
 	var T = units[dst]
 	_layout_ctx()
-	if String(ev.get("reason", "")) == "heal_block":
+	if String(ev.get("reason", "")) == "parry":
+		# Duelist: the blade turns the blow aside; the sure-crit counter follows at once
+		fx.popup(-1, fx.Row.MUTED, dst, 1, false, "PARRY", Pal.AMBER6, "", Color.WHITE, 0.0)
+		var at := int(ev.get("src", -1))
+		if at >= 0 and at < units.size():
+			fx.sweep(T.chest() + Vector2(T.facing * 6.0, -12.0), units[at].chest(), Pal.INK10)
+		fx.particles(T.chest() + Vector2(T.facing * 10.0, -4.0), 12, Pal.AMBER6, 60.0, 10.0, 0.3, 40.0, 1, 2.0)
+		T.flash(Pal.AMBER6, 0.7)
+	elif String(ev.get("reason", "")) == "heal_block":
 		fx.popup(-1, fx.Row.MUTED, dst, 1, false, "BLOCKED", Pal.AMBER6, "", Color.WHITE, _stagger(dst))
 		_flame_burst(T)
 		_beam_on(T, 0.3, Pal.FADE2, Pal.FADE3)   # the heal's light fizzles out grey
@@ -2263,13 +2322,14 @@ func _on_skip(ev: Dictionary) -> void:
 		if n != null:
 			n.dimmed = n != u
 			n.lit = false
-	hud.show_caption(uid, "is stunned · turn lost", -1, false)
+	var disarmed := String(ev.get("reason", "stun")) == "disarm"
+	hud.show_caption(uid, "is disarmed · no attack" if disarmed else "is stunned · turn lost", -1, false)
 	u.flash(Pal.AMBER6, 0.8)
 	u.hit(float(u.facing), 2.0)   # a dazed wobble where its swing would be
 	fx.ring(u.top() + Vector2(0, -3), 4, 18, 0.45, Pal.AMBER6, 0.35)
 	fx.particles(u.top(), 12, Pal.AMBER6, 30.0, 6.0, 0.5, 30.0, 1, 3.0)
 	_layout_ctx()
-	fx.popup(-1, fx.Row.MUTED, uid, 1, false, "STUNNED", Pal.AMBER6, "", Color.WHITE, 0.0)
+	fx.popup(-1, fx.Row.MUTED, uid, 1, false, "DISARMED" if disarmed else "STUNNED", Pal.INK9 if disarmed else Pal.AMBER6, "", Color.WHITE, 0.0)
 
 
 ## A shield took part of a hit: a shield-coloured number with its glyph, the shield line shrinks.

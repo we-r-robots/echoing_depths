@@ -19,7 +19,9 @@ const WORDS := [
 var persist := true
 var _opened := false
 var _level := 2
+var _speed := 0
 var _buttons: Array[Button] = []
+var _speed_buttons: Array[Button] = []
 var _desc: Label
 var _box: PanelContainer
 var _back: Button
@@ -55,6 +57,20 @@ func _ready() -> void:
 	_desc = FlowUI.para("", 264)
 	_desc.custom_minimum_size.y = 28
 	v.add_child(_desc)
+	# the speed every fight starts at (also set by the x1 / x2 / x4 button in a fight)
+	_speed = GameState.battle_speed()
+	v.add_child(FlowUI.label("BATTLE SPEED", &"TagLabel"))
+	var srow := FlowUI.hbox(6)
+	var sgroup := ButtonGroup.new()
+	for i in GameState.BATTLE_SPEEDS.size():
+		var sb := FlowUI.button("x%d" % int(GameState.BATTLE_SPEEDS[i]), 84, 24)
+		sb.toggle_mode = true
+		sb.button_group = sgroup
+		sb.button_pressed = i == _speed
+		sb.pressed.connect(select_speed.bind(i))
+		srow.add_child(sb)
+		_speed_buttons.append(sb)
+	v.add_child(srow)
 	_box.add_child(FlowUI.margin(v, 12))
 	add_child(_box)
 	_back = FlowUI.button("Back", 76, 22)
@@ -74,6 +90,14 @@ func select(i: int) -> void:
 
 func level() -> int:
 	return _level
+
+
+func select_speed(i: int) -> void:
+	_speed = clampi(i, 0, GameState.BATTLE_SPEEDS.size() - 1)
+	if persist:
+		GameState.set_battle_speed(_speed)
+	for k in _speed_buttons.size():
+		_speed_buttons[k].set_pressed_no_signal(k == _speed)
 
 
 func _refresh() -> void:

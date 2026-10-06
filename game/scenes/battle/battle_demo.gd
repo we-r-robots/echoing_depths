@@ -75,25 +75,35 @@ static func demo_party_unlocked() -> Dictionary:
 ## Round 17: class showcase fights, the approved advanced classes and every timed status, so captures
 ## cover them. Per sequence: [fight seed, side-0 heroes, side-1 heroes (drawn as an Echo),
 ## start_statuses (core option: tools only)]. Heroes are [name, class, col, row], all level 4. Seeds
-## picked by search so each sequence shows its classes' abilities (and their fallbacks) in ~25-40 s:
-##   a  Shackler, Echoblade, Rekindler, Archmage vs Iron Marshal, Unseen Warden, Runebinder, Gravecaller
-##      (the swap, summon echo, revive, gauge, stun + skip, blind + miss, seal; runs into the Fading;
-##      no one falls before the Gravecaller acts, so it casts its provisional Grave Bolt)
-##   b  Fadewalker, Nightshade, Lumenward, Wildfire vs Paladin, Berserker, Threadmender, Confessor
-##      (hidden, poison, overheal shield + absorb, burn + spread, link, Brand of Flame + blocked heal)
-##   c  Cutpurse, Lampwright, Tithekeeper, Warlock vs Chronist, Wickburner, Starcaller, Gravecaller
-##      (Hexfire's column, a husk raised, pilfer, tithe, column ward, slow, boon, burn to mend) plus a
-##      hex, a regen and a sap at t = 0
+## picked by search (classes r3 rules, separate ability timer) so each sequence plays all of these:
+##   a  Warden of Chains (shackler), Echoblade, Rekindler, Archmage vs Iron Marshal, Unseen Warden,
+##      Runebinder, Gravecaller: the swap, the echo, Drive On, Rune Seal, stun + lost turn,
+##      blind + MISS, Rekindle (into the Fading)
+##   b  Fadewalker, Nightshade, Lumenward, Wildfire vs Lightsworn, Berserker, Threadmender, Confessor:
+##      hidden, poison, overheal shield + absorb, burn + the fire jumping, link, Aegis Strike's
+##      shield, Retribution Flame (heal inversion)
+##   c  Cutpurse, Lampwright, Tithekeeper, Warlock vs Chronist, Wickburner, Starcaller, Gravecaller:
+##      Hexfire's column, a husk raised, Pilfer, Tithe, Column Ward, Slow the Field, Draw a Star,
+##      Burn to Mend, plus a hex, a regen and a sap put on at t = 0
+##   d  Halberdier, Nightwatch, Bloodletter, Reliquarist vs Ravager, Duelist, Aegisbearer, Informant:
+##      Long Reach, Keep Watch + a caught attacker, Bloodletting, Reliquary, Whirlwind, the parry,
+##      Raise the Aegis, Read the Orders
+##   e  Bladebreaker, Saboteur, Cleric, Stormwake vs Duelist, Aegisbearer, Informant, Gravecaller:
+##      disarm + its lost attacks, sabotage, the parry, a nameless husk
 const CLASS_DEMOS := {
-	"a": [418, [["Brakka", "shackler", 0, 1], ["Sable", "echoblade", 0, 2], ["Ilse", "rekindler", 1, 1], ["Vael", "archmage", 1, 2]],
+	"a": [499, [["Brakka", "shackler", 0, 1], ["Sable", "echoblade", 0, 2], ["Ilse", "rekindler", 1, 1], ["Vael", "archmage", 1, 2]],
 		[["Corin", "iron_marshal", 0, 1], ["Moth", "unseen_warden", 0, 2], ["Tamsin", "runebinder", 1, 1], ["Oren", "gravecaller", 1, 2]], []],
-	"b": [201, [["Sable", "fadewalker", 0, 1], ["Brakka", "nightshade", 0, 2], ["Ilse", "lumenward", 1, 1], ["Vael", "wildfire", 1, 2]],
-		[["Corin", "paladin", 0, 1], ["Moth", "berserker", 0, 2], ["Oren", "threadmender", 1, 1], ["Tamsin", "confessor", 1, 2]], []],
-	"c": [559, [["Brakka", "cutpurse", 0, 1], ["Sable", "lampwright", 1, 0], ["Ilse", "tithekeeper", 1, 1], ["Vael", "warlock", 1, 2]],
+	"b": [445, [["Sable", "fadewalker", 0, 1], ["Brakka", "nightshade", 0, 2], ["Ilse", "lumenward", 1, 1], ["Vael", "wildfire", 1, 2]],
+		[["Corin", "lightsworn", 0, 1], ["Moth", "berserker", 0, 2], ["Oren", "threadmender", 1, 1], ["Tamsin", "confessor", 1, 2]], []],
+	"c": [262, [["Brakka", "cutpurse", 0, 1], ["Sable", "lampwright", 1, 0], ["Ilse", "tithekeeper", 1, 1], ["Vael", "warlock", 1, 2]],
 		[["Corin", "chronist", 1, 1], ["Moth", "wickburner", 1, 2], ["Tamsin", "starcaller", 0, 1], ["Oren", "gravecaller", 1, 0]],
 		[{"side": 1, "slot": [0, 1], "status": "heal_invert", "dur_ms": 16000, "src_side": 0, "src_slot": [1, 1]},
 			{"side": 0, "slot": [1, 1], "status": "regen", "power": 0.5, "dur_ms": 12000, "src_side": 0, "src_slot": [1, 1]},
 			{"side": 1, "slot": [1, 1], "status": "sap", "stat": "def", "value": -0.3, "dur_ms": 12000, "src_side": 0, "src_slot": [1, 2]}]],
+	"d": [223, [["Brakka", "halberdier", 0, 1], ["Sable", "nightwatch", 0, 2], ["Ilse", "bloodletter", 1, 1], ["Vael", "enshriner", 1, 2]],
+		[["Corin", "ravager", 0, 1], ["Moth", "duelist", 0, 2], ["Oren", "aegisbearer", 0, 0], ["Tamsin", "informant", 1, 1]], []],
+	"e": [542, [["Brakka", "bladebreaker", 0, 1], ["Sable", "saboteur", 0, 2], ["Ilse", "cleric", 1, 1], ["Vael", "stormwake", 1, 2]],
+		[["Corin", "duelist", 0, 1], ["Moth", "aegisbearer", 0, 2], ["Tamsin", "informant", 1, 1], ["Oren", "gravecaller", 1, 2]], []],
 }
 
 

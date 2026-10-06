@@ -114,6 +114,58 @@ func test_settings_battle_effects_saved() -> void:
 	_done()
 
 
+func test_settings_battle_speed_saved() -> void:
+	_fresh()
+	eq(GameState.battle_speed(), 0, "battle speed defaults to x1")
+	GameState.set_battle_speed(1)
+	GameState.load_all()
+	eq(GameState.battle_speed(), 1, "x2 round-trips through settings.json")
+	GameState.set_battle_speed(9)
+	eq(GameState.battle_speed(), GameState.BATTLE_SPEEDS.size() - 1, "clamped to the fastest speed")
+	GameState.set_battle_speed(-3)
+	eq(GameState.battle_speed(), 0, "clamped to x1")
+	# an older settings file without the key still loads (x1), keeping what it has
+	var f := FileAccess.open(GameState.settings_path, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"battle_effects": 1}))
+	f.close()
+	GameState.load_all()
+	eq(GameState.battle_speed(), 0, "a settings file from before the speed setting gives x1")
+	eq(GameState.battle_effects(), 1, "and keeps its battle effects")
+	eq(preload("res://scenes/battle/battle.gd").SPEEDS, GameState.BATTLE_SPEEDS, "the saved index means the battle's own speeds")
+	_done()
+
+
+func test_picked_battle_speed_starts_the_next_fight() -> void:
+	_fresh()
+	var tree := Engine.get_main_loop() as SceneTree
+	var battle_scene: PackedScene = load("res://scenes/battle/battle.tscn")
+	var res: Dictionary = preload("res://core/combat_sim.gd").simulate(7, preload("res://core/party_gen.gd").demo_party(), preload("res://core/party_gen.gd").demo_rival(), {})
+	var b: Node = battle_scene.instantiate()
+	b.autoplay_demo = false
+	tree.root.add_child(b)
+	b.play_result(res, {})
+	eq(int(b._speed_i), 0, "the first fight starts at x1")
+	b._cycle_speed()   # the player taps x1 -> x2
+	b._cycle_speed()   # x2 -> x4
+	eq(GameState.battle_speed(), 2, "picking a speed saves it")
+	b.skip()
+	eq(GameState.battle_speed(), 2, "SKIP is a one-off: the speed setting is untouched")
+	tree.root.remove_child(b)
+	b.free()
+	GameState.load_all()   # a new session reads the file again
+	var b2: Node = battle_scene.instantiate()
+	b2.autoplay_demo = false
+	tree.root.add_child(b2)
+	b2.play_result(res, {})
+	eq(int(b2._speed_i), 2, "the next fight starts at the saved x4")
+	eq(String(b2.hud.speed_btn.text), "x4", "and its button says so")
+	b2.play_result(res, {"speed": 1.0})
+	eq(int(b2._speed_i), 0, "a caller's explicit speed still wins")
+	tree.root.remove_child(b2)
+	b2.free()
+	_done()
+
+
 func test_saved_run_continues_where_it_stopped() -> void:
 	_fresh()
 	var flow: Flow = Flow.new()
