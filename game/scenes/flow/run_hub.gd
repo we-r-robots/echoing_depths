@@ -137,6 +137,8 @@ func refresh() -> void:
 		card.pressed.connect(open_details.bind(i, false))
 		card.awaken_pressed.connect(open_details.bind(i, true))
 		_cards.append(card)
+	if detail != null and is_instance_valid(detail):
+		move_child(detail, -1)   # an Awakening refreshes the hub while the details stay open: keep them on top
 	var ready: Array = []
 	for h: Dictionary in party:
 		if bool(h.get("awaken_new", false)):

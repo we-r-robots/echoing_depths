@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ds1hufgb3rgod"
-path="res://.godot/imported/lantern_glow.png-02265d90114a3c330ca7e6317e71cefe.ctex"
+uid="uid://q2ktex6j4oqq"
+path="res://.godot/imported/town.png-d0c197f4a171e4ec137e4ae54f0b2ad3.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/lanternrest/lantern_glow.png"
-dest_files=["res://.godot/imported/lantern_glow.png-02265d90114a3c330ca7e6317e71cefe.ctex"]
+source_file="res://assets/lanternrest/town.png"
+dest_files=["res://.godot/imported/town.png-d0c197f4a171e4ec137e4ae54f0b2ad3.ctex"]
 
 [params]
 

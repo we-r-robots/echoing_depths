@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://fyx4sbrg3jyb"
-path="res://.godot/imported/plot_e3_hi.png-dd491514a9df315f8f23c5fd6c9dd14d.ctex"
+uid="uid://drqfo43cqum0u"
+path="res://.godot/imported/gear.png-928d97f82df86e61735fa261a6afaa47.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/lanternrest/plot_e3_hi.png"
-dest_files=["res://.godot/imported/plot_e3_hi.png-dd491514a9df315f8f23c5fd6c9dd14d.ctex"]
+source_file="res://assets/lanternrest/gear.png"
+dest_files=["res://.godot/imported/gear.png-928d97f82df86e61735fa261a6afaa47.ctex"]
 
 [params]
 

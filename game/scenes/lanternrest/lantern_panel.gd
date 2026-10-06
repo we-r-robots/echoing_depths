@@ -1,13 +1,14 @@
 class_name LanternPanel
 extends VillagePanel
-## The Lantern's menu: the village heart. What the village has gathered (runs, victories, the
-## deepest floor, the story chapter), the team's identity (the Banner Hall's name and crest, shown
-## to rivals on the PvP splash; more crests are remembered with Glimmers) and Glimmers forming
-## Shards. Saves at once (GameState).
+## The Lantern's menu: the village heart. Glimmers forming Shards first (the bar shows "87 / 100
+## Glimmers"; a disabled Form a Shard says why), what the village has gathered (runs, victories, the
+## deepest floor, the story chapter), then the team's identity (the Banner Hall's name and crest,
+## shown to rivals on the PvP splash; locked crests show their Glimmer price). Saves at once.
 
 const EchoPool = preload("res://core/run/echo_pool.gd")
 const HALL_W := 280
-const CREST_TILE := Vector2(32, 38)
+const CREST_TILE := Vector2(32, 48)
+const BAR := Vector2(160, 18)
 
 var _sel_crest := ""
 var _crest_tiles := {}
@@ -16,6 +17,7 @@ var _name_edit: LineEdit
 var _shard_btn: Button
 var _progress: Label
 var _bar: Control
+var _shard_note: Label
 
 
 func _init() -> void:
@@ -26,6 +28,26 @@ func _init() -> void:
 
 func _build() -> void:
 	_sel_crest = GameState.crest()
+	# Glimmers form Shards
+	body.add_child(FlowUI.label("GLIMMERS INTO SHARDS", &"TagLabel"))
+	var srow := FlowUI.hbox(6)
+	_bar = Control.new()
+	_bar.name = "GlimmerBar"
+	_bar.custom_minimum_size = BAR
+	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bar.draw.connect(_draw_bar)
+	srow.add_child(_bar)
+	_shard_btn = FlowUI.button("Form a Shard", 110, 22)
+	_shard_btn.name = "FormShard"
+	_shard_btn.pressed.connect(func() -> void:
+		if GameState.form_shard():
+			changed.emit()
+		refresh())
+	srow.add_child(_shard_btn)
+	body.add_child(srow)
+	_shard_note = FlowUI.label("", &"MutedLabel", null, HALL_W)
+	_shard_note.name = "ShardNote"
+	body.add_child(_shard_note)
 	_progress = FlowUI.label("", &"MutedLabel", null, HALL_W)
 	_progress.name = "Progress"
 	body.add_child(_progress)
@@ -72,28 +94,31 @@ func _build() -> void:
 	body.add_child(grid)
 	_crest_info = FlowUI.vbox(4)
 	body.add_child(_crest_info)
-	# Glimmers form Shards
-	body.add_child(FlowUI.label("GLIMMERS INTO SHARDS", &"TagLabel"))
-	var srow := FlowUI.hbox(6)
-	_bar = Control.new()
-	_bar.custom_minimum_size = Vector2(150, 22)
-	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_bar.draw.connect(func() -> void:
-		var k := clampf(float(GameState.meta.get("glimmers", 0)) / GameState.GLIMMERS_PER_SHARD, 0.0, 1.0)
-		_bar.draw_rect(Rect2(0, 8, 150, 8), Pal.INK1)
-		_bar.draw_rect(Rect2(1, 9, roundf(148 * k), 6), Pal.CRYSTAL4)
-		_bar.draw_rect(Rect2(1, 9, roundf(148 * k), 1), Pal.CRYSTAL5))
-	srow.add_child(_bar)
-	_shard_btn = FlowUI.button("Form a Shard", 110, 22)
-	_shard_btn.name = "FormShard"
-	_shard_btn.pressed.connect(func() -> void:
-		if GameState.form_shard():
-			changed.emit()
-		refresh())
-	srow.add_child(_shard_btn)
-	body.add_child(srow)
-	body.add_child(FlowUI.label("%d Glimmers form one Shard." % GameState.GLIMMERS_PER_SHARD, &"MutedLabel"))
 	refresh()
+
+
+## The Glimmer bar: a dark trough, the Glimmers gathered toward one Shard in teal, and the count
+## ("87 / 100 Glimmers") on it.
+func bar_text() -> String:
+	return "%d / %d Glimmers" % [int(GameState.meta.get("glimmers", 0)), GameState.GLIMMERS_PER_SHARD]
+
+
+func _draw_bar() -> void:
+	var k := clampf(float(GameState.meta.get("glimmers", 0)) / GameState.GLIMMERS_PER_SHARD, 0.0, 1.0)
+	_bar.draw_rect(Rect2(Vector2.ZERO, BAR), Pal.INK1)
+	_bar.draw_rect(Rect2(Vector2.ZERO, BAR), Pal.INK5, false, 1.0)
+	_bar.draw_rect(Rect2(1, 1, roundf((BAR.x - 2) * k), BAR.y - 2), Pal.CRYSTAL2)
+	_bar.draw_rect(Rect2(1, 1, roundf((BAR.x - 2) * k), 1), Pal.CRYSTAL3)
+	UIText.draw(_bar, Vector2(0, UIText.centered_y(0, BAR.y, UIText.BOLD)), bar_text(), Pal.INK10, UIText.BOLD,
+		UIText.LABEL, true, BAR.x, HORIZONTAL_ALIGNMENT_CENTER)
+
+
+## Why Form a Shard is (not) available.
+func shard_note() -> String:
+	var g := int(GameState.meta.get("glimmers", 0))
+	if GameState.can_form_shard():
+		return "%d Glimmers form one Shard." % GameState.GLIMMERS_PER_SHARD
+	return "Needs %d Glimmers: %d more to go." % [GameState.GLIMMERS_PER_SHARD, GameState.GLIMMERS_PER_SHARD - g]
 
 
 func _crest_tile(id: String) -> Button:
@@ -103,9 +128,13 @@ func _crest_tile(id: String) -> Button:
 	b.pressed.connect(select_crest.bind(id))
 	b.draw.connect(func() -> void:
 		var owned := GameState.has_crest(id)
-		Crests.draw(b, Vector2(3, 4), id, 2, not owned)
+		Crests.draw(b, Vector2(3, 2), id, 2, not owned)
 		if not owned:
-			b.draw_texture(preload("res://ui/effect_icons/lock.png"), Vector2(CREST_TILE.x - 11, CREST_TILE.y - 11), Pal.INK8)
+			b.draw_texture(preload("res://ui/effect_icons/lock.png"), Vector2(3, 36), Pal.INK8)
+			# its price under it
+			var can := int(GameState.meta.get("glimmers", 0)) >= GameState.CREST_COST
+			UIText.draw(b, Vector2(5, UIText.centered_y(34, 13, UIText.BOLD)), str(GameState.CREST_COST),
+				Pal.CRYSTAL5 if can else Pal.INK8, UIText.BOLD, UIText.LABEL, true, CREST_TILE.x - 5, HORIZONTAL_ALIGNMENT_CENTER)
 		if id == GameState.crest():
 			b.draw_rect(Rect2(Vector2.ZERO, CREST_TILE), Pal.AMBER6, false, 1.0)
 		elif id == _sel_crest:
@@ -148,6 +177,7 @@ func refresh() -> void:
 	parts.append("Chapter %d" % int(m["story_chapter"]))
 	_progress.text = "   ".join(parts)
 	_shard_btn.disabled = not GameState.can_form_shard()
+	_shard_note.text = shard_note()
 	_bar.queue_redraw()
 	for id: String in _crest_tiles:
 		(_crest_tiles[id] as Control).queue_redraw()

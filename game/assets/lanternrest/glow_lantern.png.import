@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://pih130qviswj"
-path="res://.godot/imported/plot_e3.png-85701faf53d38dcfad30c9715d8b5790.ctex"
+uid="uid://uj6djuqc27f4"
+path="res://.godot/imported/glow_lantern.png-e8312c4ad520653db28e0363c9303a62.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/lanternrest/plot_e3.png"
-dest_files=["res://.godot/imported/plot_e3.png-85701faf53d38dcfad30c9715d8b5790.ctex"]
+source_file="res://assets/lanternrest/glow_lantern.png"
+dest_files=["res://.godot/imported/glow_lantern.png-e8312c4ad520653db28e0363c9303a62.ctex"]
 
 [params]
 

@@ -86,6 +86,14 @@ var flip_at_dest := false
 var buff_glow := 0.0
 var buff_color := Color.WHITE
 var _dim := 0.0
+## Timed statuses on this unit (core `status` / `status_end`, round 17), one entry per id (+ stat for
+## sap / boon): {id, stat, value, stacks, until (sim s), total (s), src, partner, pop (visual s)}.
+var statuses: Array = []
+## "" or the summon kind ("echo", "husk"): a summoned unit keeps its own look (marked as summoned).
+var summon := ""
+var _hid := 0.0           # eased 0..1 while hidden: the unit fades to a translucent silhouette
+## The tint a surfacing unit settles into (memories: violet and translucent; summons their own).
+var form_col := Color(0.85, 0.75, 1.0, 0.8)
 
 var spr: AnimatedSprite2D
 var shadow: Sprite2D
@@ -234,6 +242,16 @@ var _plate_rx := 12.0
 var _plate_on := true
 
 
+## The acting unit: its foot plate lights (a bright ring and a stronger fill in its side colour).
+var marked := false
+
+
+func set_marked(m: bool) -> void:
+	if m != marked:
+		marked = m
+		queue_redraw()
+
+
 func _draw() -> void:
 	if not _plate_on or is_crystal:
 		return
@@ -242,8 +260,14 @@ func _draw() -> void:
 	for k in 25:
 		var a := TAU * k / 24.0
 		pts.append(Vector2(roundf(cos(a) * _plate_rx), roundf(sin(a) * ry) + 1.0))
-	draw_colored_polygon(pts, Color(side_color, 0.22))
+	draw_colored_polygon(pts, Color(side_color, 0.45 if marked else 0.22))
 	draw_polyline(pts, Color(side_color, 1.0), 1.0)
+	if marked:
+		var outer := PackedVector2Array()
+		for k in 25:
+			var a := TAU * k / 24.0
+			outer.append(Vector2(roundf(cos(a) * (_plate_rx + 2.0)), roundf(sin(a) * (ry + 1.0)) + 1.0))
+		draw_polyline(outer, Pal.INK10, 1.0)
 
 
 ## How far the attack strip's opaque core reaches in front of the feet (world px, facing direction):
@@ -350,6 +374,18 @@ func set_ready(r: bool) -> void:
 	is_ready = r
 
 
+## The status entry for `id` (and `stat` for sap / boon), or {}.
+func status_of(id: String, stat := "") -> Dictionary:
+	for e: Dictionary in statuses:
+		if e["id"] == id and (stat == "" or e["stat"] == stat):
+			return e
+	return {}
+
+
+func has_status(id: String) -> bool:
+	return not status_of(id).is_empty()
+
+
 func knock_out() -> void:
 	alive = false
 	is_ready = false
@@ -362,6 +398,7 @@ func knock_out() -> void:
 func revive(v: int) -> void:
 	alive = true
 	ko_t = -1.0
+	statuses.clear()
 	mat.set_shader_parameter("gray", 0.0)
 	modulate.a = 1.0
 	shadow.visible = true
@@ -450,6 +487,18 @@ func tick(sim_t: float, vdt: float, speed: float, real_dt := 0.0) -> void:
 		_flash = maxf(0.0, _flash - maxf(vdt, real_dt) * 14.0)   # 1-2 frames of white, then its own colours
 	mat.set_shader_parameter("flash", (1.0 if _flash > 0.6 else (_flash * 0.9)) * _flash_cap)
 	mat.set_shader_parameter("flash_color", _flash_color if _flash <= 0.6 else Color.WHITE)
+	# hidden: the unit fades to a translucent ink silhouette (no single-target attack can pick it)
+	_hid = move_toward(_hid, 1.0 if (alive and has_status("hidden")) else 0.0, maxf(vdt, real_dt) * 5.0)
+	if _flash <= 0.0:
+		if _hid > 0.0:
+			mat.set_shader_parameter("flash", 0.7 * _hid)
+			mat.set_shader_parameter("flash_color", Pal.INK6)
+		elif summon == "husk" and alive:
+			mat.set_shader_parameter("flash", 0.3)   # a hollow grey-violet husk of what it was
+			mat.set_shader_parameter("flash_color", Pal.VIOLET2)
+		elif summon == "echo" and alive:
+			mat.set_shader_parameter("flash", 0.22)
+			mat.set_shader_parameter("flash_color", Pal.CRYSTAL4)
 	if buff_glow > 0.0 and alive:
 		buff_glow -= vdt
 		var sh := fmod(buff_glow, 0.16) < 0.1
@@ -461,6 +510,12 @@ func tick(sim_t: float, vdt: float, speed: float, real_dt := 0.0) -> void:
 		_glow_t += vdt
 		var on := fmod(_glow_t, 0.5) < 0.3
 		mat.set_shader_parameter("outline_color", Color(Pal.VIOLET4 if on else Pal.VIOLET3, 1.0))
+	elif _hid > 0.0 and alive:
+		mat.set_shader_parameter("outline_color", Color(Pal.INK8, 0.8 * _hid))   # the silhouette's edge
+	elif summon == "echo" and alive:
+		mat.set_shader_parameter("outline_color", Color(Pal.CRYSTAL5, 0.85))   # summoned: a bright rim
+	elif summon == "husk" and alive:
+		mat.set_shader_parameter("outline_color", Color(Pal.VIOLET3, 0.9))
 	elif is_echo and alive:
 		mat.set_shader_parameter("outline_color", Color(Pal.CRYSTAL3, 0.55))
 	elif lit and alive and focus_rim:
@@ -485,13 +540,14 @@ func tick(sim_t: float, vdt: float, speed: float, real_dt := 0.0) -> void:
 	if form_t >= 0.0:
 		form_t += vdt
 		var fa := clampf(form_t / 0.7, 0.0, 1.0)
-		modulate = Color(0.85, 0.75, 1.0, 0.8 * fa)
+		modulate = Color(form_col, form_col.a * fa)
 		if fa >= 1.0:
 			form_t = -1.0
 	# focus: units not in the current action recede
 	_dim = move_toward(_dim, 1.0 if (dimmed and alive) else 0.0, vdt * 6.0)
 	var dv := 1.0 - 0.15 * _dim
-	spr.self_modulate = Color(dv, dv, dv + 0.08 * _dim, 1.0)
+	spr.self_modulate = Color(dv, dv, dv + 0.08 * _dim, 1.0 - 0.6 * _hid)
+	shadow.modulate.a = 1.0 - 0.6 * _hid
 	# bars
 	var hs_target := float(hp)
 	hp_shown = move_toward(hp_shown, hs_target, maxf(1.0, absf(hs_target - hp_shown)) * vdt * 14.0)

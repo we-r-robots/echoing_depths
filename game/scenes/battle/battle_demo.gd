@@ -70,3 +70,48 @@ static func demo_party_unlocked() -> Dictionary:
 	p["unlocked_formations"] = all_shape_ids()
 	p["name"] = "The Lanternrest Company"   # the game's default team name (GameState.DEFAULT_TEAM)
 	return p
+
+
+## Round 17: class showcase fights, the approved advanced classes and every timed status, so captures
+## cover them. Per sequence: [fight seed, side-0 heroes, side-1 heroes (drawn as an Echo),
+## start_statuses (core option: tools only)]. Heroes are [name, class, col, row], all level 4. Seeds
+## picked by search so each sequence shows its classes' abilities (and their fallbacks) in ~25-40 s:
+##   a  Shackler, Echoblade, Rekindler, Archmage vs Iron Marshal, Unseen Warden, Runebinder, Gravecaller
+##      (the swap, summon echo, revive, gauge, stun + skip, blind + miss, seal; runs into the Fading;
+##      no one falls before the Gravecaller acts, so it casts its provisional Grave Bolt)
+##   b  Fadewalker, Nightshade, Lumenward, Wildfire vs Paladin, Berserker, Threadmender, Confessor
+##      (hidden, poison, overheal shield + absorb, burn + spread, link, Brand of Flame + blocked heal)
+##   c  Cutpurse, Lampwright, Tithekeeper, Warlock vs Chronist, Wickburner, Starcaller, Gravecaller
+##      (Hexfire's column, a husk raised, pilfer, tithe, column ward, slow, boon, burn to mend) plus a
+##      hex, a regen and a sap at t = 0
+const CLASS_DEMOS := {
+	"a": [418, [["Brakka", "shackler", 0, 1], ["Sable", "echoblade", 0, 2], ["Ilse", "rekindler", 1, 1], ["Vael", "archmage", 1, 2]],
+		[["Corin", "iron_marshal", 0, 1], ["Moth", "unseen_warden", 0, 2], ["Tamsin", "runebinder", 1, 1], ["Oren", "gravecaller", 1, 2]], []],
+	"b": [201, [["Sable", "fadewalker", 0, 1], ["Brakka", "nightshade", 0, 2], ["Ilse", "lumenward", 1, 1], ["Vael", "wildfire", 1, 2]],
+		[["Corin", "paladin", 0, 1], ["Moth", "berserker", 0, 2], ["Oren", "threadmender", 1, 1], ["Tamsin", "confessor", 1, 2]], []],
+	"c": [559, [["Brakka", "cutpurse", 0, 1], ["Sable", "lampwright", 1, 0], ["Ilse", "tithekeeper", 1, 1], ["Vael", "warlock", 1, 2]],
+		[["Corin", "chronist", 1, 1], ["Moth", "wickburner", 1, 2], ["Tamsin", "starcaller", 0, 1], ["Oren", "gravecaller", 1, 0]],
+		[{"side": 1, "slot": [0, 1], "status": "heal_invert", "dur_ms": 16000, "src_side": 0, "src_slot": [1, 1]},
+			{"side": 0, "slot": [1, 1], "status": "regen", "power": 0.5, "dur_ms": 12000, "src_side": 0, "src_slot": [1, 1]},
+			{"side": 1, "slot": [1, 1], "status": "sap", "stat": "def", "value": -0.3, "dur_ms": 12000, "src_side": 0, "src_slot": [1, 2]}]],
+}
+
+
+static func _class_hero(h: Array) -> Dictionary:
+	return {"name": h[0], "class": h[1], "level": 4, "items": {}, "alignment": [0, 0], "slot": [h[2], h[3]]}
+
+
+## [party_a, party_b, seed, sim options] for a class showcase sequence ("a", "b", "c").
+static func class_fight(seq: String) -> Array:
+	var d: Array = CLASS_DEMOS.get(seq, CLASS_DEMOS["a"])
+	var a: Array = []
+	var b: Array = []
+	for h: Array in d[1]:
+		a.append(_class_hero(h))
+	for h: Array in d[2]:
+		b.append(_class_hero(h))
+	var opts := {}
+	if not (d[3] as Array).is_empty():
+		opts["start_statuses"] = (d[3] as Array).duplicate(true)
+	return [{"name": "The Lanternrest Company", "heroes": a, "unlocked_formations": all_shape_ids()},
+		{"name": "Echo of the Ashen Pact", "heroes": b, "unlocked_formations": all_shape_ids()}, int(d[0]), opts]

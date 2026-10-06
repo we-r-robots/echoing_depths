@@ -49,10 +49,15 @@ var caption_extra := 0          # further units the action hits besides its targ
 var caption_tail_verb := ""
 var caption_tail := -1
 var caption_tail_extra := 0
+## What the action did beyond hits and heals, after the target (round 17): "sealed", "2 blinded".
+var caption_note := ""
+## A target the caption names that has no unit yet (a summon being called): its label.
+var caption_lead_label := ""
 var cutin_uid := -1
 var cutin_name := ""
 var cutin_t := 9.0
 var cutin_hold := 0.9
+var cutin_icon := ""      # the ability's effect icon (abilities.gd "icon"), beside its name
 var intro_t := -1.0
 var intro_len := 2.6
 var sd_banner_t := 9.0
@@ -74,6 +79,15 @@ var lantern_dim := -1     # uid of the Keeper while he dims the heroes' behaviou
 var _tri := PackedVector2Array()
 # layout of the current frame (design px): view width, safe left / right edges, centre line
 var _vw := 640.0
+var _vh := 360.0
+## The HUD lives in two bands and never covers the board (user playtest 2026-10-06: the rosters and
+## the caption hid the bottom-row heroes): the top band holds the formation badges, each team's tab
+## (name and how many stand) and the Fading readout; the bottom band the clock, the caption (or the
+## ability cut-in, a memory's lore, the Fading's line) and x1 / SKIP. The board sits between them at
+## every window shape (the battle view is centred, and its rows fit 640x360 between the bands).
+const TOP_H := 42.0
+const BOT_H := 32.0
+const TAB_H := 12.0
 var _l := 0.0
 var _r := 640.0
 var _c := 320.0
@@ -106,16 +120,51 @@ func _layout() -> void:
 	var vr := get_viewport_rect()
 	var sr := UIText.safe_rect(self)
 	_vw = vr.size.x
+	_vh = vr.size.y
 	_l = sr.position.x
 	_r = sr.end.x
 	_c = roundf(vr.size.x / 2.0)
-	_cap_w = clampf((_r - _l) - 2.0 * (PANEL_W + 10.0), 260.0, 330.0)
+	_cap_w = clampf((_r - _l) - 2.0 * 112.0, 240.0, 420.0)
 	if speed_btn != null:
-		speed_btn.position = Vector2(_c - 42, 336)
-		skip_btn.position = Vector2(_c + 4, 336)
+		var by := roundf(_vh - BOT_H * 0.5 - 10.0)
+		speed_btn.position = Vector2(roundf(_c + _cap_w / 2.0 + 6.0), by)
+		skip_btn.position = Vector2(roundf(_c + _cap_w / 2.0 + 52.0), by)
 		# x1 / SKIP mean nothing once the fight is over (critic r10 fix 4)
 		speed_btn.visible = end_t < 0.0 and not b_ended()
 		skip_btn.visible = speed_btn.visible
+
+
+## The board's vertical room (UI px): between the top band and the bottom band.
+func band_top() -> float:
+	return TOP_H
+
+
+func band_bottom() -> float:
+	return _vh - BOT_H
+
+
+func top_band() -> Rect2:
+	return Rect2(0, 0, _vw, TOP_H)
+
+
+func bottom_band() -> Rect2:
+	return Rect2(0, _vh - BOT_H, _vw, BOT_H)
+
+
+## A team's tab under its formation badge: "The Lanternrest Company · 4" (heroes standing).
+func team_tab_text(side: int) -> String:
+	var n := 0
+	for id: int in b.side_units[side]:
+		var u = b.units[id]
+		if u.alive and u.summon == "" and not u.is_crystal:
+			n += 1
+	return "%s · %d" % [team_name(side), n]
+
+
+func team_tab_rect(side: int) -> Rect2:
+	var w := UIText.width(team_tab_text(side), BOLD, UIText.LABEL) + 12.0
+	var br := badge_rect(side)
+	return Rect2(br.position.x if side == 0 else br.end.x - w, br.end.y + 1.0, w, TAB_H)
 
 
 func b_ended() -> bool:
@@ -205,8 +254,10 @@ var caption_stale := false
 
 
 func show_caption(uid: int, text: String, target: int, is_ability: bool, area := "single", extra := 0,
-		tail_verb := "", tail := -1, tail_extra := 0) -> void:
+		tail_verb := "", tail := -1, tail_extra := 0, note := "", lead_label := "") -> void:
 	caption_stale = false
+	caption_note = note
+	caption_lead_label = lead_label
 	caption_extra = extra
 	caption_tail_verb = tail_verb
 	caption_tail = tail
@@ -219,7 +270,8 @@ func show_caption(uid: int, text: String, target: int, is_ability: bool, area :=
 	caption_ability = is_ability
 
 
-func show_cutin(uid: int, ability: String, hold: float) -> void:
+func show_cutin(uid: int, ability: String, hold: float, icon := "") -> void:
+	cutin_icon = icon
 	cutin_uid = uid
 	cutin_name = ability
 	cutin_t = 0.0
@@ -249,12 +301,12 @@ func _draw_hud() -> void:
 	if intro_done:
 		for side in 2:
 			_draw_badge(side, 1.0)
+			if end_t < 0.0:
+				_draw_team_tab(side)
 	if sd_on and end_t < 0.0:
 		_draw_fading()
 	_draw_timer()
 	_draw_caption()
-	for side in 2:
-		_draw_panel(side)
 	if intro_t >= 0.0 and intro_t <= intro_len + 0.4:
 		_draw_intro()
 	_draw_cutin()
@@ -262,13 +314,13 @@ func _draw_hud() -> void:
 	_draw_fragment()
 	_draw_end()
 	if flash_a > 0.0:
-		draw_rect(Rect2(0, 0, _vw, 360), Color(flash_color, flash_a))
+		draw_rect(Rect2(0, 0, _vw, _vh), Color(flash_color, flash_a))
 	_draw_fade()
 
 
 func _draw_fade() -> void:
 	if fade_in > 0.0:
-		draw_rect(Rect2(0, 0, maxf(_vw, 640.0), 360), Color(Pal.INK1, minf(1.0, fade_in)))
+		draw_rect(Rect2(0, 0, maxf(_vw, 640.0), maxf(_vh, 360.0)), Color(Pal.INK1, minf(1.0, fade_in)))
 
 
 func _draw_vignette() -> void:
@@ -280,9 +332,9 @@ func _draw_vignette() -> void:
 		var w := 6.0 + k * 6.0
 		var ca := Color(c, a * (0.55 - k * 0.12))
 		draw_rect(Rect2(0, 0, _vw, w), ca)
-		draw_rect(Rect2(0, 360 - w, _vw, w), ca)
-		draw_rect(Rect2(0, 0, w, 360), ca)
-		draw_rect(Rect2(_vw - w, 0, w, 360), ca)
+		draw_rect(Rect2(0, _vh - w, _vw, w), ca)
+		draw_rect(Rect2(0, 0, w, _vh), ca)
+		draw_rect(Rect2(_vw - w, 0, w, _vh), ca)
 
 
 # --- formation badges -------------------------------------------------------------------------
@@ -509,6 +561,17 @@ func _draw_badge(side: int, alpha: float) -> void:
 		p[0], Color(sc.lerp(Pal.INK10, 0.15 + pulse * 0.6), alpha), SERIF, BANNER_TITLE)
 
 
+## The team's tab: its name and how many heroes stand, in its side colour (the rosters are gone:
+## every unit carries its HP bar, and a tap on a unit opens its card).
+func _draw_team_tab(side: int) -> void:
+	var r := team_tab_rect(side)
+	var sc: Color = b.side_colors[side]
+	draw_rect(r, Color(Pal.INK1, 0.88))
+	draw_rect(Rect2(r.position.x, r.end.y - 1, r.size.x, 1), sc)
+	UIText.outlined(self, Vector2(r.get_center().x, UIText.centered_y(r.position.y, r.size.y - 1.0, BOLD, UIText.LABEL)),
+		team_tab_text(side), UIText.legible(sc.lerp(Pal.INK10, 0.2)), BOLD, UIText.LABEL, 1, Pal.INK1, false)
+
+
 func _panel_bg(r: Rect2, sc: Color, alpha: float, pulse := 0.0) -> void:
 	draw_rect(r, Color(Pal.INK1, 0.82 * alpha))
 	draw_rect(Rect2(r.position + Vector2(1, 1), r.size - Vector2(2, 2)), Color(Pal.INK2, 0.75 * alpha))
@@ -523,7 +586,7 @@ func _draw_timer() -> void:
 		return   # the result line gives the fight's time (critic r11 fix 5: the clock repeated it)
 	var st: float = b.sim_t if b.end_clock < 0.0 else minf(b.sim_t, b.end_clock)
 	var secs := int(st)
-	var r := Rect2(_c - 98, 334, 52, 24)
+	var r := Rect2(roundf(_c - _cap_w / 2.0 - 58.0), roundf(_vh - BOT_H * 0.5 - 13.0), 52, 26)
 	var sd: bool = st >= b.sd_at and b.sd_at > 0.0
 	_panel_bg(r, Pal.BLOOD3 if sd else Pal.INK7, 1.0, 0.0)
 	@warning_ignore("integer_division")
@@ -534,18 +597,21 @@ func _draw_timer() -> void:
 	var fx := r.position.x + 3.0
 	var fw := r.size.x - 6.0
 	var frac := clampf(st / maxf(1.0, b.sd_at), 0.0, 1.0)
-	draw_rect(Rect2(fx, 352, fw, 2), Pal.INK4)
-	draw_rect(Rect2(fx, 352, roundf(fw * frac), 2), Pal.BLOOD3 if frac > 0.75 else Pal.AMBER5)
+	draw_rect(Rect2(fx, r.end.y - 6.0, fw, 2), Pal.INK4)
+	draw_rect(Rect2(fx, r.end.y - 6.0, roundf(fw * frac), 2), Pal.BLOOD3 if frac > 0.75 else Pal.AMBER5)
 
 
 # --- caption bar ------------------------------------------------------------------------------
-func _draw_caption() -> void:
-	caption_drawn = Rect2()
-	if caption_uid < 0 or end_t >= 0.0 or cutin_t < cutin_hold:
-		return
+## The caption's layout (pure: the draw and the label solver's walls both use it, so a test that
+## never draws still sees the caption as drawn). {} when no caption shows; else its "rect" (UI px),
+## "two" (two lines), its strings, widths and colours.
+func caption_layout() -> Dictionary:
+	if b == null or caption_uid < 0 or caption_uid >= b.units.size() or end_t >= 0.0 or cutin_t < cutin_hold \
+			or lore_bottom() > 0.0 or (fading_line_on() and b.sim_t >= b.sd_at):
+		return {}   # the slot is the lore's or the Fading line's while they show
 	var u = b.units[caption_uid]
 	var sc: Color = b.side_colors[u.side]
-	var r := Rect2(_c - _cap_w / 2.0, 292, _cap_w, 28)
+	var r := Rect2(_c - _cap_w / 2.0, roundf(_vh - BOT_H * 0.5 - 13.0), _cap_w, 26)
 	var sz := UIText.NUMBER
 	var who: String = u.label
 	var what := caption_text
@@ -558,6 +624,11 @@ func _draw_caption() -> void:
 		"all_allies":
 			tgt = "all allies"
 			tc = sc
+	if tgt == "" and caption_lead_label != "":
+		tgt = caption_lead_label
+		tc = sc
+	elif caption_area == "column" and caption_target >= 0 and caption_target < b.units.size():
+		tgt = "%s column" % ("front" if b.units[caption_target].col == 0 else "back")
 	if tgt == "" and caption_target >= 0:
 		if caption_target == caption_uid:
 			tgt = "self"
@@ -576,51 +647,72 @@ func _draw_caption() -> void:
 		if caption_tail_extra > 0:
 			tail += " + %d" % caption_tail_extra
 		tail_col = (b.side_colors[tu.side] as Color).lerp(Pal.INK10, 0.35)
-	var gap := UIText.width(" ", BOLD, sz)
-	var arrow_w := 14.0
-	var room := r.size.x - 16.0
-	var w_who := UIText.width(who, BOLD, sz)
-	var w_what := UIText.width(what, BOLD, sz)
-	var w_tgt := UIText.width(tgt, BOLD, sz) if tgt != "" else 0.0
-	var w_tail := (gap + UIText.width(tail, BOLD, sz)) if tail != "" else 0.0
-	var line1 := w_who + gap * 2.0 + w_what
-	var total := line1 + (arrow_w + w_tgt + w_tail if tgt != "" else 0.0)
-	var who_col: Color = sc.lerp(Pal.INK10, 0.35)
-	var tgt_col: Color = tc.lerp(Pal.INK10, 0.35)
-	if total <= room:
-		caption_drawn = r
-		_panel_bg(r, sc, 1.0)
+	if tgt != "" and caption_note != "":
+		tail = (tail + " · " if tail != "" else "· ") + caption_note
+	var L := {"who": who, "what": what, "tgt": tgt, "tail": tail, "tail_col": tail_col, "sc": sc,
+		"who_col": sc.lerp(Pal.INK10, 0.35), "tgt_col": tc.lerp(Pal.INK10, 0.35), "arrow_w": 14.0}
+	_caption_widths(L, sz)
+	var total: float = L["line1"] + (L["arrow_w"] + L["w_tgt"] + L["w_tail"] if tgt != "" else 0.0)
+	if total <= r.size.x - 16.0:
+		L["rect"] = r
+		L["two"] = false
+		L["total"] = total
+		return L
+	# Too long for one line (long memory names in the Crystal fight, a clause for a second kind of
+	# target): two lines in the bottom band, between the clock and x1 / SKIP. Names are never cut.
+	var w_max := _cap_w
+	_caption_widths(L, UIText.LABEL)   # two lines fit the band at the label size; never cut
+	var lh := UIText.line_h(BOLD, L["sz"])
+	var w_need: float = maxf(L["line1"], L["arrow_w"] + L["w_tgt"] + L["w_tail"]) + 16.0
+	var w := clampf(w_need, r.size.x, w_max)
+	L["rect"] = Rect2(roundf(_c - w / 2.0), roundf(_vh - BOT_H * 0.5 - (lh * 2.0 + 6.0) * 0.5), roundf(w), ceilf(lh * 2.0 + 6.0))
+	L["two"] = true
+	L["lh"] = lh
+	return L
+
+
+func _caption_widths(L: Dictionary, sz: int) -> void:
+	L["sz"] = sz
+	L["gap"] = UIText.width(" ", BOLD, sz)
+	L["w_tgt"] = UIText.width(L["tgt"], BOLD, sz) if L["tgt"] != "" else 0.0
+	L["w_tail"] = (L["gap"] + UIText.width(L["tail"], BOLD, sz)) if L["tail"] != "" else 0.0
+	L["line1"] = UIText.width(L["who"], BOLD, sz) + L["gap"] * 2.0 + UIText.width(L["what"], BOLD, sz)
+
+
+func _draw_caption() -> void:
+	var L := caption_layout()
+	caption_drawn = L.get("rect", Rect2())
+	if L.is_empty():
+		return
+	var sz: int = L["sz"]
+	var gap: float = L["gap"]
+	var tgt: String = L["tgt"]
+	var tail: String = L["tail"]
+	var r: Rect2 = L["rect"]
+	_panel_bg(r, L["sc"], 1.0)
+	if not bool(L["two"]):
 		var y := UIText.centered_y(r.position.y, r.size.y, BOLD, sz)
-		var x := roundf(_c - total / 2.0)
-		x = UIText.outlined(self, Vector2(x, y), who, who_col, BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
-		x = UIText.outlined(self, Vector2(x, y), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
+		var x := roundf(_c - float(L["total"]) / 2.0)
+		x = UIText.outlined(self, Vector2(x, y), L["who"], L["who_col"], BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
+		x = UIText.outlined(self, Vector2(x, y), L["what"], Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
 		if tgt != "":
-			x = _caption_target(x, r.get_center().y, y, tgt, tgt_col, arrow_w, sz)
+			x = _caption_target(x, r.get_center().y, y, tgt, L["tgt_col"], L["arrow_w"], sz)
 			if tail != "":
-				UIText.outlined(self, Vector2(x + gap, y), tail, tail_col, BOLD, sz, 0, Pal.INK1, false)
+				UIText.outlined(self, Vector2(x + gap, y), tail, L["tail_col"], BOLD, sz, 0, Pal.INK1, false)
 		_dim_stale(r)
 		return
-	# Too long for one line (long memory names in the Crystal fight, a clause for a second kind of
-	# target): two lines, the panel grows upward and, if it must, wider into the gap between the
-	# party panels. Names are never cut.
-	var lh := UIText.line_h(BOLD, sz)
-	var w_need := maxf(line1, arrow_w + w_tgt + w_tail) + 16.0
-	var w_max := (_r - _l) - 2.0 * (PANEL_W + 4.0)
-	var w := clampf(w_need, r.size.x, w_max)
-	var r2 := Rect2(roundf(_c - w / 2.0), r.end.y - (lh * 2.0 + 10.0), roundf(w), lh * 2.0 + 10.0)
-	caption_drawn = r2
-	_panel_bg(r2, sc, 1.0)
-	var y1 := UIText.centered_y(r2.position.y + 4.0, lh, BOLD, sz)
-	var x1 := roundf(_c - line1 / 2.0)
-	x1 = UIText.outlined(self, Vector2(x1, y1), who, who_col, BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
-	UIText.outlined(self, Vector2(x1, y1), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
+	var lh: float = L["lh"]
+	var y1 := UIText.centered_y(r.position.y + 3.0, lh, BOLD, sz)
+	var x1 := roundf(_c - float(L["line1"]) / 2.0)
+	x1 = UIText.outlined(self, Vector2(x1, y1), L["who"], L["who_col"], BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
+	UIText.outlined(self, Vector2(x1, y1), L["what"], Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
 	if tgt != "":
 		var y2 := y1 + lh
-		var x2 := roundf(_c - (arrow_w + w_tgt + w_tail) / 2.0)
-		x2 = _caption_target(x2, y2 + UIText.cap(BOLD, sz) * 0.5 + (UIText.ascent(BOLD, sz) - UIText.cap(BOLD, sz)), y2, tgt, tgt_col, arrow_w, sz)
+		var x2 := roundf(_c - (float(L["arrow_w"]) + float(L["w_tgt"]) + float(L["w_tail"])) / 2.0)
+		x2 = _caption_target(x2, y2 + UIText.cap(BOLD, sz) * 0.5 + (UIText.ascent(BOLD, sz) - UIText.cap(BOLD, sz)), y2, tgt, L["tgt_col"], L["arrow_w"], sz)
 		if tail != "":
-			UIText.outlined(self, Vector2(x2 + gap, y2), tail, tail_col, BOLD, sz, 0, Pal.INK1, false)
-	_dim_stale(r2)
+			UIText.outlined(self, Vector2(x2 + gap, y2), tail, L["tail_col"], BOLD, sz, 0, Pal.INK1, false)
+	_dim_stale(r)
 
 
 func _dim_stale(r: Rect2) -> void:
@@ -635,6 +727,22 @@ func _caption_target(x: float, cy: float, y: float, tgt: String, col: Color, arr
 
 
 # --- party panels -----------------------------------------------------------------------------
+## A roster panel with its team-name tab (UI px; pure layout, as drawn), or an empty rect.
+func panel_rect(side: int) -> Rect2:
+	if true:
+		return Rect2()   # no roster panels since round 17 (the bands hold the HUD)
+	if b == null or b.side_units[side].is_empty():
+		return Rect2()
+	var h := 6.0 + roster_rows(side).size() * ROW_H
+	var x0 := _l + 4.0 if side == 0 else _r - 4.0 - PANEL_W
+	var r := Rect2(x0, 358.0 - h, PANEL_W, h)
+	var tn := team_name(side)
+	if tn != "":
+		var tw := minf(PANEL_W, UIText.width(tn, BOLD, UIText.LABEL) + 12.0)
+		r = r.merge(Rect2(x0 if side == 0 else x0 + PANEL_W - tw, r.position.y - 13.0, tw, 14.0))
+	return r
+
+
 func _draw_panel(side: int) -> void:
 	var ids: Array = b.side_units[side]
 	var n := ids.size()
@@ -692,7 +800,12 @@ const MAX_ROWS := 4
 
 
 func roster_rows(side: int) -> Array:
-	var ids: Array = b.side_units[side]
+	# summons (an echo, a husk) keep their HP on their plate, not a roster row: the roster stays the
+	# party (round 17: an echo pushed a hero off into "+2 more")
+	var ids: Array = []
+	for id: int in b.side_units[side]:
+		if b.units[id].summon == "":
+			ids.append(id)
 	if ids.size() <= MAX_ROWS:
 		return ids.duplicate()
 	var living: Array = []
@@ -975,13 +1088,15 @@ func _draw_intro() -> void:
 ## banner, the lore caption, the Fading line, the caption slot (as drawn, or its one-line rect), the
 ## roster panels and the timer row. BattleFX's label solver treats them as walls.
 func blocked_rects() -> Array:
-	var out: Array = [badge_rect(0), badge_rect(1), Rect2(_c - _cap_w / 2.0, 292, _cap_w, 28),
-		Rect2(_c - 100, 332, 200, 28)]
-	if caption_drawn.has_area():
-		out.append(caption_drawn)
+	var out: Array = [badge_rect(0), badge_rect(1), top_band(), bottom_band()]
+	# the caption and rosters as laid out now (pure layout: also right before their first draw)
+	var cr: Rect2 = caption_layout().get("rect", Rect2())
+	if cr.has_area():
+		out.append(cr)
 	for side in 2:
-		if panel_drawn[side].has_area():
-			out.append(panel_drawn[side])
+		var pr := panel_rect(side)
+		if pr.has_area():
+			out.append(pr)
 	# banners carry a margin (critic r6: a "20" touched the lore banner's bottom rule)
 	if frag_t <= FRAG_SHOW and frag_n > 0:
 		out.append(fragment_rect().grow(BANNER_MARGIN))
@@ -1019,7 +1134,7 @@ func _lore_lines() -> PackedStringArray:
 ## The lore banner as drawn right now (UI design px), or an empty rect.
 func lore_rect() -> Rect2:
 	var lb := lore_bottom()
-	return Rect2(_c - _lore_w() / 2.0, 40, _lore_w(), lb - 40.0) if lb > 0.0 else Rect2()
+	return Rect2(_c - _lore_w() / 2.0, _vh - BOT_H + 2.0, _lore_w(), BOT_H - 4.0) if lb > 0.0 else Rect2()
 
 
 ## The tallest lore banner plus the margin: reserved for the whole of a Crystal fight.
@@ -1028,7 +1143,7 @@ func lore_reserve() -> Rect2:
 	var h := ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + n * UIText.line_h(BOLD, UIText.BODY) + 6.0)
 	# + the camera's travel: a world label placed now moves with the camera push and shake (up to
 	# ~5 world px = 10 UI px) while the banner stays put
-	return Rect2(_c - _lore_w() / 2.0, 40, _lore_w(), h + RESERVE_SLACK).grow(LORE_MARGIN)
+	return bottom_band()   # (round 17) the lore takes the caption's slot in the bottom band
 
 
 const RESERVE_SLACK := 10.0
@@ -1055,13 +1170,13 @@ func _draw_lore() -> void:
 	var lines := _lore_lines()
 	var lh := UIText.line_h(BOLD, UIText.BODY)
 	var h := ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + lines.size() * lh + 6.0)
-	var r := Rect2(_c - _lore_w() / 2.0, 40, _lore_w(), h)
-	draw_rect(r, Color(Pal.INK1, 0.85 * a))
+	var r := lore_rect()
+	draw_rect(r, Color(Pal.INK1, 0.92 * a))
 	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1), Color(Pal.VIOLET3, a))
 	draw_rect(Rect2(r.position.x, r.end.y - 1, r.size.x, 1), Color(Pal.VIOLET3, a))
-	var y := r.position.y + 6.0
+	var y := r.position.y + 2.0
 	UIText.outlined(self, Vector2(_c, y), lore_name, Color(Pal.VIOLET4, a), SERIF, UIText.TITLE, 1, Pal.INK1, false)
-	y += UIText.ascent(SERIF, UIText.TITLE) + 6.0
+	y += UIText.ascent(SERIF, UIText.TITLE) + 1.0
 	for i in lines.size():
 		UIText.outlined(self, Vector2(_c, y), lines[i], Color(Pal.INK9, a), BOLD, UIText.BODY, 1, Pal.INK1, false)
 		y += lh
@@ -1094,10 +1209,10 @@ func _draw_cutin() -> void:
 	var inn := clampf(cutin_t / 0.12, 0.0, 1.0)
 	if cutin_t > cutin_hold:
 		return   # the action caption takes the slot back at once
-	var band_h := roundf(40.0 * inn)
+	var band_h := roundf((BOT_H - 4.0) * inn)
 	if band_h < 1.0:
 		return
-	var cy := 309.0
+	var cy := roundf(_vh - BOT_H * 0.5)
 	var bw := _cap_w
 	var bx := _c - bw / 2.0
 	var band := Rect2(bx, cy - band_h * 0.5, bw, band_h)
@@ -1111,19 +1226,33 @@ func _draw_cutin() -> void:
 		# the roster (critic r10: Unravel's red streaks through "Sable 116")
 		var lx := bx + 4.0 + fposmod(t * 500.0 * -dir + k * 67.0, bw - 48.0)
 		draw_rect(Rect2(roundf(lx), roundf(ly), 20 + (k % 3) * 8, 1), Color(sc, 0.35))
-	if band_h < 30.0:
+	if band_h < 24.0:
 		return
 	var tx := roundf(_c + dir * (1.0 - minf(1.0, cutin_t / 0.16)) * 60.0)
-	UIText.outlined(self, Vector2(tx, cy - 14.0), u.label.to_upper() + "  ·  ABILITY", Pal.VIOLET4, BOLD, UIText.LABEL, 1, Pal.INK1, false)
-	UIText.outlined(self, Vector2(tx, cy - 2.0), cutin_name, sc.lerp(Pal.INK10, 0.35), SERIF, UIText.HEADING, 1, Pal.INK1, false)
+	# the hero's class names who is acting (an advanced class is the ability's identity, round 17)
+	var who: String = u.class_name_.to_upper() if (u.class_name_ != "" and not u.is_monster and not u.is_memory and u.summon == "") else "ABILITY"
+	UIText.outlined(self, Vector2(tx, cy - 13.0), u.label.to_upper() + "  ·  " + who, Pal.VIOLET4, BOLD, UIText.LABEL, 1, Pal.INK1, false)
+	UIText.outlined(self, Vector2(tx, cy - 4.0), cutin_name, sc.lerp(Pal.INK10, 0.35), SERIF, UIText.HEADING, 1, Pal.INK1, false)
+	if cutin_icon != "":
+		# its effect icon on a chip before the name (effects as icons)
+		var nw := UIText.width(cutin_name, SERIF, UIText.HEADING)
+		var ip := Vector2(roundf(tx - nw * 0.5 - 16.0), roundf(cy - 4.0 + UIText.ascent(SERIF, UIText.HEADING) - UIText.cap(SERIF, UIText.HEADING) * 0.5 - 5.5))
+		draw_rect(Rect2(ip, Vector2(11, 11)), Pal.INK1)
+		draw_rect(Rect2(ip, Vector2(11, 11)), Pal.VIOLET3, false, 1.0)
+		draw_texture(EffectIcons.icon(cutin_icon), ip + Vector2(1, 1), Pal.VIOLET4)
 
 
 ## The Fading (sudden death): one line in the game's voice, then a small rising readout.
 func _draw_fading() -> void:
-	var y := 40.0
+	var y := TOP_H - 13.0
 	if fading_line_on():
+		# in the caption's slot (bottom band), so the line never lies over the back row's heads
 		var a := clampf(sd_banner_t / 0.3, 0.0, 1.0) * (1.0 - clampf((sd_banner_t - 2.8) / 0.4, 0.0, 1.0))
-		UIText.outlined(self, Vector2(_c, y), "The memory of this battle is fading…", Color(Pal.INK10, a), SERIF, UIText.HEADING, 1)
+		var lw := UIText.width("The memory of this battle is fading…", SERIF, UIText.HEADING) + 20.0
+		var lr := Rect2(roundf(_c - lw / 2.0), _vh - BOT_H + 3.0, roundf(lw), BOT_H - 6.0)
+		draw_rect(lr, Color(Pal.INK1, 0.9 * a))
+		draw_rect(Rect2(lr.position.x, lr.position.y, lr.size.x, 1), Color(Pal.FADE3, a))
+		UIText.outlined(self, Vector2(_c, UIText.centered_y(lr.position.y, lr.size.y, SERIF, UIText.HEADING)), "The memory of this battle is fading…", Color(Pal.INK10, a), SERIF, UIText.HEADING, 1)
 		return
 	# readout under the banners once the line has gone
 	var ro := fading_readout()

@@ -2,7 +2,7 @@
 # Re-creates the hires-ui capture set (see captures/hires-ui/INDEX.md for what each file shows).
 # usage: tools/capture_hires_ui.sh [out_dir] [screen ...]
 #   out_dir  default captures/hires-ui
-#   screen   any of: battle crystal monsters setup draft encounter hero_detail videos crops before_after
+#   screen   any of: battle crystal monsters classes setup draft encounter hero_detail videos crops before_after
 #            (default: all). Stills are written at 1920x1080 into <screen>/1080/ and at 2340x1080
 #            (capture.sh --phone) into <screen>/phone/, named by state as in INDEX.md.
 # Each (scene, demo args, resolution) runs once and captures all its frames, then the frames are
@@ -36,8 +36,11 @@ group() {
   local frames="" p
   for p in $pairs; do frames="${frames:+$frames,}${p#*:}"; done
   local res mode tag dir
-  for res in 1080 phone; do
+  for res in 1080 phone ${WIDE:-}; do
     mode=""; [[ "$res" == phone ]] && mode="--phone"
+    # wide: a short desktop window (~2.6:1; Godot renders the largest whole-scale view inside it,
+    # 1864x720 for 1890x730)
+    [[ "$res" == wide ]] && mode="--res=1890x730"
     tag="$(echo "$screen-$scene-$*-$res" | md5sum | cut -c1-10)"
     dir="$TMP/$tag"
     echo "  $screen/$res: $scene ${*:-} frames $frames"
@@ -51,6 +54,8 @@ group() {
   done
 }
 
+# battle screens also capture a wide, short window (round 17: the HUD never covers the board)
+WIDE=wide
 if want battle; then
   echo "battle"
   group battle res://scenes/battle/battle.tscn "start_intro_cards:90 ability_banner_cleave:400 mid_fight_numbers_cleave_crit:445 smite_beam_ko:492 numbers_crit_firestorm:625 ko_rear_tag:793 banner_waits_corin_cleave:1035 caption_mend_strikes:1250 caption_mend_heals_self:1512 fading_line:1700 fading_readout:1950 victory_first_frame:2129 victory_card:2200"
@@ -67,6 +72,17 @@ if want monsters; then
   group monsters res://scenes/battle/battle_monsters.tscn "caption_and_numbers:433 tall_sentinel_numbers_ko:583 ability_banner_unravel:643"
 fi
 
+if want classes; then
+  # round 17: the class showcase fights (timed statuses, the approved advanced classes)
+  echo "classes"
+  group classes res://scenes/battle/battle_classes_a.tscn "a_hidden_silhouette:384 a_stun_blind_rows:548 a_skip_turn_lost:566 a_miss_blind:646 a_echo_summoned:770 a_shackle_caption:870 a_shackle_swap_walk:905 a_drive_on_gauges:1580 a_rune_seal_bind:1692 a_rekindled:3370"
+  group classes res://scenes/battle/battle_classes_b.tscn "b_vanishing_hidden:490 b_poisoned:700 b_poison_tick:752 b_brand_of_flame:815 b_lumen_ward_blocked:1180 b_shield_absorb:1478 b_wildfire:1795 b_fire_jumps:1950 b_link_tether:2040 b_link_share:2058"
+  group classes res://scenes/battle/battle_classes_c.tscn "c_start_statuses:172 c_tithe:452 c_hexed_heal_cost:566 c_hexfire_climbs:1008 c_hexfire_top:1020 c_slow_field:1185 c_pilfer_steals:1240 c_husk_raised:1435 c_column_ward:2032 c_shield_absorb:2090"
+  group classes res://scenes/battle/battle_classes_c.tscn "c_status_tooltip:240" --status-tip=1.0
+  group classes res://scenes/battle/battle_classes_b.tscn "b_unit_card:720" --unit-tip=6.4
+fi
+
+WIDE=""
 if want setup; then
   echo "setup"
   group setup res://scenes/party_setup/formation_setup.tscn "active_kindred:60 drag_preview_tidebreak:150 drag_preview_locked_crescent:250 tooltip_open:420 locked_fallback:540 unformed:640 unformed_details:700 active_keepers_ring_confirmed:1050"
@@ -98,6 +114,11 @@ if want videos; then
   mkdir -p "$OUT/battle" "$OUT/crystal"
   CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle.tscn "$OUT/battle/fight.mp4" 2300 >/dev/null
   CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle_crystal.tscn "$OUT/crystal/crystal_demo.mp4" 3560 >/dev/null
+  mkdir -p "$OUT/classes"
+  for q in a b c; do
+    n=2300; [[ $q == a ]] && n=3560
+    CAPTURE_TIMEOUT="${VIDEO_TIMEOUT:-3600}" tools/video.sh res://scenes/battle/battle_classes_$q.tscn "$OUT/classes/classes_$q.mp4" $n >/dev/null
+  done
 fi
 
 if want crops; then

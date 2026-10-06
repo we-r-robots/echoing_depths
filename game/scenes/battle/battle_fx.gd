@@ -9,9 +9,18 @@ const BURST = preload("res://assets/battle/burst.png")
 const SLASH = preload("res://assets/battle/slash.png")
 const META_PATH := "res://assets/sprites/sprite_meta.json"
 
-enum Row { PHYS, MAGIC, CRIT, HEAL, DEATH, MUTED }
-## Number colours per row (fill), matching the old digit sheet.
-const ROW_COL := [Pal.INK10, Pal.VIOLET4, Pal.AMBER6, Pal.LIFE4, Pal.BLOOD4, Pal.FADE4]
+enum Row { PHYS, MAGIC, CRIT, HEAL, DEATH, MUTED, SHIELD, TICK, BURN, HEX }
+## Number colours per row (fill), matching the old digit sheet. Round 17: SHIELD (a shield's absorb),
+## TICK (poison, a link's share), BURN, HEX (a hexed heal); each of those also carries its glyph.
+const ROW_COL := [Pal.INK10, Pal.VIOLET4, Pal.AMBER6, Pal.LIFE4, Pal.BLOOD4, Pal.FADE4, Pal.CRYSTAL5, Pal.INK10, Pal.AMBER5, Pal.VIOLET3]
+## A status number's glyph before its digits (round 17): the status icon in its colour, so a poison or
+## burn tick never reads as a hit or a Fading tick (the Fading keeps its grey mote).
+const GLYPH_COL := {"poison": Pal.LIFE4, "burn": Pal.AMBER6, "heal_invert": Pal.VIOLET4, "shield": Pal.CRYSTAL5,
+	"link": Pal.AMBER6, "cost": Pal.BLOOD4, "tithe": Pal.BLOOD4, "regen": Pal.LIFE4}
+const GLYPH_ICON := {"poison": "status_poison", "burn": "status_burn", "heal_invert": "status_heal_invert",
+	"shield": "status_shield", "link": "status_link", "cost": "stat_hp", "tithe": "stat_hp", "regen": "status_regen"}
+## Status ticks are quieter than blows: one size down.
+const TICK_SIZE := 20
 ## UI sizes (UIText grid): the number, a head word (CRIT! / KO!), a tag or formation cue.
 const NUM_SIZE := 25
 const NUM_PUNCH := 30
@@ -82,7 +91,9 @@ var _pp_small: Array[bool] = []         # head drawn in the light font (formatio
 var _pp_head_col := PackedColorArray()
 var _pp_tag: Array[String] = []         # one annotation under the number
 var _pp_tag_col := PackedColorArray()
-var _pp_mote: Array[bool] = []         # a Fading tick: a grey mote glyph before the number
+var _pp_mote: Array[bool] = []         # a glyph before the number (a Fading mote, a status icon)
+var _pp_glyph: Array[String] = []      # "mote" or a GLYPH_ICON key
+var _pp_nsz := PackedInt32Array()      # the number's font size
 var _pp_ko: Array[bool] = []           # KO! pill beside the number
 var _pp_ko_t := PackedFloat32Array()    # when the pill shows (label time)
 var _pp_unit := PackedInt32Array()      # the unit the label belongs to
@@ -143,6 +154,8 @@ func setup(pop_canvas: Control, to_ui: Callable) -> void:
 	_pp_head.resize(MAX_POP); _pp_head_col.resize(MAX_POP); _pp_tag.resize(MAX_POP); _pp_tag_col.resize(MAX_POP)
 	_pp_link.resize(MAX_POP)
 	_pp_mote.resize(MAX_POP)
+	_pp_glyph.resize(MAX_POP)
+	_pp_nsz.resize(MAX_POP)
 	_pp_ko.resize(MAX_POP); _pp_ko_t.resize(MAX_POP); _pp_unit.resize(MAX_POP); _pp_box.resize(MAX_POP)
 	_shield_pts.resize(6)
 	_make_dither()
@@ -334,17 +347,17 @@ var field := Rect2(164, 92, 312, 176)
 
 
 ## The label box size for its contents (world px).
-static func label_size(value: int, plus: bool, head: String, small: bool, tag: String, ko: bool, mote := false) -> Vector2:
+static func label_size(value: int, plus: bool, head: String, small: bool, tag: String, ko: bool, mote := false, nsz := NUM_SIZE) -> Vector2:
 	var row_w := 0.0
 	var h := 0.0
 	if value >= 0:
-		row_w = (UIText.width(("+" if plus else "") + str(value), UIText.BOLD, NUM_SIZE) + 4.0 + ((MOTE_W + MOTE_GAP) if mote else 0.0)) / ZOOM
+		row_w = (UIText.width(("+" if plus else "") + str(value), UIText.BOLD, nsz) + 4.0 + ((MOTE_W + MOTE_GAP) if mote else 0.0)) / ZOOM
 		if ko:
 			# the KO! pill sits under the number, not beside it: the label stays as narrow as its
 			# number and clear of the neighbours' columns (critic r11 fix 1)
 			row_w = maxf(row_w, _ko_w() / ZOOM)
 			h += KO_H
-		h += NUM_RISE + NUM_H
+		h += NUM_RISE + (NUM_H if nsz == NUM_SIZE else 11.0 * nsz / 15.0 / ZOOM + 1.5)
 	elif ko:
 		row_w = _ko_w() / ZOOM
 		h += NUM_RISE + HEAD_H
@@ -390,7 +403,7 @@ func _geo(uid: int) -> Dictionary:
 
 ## Lays out label j against everything else on screen this action (LabelLayout.place).
 func _place(j: int) -> void:
-	var sz := label_size(_pp_val[j], _pp_plus[j], _pp_head[j], _pp_small[j], _pp_tag[j], _pp_ko[j], _pp_mote[j])
+	var sz := label_size(_pp_val[j], _pp_plus[j], _pp_head[j], _pp_small[j], _pp_tag[j], _pp_ko[j], _pp_mote[j], _pp_nsz[j])
 	var own := _geo(_pp_unit[j])
 	if own.is_empty():
 		own = {"uid": _pp_unit[j], "body": Rect2(_pp_x[j] - 11.0, _pp_y[j], 22.0, 40.0), "bar": Rect2()}
@@ -418,6 +431,15 @@ func last_box() -> Rect2:
 	return _pp_box[_last_pop]
 
 
+## Every live label's box (world px): the status rows keep clear of them.
+func live_boxes() -> Array:
+	var out: Array = []
+	for j in MAX_POP:
+		if _pp_on[j]:
+			out.append(_pp_box[j])
+	return out
+
+
 ## Every live label's box this action (world px), for tests and checks.
 func label_boxes() -> Array:
 	var out: Array = []
@@ -442,11 +464,16 @@ func _label_text(j: int) -> String:
 
 ## A number (value >= 0) or word label on unit `uid`, laid out with the action's other labels.
 ## `delay` staggers popups that land together; `ko` adds the KO! pill beside the number.
-func popup(value: int, row: int, uid: int, scale: int, plus: bool, head: String, head_col: Color, tag: String, tag_col: Color, delay := 0.0, ko := false, small := false, mote := false) -> int:
-	# one number per target per action: a further hit on the same target adds to its number
+func popup(value: int, row: int, uid: int, scale: int, plus: bool, head: String, head_col: Color, tag: String, tag_col: Color, delay := 0.0, ko := false, small := false, mote := false, glyph := "") -> int:
+	if mote and glyph == "":
+		glyph = "mote"
+	mote = glyph != ""
+	# one number per target per action: a further hit on the same target adds to its number (a
+	# status number only joins one of its own kind landing at the same moment)
 	if value >= 0:
 		for j in MAX_POP:
-			if _pp_on[j] and _pp_unit[j] == uid and not _pp_small[j] and _pp_val[j] >= 0 and _pp_row[j] != Row.HEAL and row != Row.HEAL:
+			if _pp_on[j] and _pp_unit[j] == uid and not _pp_small[j] and _pp_val[j] >= 0 and _pp_row[j] != Row.HEAL and row != Row.HEAL \
+					and _pp_glyph[j] == glyph and (glyph == "" or glyph == "mote" or _pp_t[j] < 0.25):
 				_pp_val[j] += value
 				_pp_t[j] = minf(_pp_t[j], 0.0)
 				if head != "" and _pp_head[j] == "":
@@ -487,6 +514,8 @@ func popup(value: int, row: int, uid: int, scale: int, plus: bool, head: String,
 	_pp_tag_col[best] = tag_col
 	_pp_ko[best] = ko
 	_pp_mote[best] = mote
+	_pp_glyph[best] = glyph
+	_pp_nsz[best] = TICK_SIZE if (glyph != "" and glyph != "mote" and row != Row.SHIELD) else NUM_SIZE
 	_pp_ko_t[best] = 0.3 if ko and value >= 0 else 0.0
 	_place(best)
 	_pp_on[best] = true
@@ -550,33 +579,35 @@ func shard_fly(from: Vector2, to: Vector2) -> void:
 	_shard_to = to
 
 
-func fade_popups() -> void:
+func fade_popups(beams := true) -> void:
 	for i in MAX_POP:
 		_pp_on[i] = false
-	_beams.clear()
+	if beams:
+		_beams.clear()
 
 
 ## Pixel-art light beams (critic r11 fix 3: Smite's and Mend's light column read as a flat ~330 px
 ## debug quad). A beam is as wide as its target's body, banded (a dark rim, the body, a bright core),
 ## falls from its top to the feet in a few frames, has a soft dithered top, fades by thinning its
 ## dither (never by alpha), narrows as it goes and leaves a ground ring at the feet. World px, visual time.
-const MAX_BEAM := 6
+const MAX_BEAM := 8
 var _beams: Array = []
 
 
 ## `x` the column's centre, `feet` the target's feet, `half_w` half its body width, `head` the top of
 ## its head (below it the beam thins so the unit shows through), `height` from the feet to the top.
-func beam(x: float, feet: float, half_w: float, head: float, height: float, dur: float, col: Color, hi: Color) -> void:
+## `delay` (visual s) or `at` (a sim time, e.g. Hexfire's fire reaching each space) holds it back.
+func beam(x: float, feet: float, half_w: float, head: float, height: float, dur: float, col: Color, hi: Color, delay := 0.0, at := -1.0) -> void:
 	if _beams.size() >= MAX_BEAM:
 		_beams.pop_front()
 	_beams.append({"x": roundf(x), "y": roundf(feet), "hw": maxf(3.0, roundf(half_w)), "head": roundf(head),
-		"h": roundf(height), "t": 0.0, "dur": dur, "col": col, "hi": hi})
+		"h": roundf(height), "t": -delay if at < 0.0 else -1.0, "at": at, "dur": dur, "col": col, "hi": hi})
 
 
 func _draw_beams() -> void:
 	for bm: Dictionary in _beams:
 		var u: float = float(bm["t"]) / float(bm["dur"])
-		if u >= 1.0:
+		if u >= 1.0 or u < 0.0:
 			continue
 		var x: float = bm["x"]
 		var feet: float = bm["y"]
@@ -722,6 +753,12 @@ func tick(vdt: float, now_sim: float) -> void:
 			if _rg_t[i] >= _rg_dur[i]:
 				_rg_on[i] = false
 	for k in range(_beams.size() - 1, -1, -1):
+		var at := float(_beams[k]["at"])
+		if at >= 0.0:
+			if now_sim < at:
+				continue
+			_beams[k]["at"] = -1.0
+			_beams[k]["t"] = 0.0
 		_beams[k]["t"] = float(_beams[k]["t"]) + vdt
 		if float(_beams[k]["t"]) >= float(_beams[k]["dur"]):
 			_beams.remove_at(k)
@@ -982,20 +1019,28 @@ func _draw_popup(ci: CanvasItem, i: int) -> void:
 	var ko_on := _pp_ko[i] and t >= _pp_ko_t[i]
 	if val >= 0:
 		# punch: one size up for the first frames
-		var sz := NUM_PUNCH if t < 0.06 else NUM_SIZE
+		var nsz := _pp_nsz[i]
+		var sz := (NUM_PUNCH if nsz == NUM_SIZE else NUM_SIZE) if t < 0.06 else nsz
 		var s := ("+" if _pp_plus[i] else "") + str(val)
-		var nw := UIText.width(s, UIText.BOLD, NUM_SIZE) + 4.0
+		var nw := UIText.width(s, UIText.BOLD, nsz) + 4.0
 		var mw := (MOTE_W + MOTE_GAP) if _pp_mote[i] else 0.0
 		var row_w := mw + nw
 		var c: Vector2 = _to_ui.call(Vector2(x, y + 0.75))
 		var x0 := c.x - row_w * 0.5
-		var base := c.y + UIText.cap(UIText.BOLD, NUM_SIZE)
+		var base := c.y + UIText.cap(UIText.BOLD, nsz)
 		if _pp_mote[i]:
-			_draw_mote(ci, Vector2(roundf(x0 + MOTE_W * 0.5), roundf(base - UIText.cap(UIText.BOLD, NUM_SIZE) * 0.5)))
+			var gc := Vector2(roundf(x0 + MOTE_W * 0.5), roundf(base - UIText.cap(UIText.BOLD, nsz) * 0.5))
+			if _pp_glyph[i] == "mote":
+				_draw_mote(ci, gc)
+			else:
+				var gt := EffectIcons.icon(String(GLYPH_ICON.get(_pp_glyph[i], "status_poison")))
+				var gp := gc - Vector2(4, 4)
+				ci.draw_rect(Rect2(gp - Vector2(1, 1), Vector2(11, 11)), Color(Pal.INK1, 0.9))
+				ci.draw_texture(gt, gp, GLYPH_COL.get(_pp_glyph[i], Pal.INK10))
 			x0 += mw
 		# a two-font-pixel dark ring keeps the digits apart from bright slashes and sparks
 		UIText.outlined(ci, Vector2(roundf(x0 + nw * 0.5), base - UIText.ascent(UIText.BOLD, sz)), s, ROW_COL[_pp_row[i]], UIText.BOLD, sz, 1, Pal.INK1, true, 2)
-		y += NUM_H
+		y += NUM_H if nsz == NUM_SIZE else 11.0 * nsz / 15.0 / ZOOM + 1.5
 		var tag := _pp_tag[i]
 		if tag != "":
 			var tp: Vector2 = _to_ui.call(Vector2(x, y + 1.0))
