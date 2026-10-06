@@ -1,7 +1,7 @@
 # Open questions for the user
 Updated 2026-10-05 after the user's answers (recorded in class-roster-draft.md 4b, ideas.md and BUILD.md).
 
-1. **Twisted Rogue** (the Rogue's hardest corner): brainstorm together.
+1. **Twisted Rogue** (the Rogue's hardest corner): the user leans toward the **Unseen Warden**, stealth turned to enforcement, using crowd control (stun, blind, sap or similar) rather than a big damaging ability. Still thinking.
 2. **Twisted Fighters** (two hardest corners): what are the two twists?
 3. **Class names and identities:** the draft's 28 proposed advanced classes were invented by an agent; review them family by family before any work.
 4. **Crystal of Remembrance rework:** design pass on the user's ideas (no Fading; AoE blast; possessing a party member's memory) in docs/design/ideas.md.
