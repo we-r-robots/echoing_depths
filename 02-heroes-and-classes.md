@@ -25,7 +25,7 @@
 | Tier | How it is reached |
 |---|---|
 | Base | Starting class |
-| Advanced | The hero reaches the advancement threshold (placeholder: 3 memories). Their grid position sets the class, and their level resets to 1. |
+| Advanced | The hero reaches the advancement threshold (2 memories, user decision 2026-10-05: level 1 + 2 memories = level 3). Their grid position sets the class, and their level resets to 1. |
 | Legendary | Further levels after advancing, plus a gate (see below). |
 
 **Terminology TBD.** Options:

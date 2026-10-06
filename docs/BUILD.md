@@ -66,5 +66,10 @@ Super Auto Pets is a bar for readability and punch only. Never copy its structur
 - **Lanternrest is a place, not a menu** (user, 2026-10-05): a village hub you unlock and grow. Buildings are physical places you interact with to open their menus, e.g. the Training Grounds is a barracks yard with targets and training dummies. **The game starts in Lanternrest**, and an entrance into the Vaults there starts each dungeon run (the title screen leads into Lanternrest).
 - **Lanternrest starts sparse:** the lantern, some empty plots, and side areas you can't see yet, revealed as you progress.
 - **Art direction:** keep the current atmosphere (environments, UI, encounters); characters and NPCs will go a different route. No reference yet, so don't invest in character/NPC sprite polish.
+- **Playtest feedback (user, 2026-10-05, after playing the flow):**
+  - **Awaken after the 2nd memory.** Heroes start at level 1; two memories make level 3, and the hero can then Awaken (advance). The advancement threshold is 2 memories, not 3.
+  - **A run hub between nodes:** a general menu between rounds where you can open character details (hero detail), the formation, Awakenings and similar, rather than one-off prompts.
+  - **Party growth:** reaching depth 7 on floor 2 with only 2 heroes is wrong; a party should reach a full 4 well before that. Recruitment needs pacing that reliably fills the party in the early "Gathering" phase (03-runs-and-combat.md).
+  - **Matchmaking:** opponents on the same floor should also match the party's size and power; a 2-hero party should not meet a full, levelled team.
 - **Formation setup opens before every fight**, monster fights included.
 - **The PvP splash shows the rival's heroes** (with name and crest). Their formation stays hidden.
