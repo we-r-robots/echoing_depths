@@ -334,6 +334,19 @@ func knock_out() -> void:
 	flash(Color.WHITE, 1.0, HIT_FLASH)
 
 
+## Rekindled (core `revive`): standing again at hp.
+func revive(v: int) -> void:
+	alive = true
+	ko_t = -1.0
+	mat.set_shader_parameter("gray", 0.0)
+	modulate.a = 1.0
+	shadow.visible = true
+	_plate_on = true
+	set_hp(clampi(v, 1, max_hp))
+	play_now(&"idle")
+	queue_redraw()
+
+
 ## Called every frame by the battle controller.
 func tick(sim_t: float, vdt: float, speed: float, real_dt := 0.0) -> void:
 	spr.speed_scale = speed
