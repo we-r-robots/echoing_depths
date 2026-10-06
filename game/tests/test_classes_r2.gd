@@ -575,7 +575,7 @@ func test_informant_splits_the_shield_against_an_area_ability() -> void:
 	if vals.size() > 1:
 		var v: Array = vals.values()
 		check(v.min() == v.max(), "an even split (%s)" % str(vals))
-		var whole := int(round(3.4 * 0.6 * float(unit_stats(r, inf)["mag"])))
+		var whole := int(round(6.5 * 0.6 * float(unit_stats(r, inf)["mag"])))
 		check(absi(int(v[0]) * v.size() - whole) <= v.size(), "the shares add up to one shield (%d x %d ~ %d)" % [v[0], v.size(), whole])
 
 
