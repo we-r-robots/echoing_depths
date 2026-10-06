@@ -53,13 +53,13 @@ group() {
 
 if want battle; then
   echo "battle"
-  group battle res://scenes/battle/battle.tscn "start_intro_cards:90 ability_banner_cleave:390 mid_fight_numbers_cleave_crit:420 numbers_crit_firestorm:600 ko_rear_tag:780 fading_line:1680 fading_readout:1890 victory_card:2160"
+  group battle res://scenes/battle/battle.tscn "start_intro_cards:90 ability_banner_cleave:390 mid_fight_numbers_cleave_crit:420 numbers_crit_firestorm:600 ko_rear_tag:780 fading_line:1680 fading_readout:1890 victory_card:2170"
   group battle res://scenes/battle/battle.tscn "tooltip_open_banner_chip:300" --tip=2
 fi
 
 if want crystal; then
   echo "crystal"
-  group crystal res://scenes/battle/battle_crystal.tscn "start_intro_cards:90 memory_surfaces_lore:180 ability_banner_memory:720 fragment_banner:840 fragment_4_of_4_in_the_fading:3300 victory_shard_breaks_free:3400"
+  group crystal res://scenes/battle/battle_crystal.tscn "start_intro_cards:90 memory_surfaces_lore:180 ability_banner_memory:720 fragment_banner:840 fragment_4_of_4_in_the_fading:3300 victory_shard_breaks_free:3440"
 fi
 
 if want monsters; then

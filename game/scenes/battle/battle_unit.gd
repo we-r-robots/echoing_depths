@@ -206,6 +206,7 @@ func setup(u: Dictionary, sprite_meta: Dictionary, shadow_tex: Texture2D, echo: 
 	spr.frame = (uid * 2) % maxi(1, spr.sprite_frames.get_frame_count(&"idle"))
 	top_h = _idle_top(frames)
 	_core_span(frames)
+	_precore(frames)
 	_bob_t = uid * 0.37
 
 
@@ -594,6 +595,20 @@ func body_rect() -> Rect2:
 	var l := core_l if facing > 0 else -core_r
 	var r := core_r if facing > 0 else -core_l
 	return Rect2(roundf(p.x + l), roundf(p.y - top_h), r - l, top_h)
+
+
+## Every frame's core is measured once per sprite sheet when the first unit using it is set up
+## (during the fight's load), so the label solver never stalls a frame measuring one mid-fight.
+static var _cored := {}
+
+
+static func _precore(frames: SpriteFrames) -> void:
+	if frames == null or _cored.has(frames):
+		return
+	_cored[frames] = true
+	for an: StringName in frames.get_animation_names():
+		for i in frames.get_frame_count(an):
+			_frame_core(frames.get_frame_texture(an, i))
 
 
 ## Per frame texture: the opaque core of that frame in texture px (columns at least 30% as full as

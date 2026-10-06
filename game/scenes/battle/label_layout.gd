@@ -52,6 +52,19 @@ const KNOCK := 5.0           # neighbours may still be knocked this far sideways
 ## Returns the box (world px, whole numbers).
 static func place(size: Vector2, pref: Vector2, own: Dictionary, units: Array, placed: Array,
 		blocked: Array, field: Rect2) -> Rect2:
+	# a coarse pass (2 px sideways steps); only when it finds no legal box, a fine pass
+	var r := _place(size, pref, own, units, placed, blocked, field, 2.0)
+	if last_fallback:
+		# legality only: the coarse pass's least-bad box stands if the fine one finds nothing
+		var r2 := _place(size, pref, own, units, placed, blocked, field, 1.0)
+		if not last_fallback:
+			return r2
+		last_fallback = true
+	return r
+
+
+static func _place(size: Vector2, pref: Vector2, own: Dictionary, units: Array, placed: Array,
+		blocked: Array, field: Rect2, step: float) -> Rect2:
 	var body: Rect2 = own.get("body", Rect2(pref.x - 11.0, pref.y, 22.0, 40.0))
 	var bar: Rect2 = own.get("bar", Rect2())
 	var uid := int(own.get("uid", -1))
@@ -75,41 +88,57 @@ static func place(size: Vector2, pref: Vector2, own: Dictionary, units: Array, p
 	var best_cost := INF
 	var fb := Rect2()
 	var fb_cost := INF
-	var xs := _steps(px, x_lo, x_hi)
-	var y := floorf(y_top)
-	while y <= y_bot + 0.01:
-		var dy := y - pref.y
-		var cy := (dy * W_DOWN) if dy >= 0.0 else (-dy * W_UP)
+	var xs := _steps(px, x_lo, x_hi, step)
+	var geo := _prep(own, others, 1.0)
+	# rows in order of their cost (down is cheaper than up), and in each row the x steps nearest
+	# first, so the search stops at the first legal box it can't beat
+	var ys: Array[float] = []
+	var yy := floorf(y_top)
+	while yy <= y_bot + 0.01:
+		if step < 1.5 or int(yy - floorf(pref.y)) % 2 == 0:   # the coarse pass takes every other row
+			ys.append(yy)
+		yy += 1.0
+	ys.sort_custom(func(a: float, b: float) -> bool: return _ycost(a - pref.y) < _ycost(b - pref.y))
+	for y: float in ys:
+		var cy := _ycost(y - pref.y)
 		if cy >= best_cost:
-			y += 1.0
-			continue
+			break
 		for x: float in xs:
 			var cost := cy + absf(x - pref.x) * W_SIDE
 			if cost >= best_cost:
-				continue
+				break
 			var box := Rect2(roundf(x - size.x * 0.5), y - size.y, size.x, size.y)
 			var ov := overlap(box, placed, blocked, field)
-			if ov <= 0.0 and nearest_is_own(box, own, others):
-				# legal; covering a neighbour's sprite or bar is allowed but costs a little, so a
-				# clear spot near the head wins over an equal one on a neighbour
-				cost += sprite_overlap(box, others) * W_SPRITE
-				if cost < best_cost:
-					best = box
-					best_cost = cost
-			elif best_cost == INF:
-				var c2 := ov * 100.0 + cost + (0.0 if nearest_is_own(box, own, others) else 5000.0 + misattribution(box, own, others) * 50.0)
+			var mis := -1.0   # attribution miss, measured once per candidate and only when needed
+			if ov <= 0.0:
+				mis = _miss(box.get_center(), geo)
+				if mis <= 0.0:
+					# legal; covering a neighbour's sprite or bar is allowed but costs a little, so a
+					# clear spot near the head wins over an equal one on a neighbour
+					cost += sprite_overlap(box, others) * W_SPRITE
+					if cost < best_cost:
+						best = box
+						best_cost = cost
+					continue
+			if best_cost == INF and step > 1.5:
+				if mis < 0.0:
+					mis = _miss(box.get_center(), geo)
+				var c2 := ov * 100.0 + cost + (0.0 if mis <= 0.0 else 5000.0 + mis * 50.0)
 				if c2 < fb_cost:
 					fb_cost = c2
 					fb = box
-		y += 1.0
 	last_fallback = best_cost == INF
 	if best_cost < INF:
 		return best
 	return fb
 
 
-## Sideways candidates, nearest the preferred x first.
-static func _steps(px: float, lo: float, hi: float) -> Array[float]:
+static func _ycost(dy: float) -> float:
+	return (dy * W_DOWN) if dy >= 0.0 else (-dy * W_UP)
+
+
+## Sideways candidates, nearest the preferred x first (then the span's two ends).
+static func _steps(px: float, lo: float, hi: float, step := 1.0) -> Array[float]:
 	var out: Array[float] = [px]
 	var k := 1.0
 	while px - k >= lo - 0.01 or px + k <= hi + 0.01:
@@ -117,7 +146,10 @@ static func _steps(px: float, lo: float, hi: float) -> Array[float]:
 			out.append(px + k)
 		if px - k >= lo - 0.01:
 			out.append(px - k)
-		k += 1.0
+		k += step
+	for e: float in [hi, lo]:
+		if absf(e - px) > 0.01 and not out.has(e):
+			out.append(e)
 	return out
 
 
@@ -167,23 +199,47 @@ static func nearest_is_own(box: Rect2, own: Dictionary, others: Array, k := 1.0)
 ## How far (world px) the box's centre misses the attribution rule (0 = attributed to its own unit).
 ## `k` scales the knock-back slack (1 when placing; 0 when checking what is drawn now).
 static func misattribution(box: Rect2, own: Dictionary, others: Array, k := 1.0) -> float:
-	var c := box.get_center()
-	# its own unit may be knocked away from the label too (and fall in its KO frames)
-	var od := dist(c, own.get("body", Rect2())) + KNOCK * k
-	var oh := c.distance_to(_head(own)) + KNOCK * k
-	var miss := 0.0
+	return _miss(box.get_center(), _prep(own, others, k))
+
+
+## The attribution geometry flattened once per placement: [own body, own head, slack,
+## PackedFloat32Array of other rects (x0, y0, x1, y1, grown by the knock slack), PackedVector2Array
+## of their head points]. The solver tests ~2000 candidates against it.
+static func _prep(own: Dictionary, others: Array, k: float) -> Array:
+	var sl := KNOCK * k
+	var rr := PackedFloat32Array()
+	var hh := PackedVector2Array()
 	for u: Dictionary in others:
-		var rects: Array = [u.get("body", Rect2())]
+		var b0: Rect2 = u.get("body", Rect2())
+		var rects: Array = [b0]
 		rects.append_array(u.get("also", []))
 		for r: Rect2 in rects:
 			if not r.has_area():
 				continue
-			var d := dist(c, r.grow_individual(KNOCK * k, KNOCK * k * 0.4, KNOCK * k, 0.0))
-			if d <= od:
-				miss = maxf(miss, od - d + 0.5)
-			var hd := maxf(0.0, c.distance_to(head_of(r) if r != u.get("body", Rect2()) else _head(u)) - KNOCK * k)
-			if oh > hd * HEAD_RATIO:
-				miss = maxf(miss, oh - hd * HEAD_RATIO)
+			rr.append(r.position.x - sl)
+			rr.append(r.position.y - sl * 0.4)
+			rr.append(r.end.x + sl)
+			rr.append(r.end.y)
+			hh.append(_head(u) if r == b0 else head_of(r))
+	return [own.get("body", Rect2()), _head(own), sl, rr, hh]
+
+
+static func _miss(c: Vector2, g: Array) -> float:
+	var sl: float = g[2]
+	var od := dist(c, g[0]) + sl
+	var oh := c.distance_to(g[1]) + sl
+	var rr: PackedFloat32Array = g[3]
+	var hh: PackedVector2Array = g[4]
+	var miss := 0.0
+	for i in hh.size():
+		var dx := maxf(0.0, maxf(rr[i * 4] - c.x, c.x - rr[i * 4 + 2]))
+		var dy := maxf(0.0, maxf(rr[i * 4 + 1] - c.y, c.y - rr[i * 4 + 3]))
+		var d := sqrt(dx * dx + dy * dy)
+		if d <= od:
+			miss = maxf(miss, od - d + 0.5)
+		var hd := maxf(0.0, c.distance_to(hh[i]) - sl) * HEAD_RATIO
+		if oh > hd:
+			miss = maxf(miss, oh - hd)
 	return miss
 
 
