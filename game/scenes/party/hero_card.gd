@@ -53,6 +53,8 @@ const PIP_STEP := 16
 var _pip_tips: Array[Control] = []
 var _taken_tips: Array[Control] = []
 var _ability_tip: Control
+var level_tip: Control   # the Lv field's tooltip: what a level gives
+var stats_tip: Control   # the stats block's: the green "+n" is the next level's gain
 var _equip_chips: Array[EffectChip] = []
 
 
@@ -131,7 +133,22 @@ func _build_tips() -> void:
 		Tip.detach(_class_tip)
 		_class_tip.queue_free()
 		_class_tip = null
+	for c in [level_tip, stats_tip]:
+		if c != null:
+			Tip.detach(c)
+			c.queue_free()
 	var x := 94
+	# the level and the stats explain what a level gives (playtest: "Does each hero level give bonus
+	# stats? we should make it more clear")
+	var lv := int(hero.get("level", 1))
+	var g := PartyModel.level_gain(hero)
+	var next := ("Next level (Lv %d): %s." % [lv + 1, PartyModel.gain_words(g, ", ")]) if not g.is_empty() \
+		else "Lv %d is the max level for its class%s." % [lv, ": Awaken to grow" if PartyModel.tier(hero) == "base" else ""]
+	level_tip = _tip_area(Rect2(x, PIP_Y - 2, W - x - 6, 14))
+	Tip.attach(level_tip, "Level %d of %d" % [lv, PartyModel.max_level(hero)], PartyModel.level_tip(hero) + " " + next, Pal.LIFE4)
+	stats_tip = _tip_area(Rect2(6, STATS_Y - 2, W - 12, 3 * STAT_ROW + 2))
+	Tip.attach(stats_tip, "Stats", ("Class stats at this level plus equipment. Green: what the next level adds. " if not g.is_empty()
+		else "Class stats at this level plus equipment. ") + next, Pal.LIFE4)
 	var th := PartyModel.threshold()
 	var n := PartyModel.memory_count(hero)
 	var base_tier := PartyModel.tier(hero) == "base"
@@ -308,6 +325,7 @@ func _draw_identity() -> void:
 	# level (an advanced class adds its stars); the memories row under it is the trail of arrows
 	var lv := int(hero.get("level", 1))
 	PartyDraw.text(self, Vector2(x, PIP_Y), "Lv %d/%d" % [lv, PartyModel.max_level(hero)], Pal.INK10, PartyDraw.BOLD)
+	var lx := x + LV_W
 	if tier != "base":
 		var gx := x + LV_W
 		for i in PartyModel.max_level(hero):
@@ -315,6 +333,17 @@ func _draw_identity() -> void:
 			PartyDraw.inset(self, well)
 			if i < lv:
 				PartyDraw.tint_tex(self, preload("res://ui/icons/star.png"), well.position + Vector2(2, 2), Pal.AMBER6, false)
+		lx = gx + PartyModel.max_level(hero) * 12 + 2
+	# the key to the green "+n" beside the stats: a green up-arrow and "next Lv" (its tooltip says it all)
+	if not PartyModel.level_gain(hero).is_empty():
+		var key := "next Lv"
+		if lx + 10 + PartyDraw.text_w(key, PartyDraw.BOLD) > W - 6:
+			key = ""
+		PartyDraw.tint_tex(self, preload("res://ui/icons/arrow2_up.png"), Vector2(lx, PIP_Y + 2), Pal.LIFE4)
+		if key != "":
+			PartyDraw.text(self, Vector2(lx + 9, PIP_Y), key, Pal.LIFE4, PartyDraw.BOLD)
+	if level_tip != null and Tip.is_open_for(level_tip):
+		PartyDraw.soft_outline(self, Rect2(x - 2, PIP_Y - 2, W - x - 4, 14), Pal.LIFE4)
 	_draw_taken(x, TAKEN_Y)
 	if tier == "base" and PartyModel.ready_to_advance(hero):
 		if hero.get("held_back", false):
@@ -392,6 +421,11 @@ func _draw_stats(y: int) -> void:
 	# two aligned columns of label / value rows, one face, one row pitch (hires-ui r7, after Sea of
 	# Stars' equipment screen): stat icon and muted label left, bright value right-aligned
 	var st := PartyModel.stats(hero)
+	# the next level's gain sits in green right of each value that grows ("142 +10")
+	var g := PartyModel.level_gain(hero)
+	var gw := 0
+	for k: String in g:
+		gw = maxi(gw, PartyDraw.text_w("%+d" % int(g[k]), PartyDraw.BOLD))
 	var colw := floori((W - 16 - 14) / 2.0)
 	var cols := [["hp", "atk", "def"], ["mag", "spd", "row"]]
 	var pref := int(GameData.get_class_def(PartyModel.base_class(hero)).get("preferred_col", 0))
@@ -405,7 +439,10 @@ func _draw_stats(y: int) -> void:
 			if k != "row":
 				PartyDraw.tint_tex(self, ICONS[k], Vector2(x0, ry + 2), STAT_COLORS[k], false)
 			PartyDraw.text(self, Vector2(x0 + 11, ry), lab, Pal.INK8, PartyDraw.BOLD)
-			PartyDraw.text(self, Vector2(x0, ry), val, Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, colw, HORIZONTAL_ALIGNMENT_RIGHT)
+			var vw := colw - (gw + 3 if gw > 0 else 0)
+			PartyDraw.text(self, Vector2(x0, ry), val, Pal.INK10, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, vw, HORIZONTAL_ALIGNMENT_RIGHT)
+			if g.has(k):
+				PartyDraw.text(self, Vector2(x0, ry), "%+d" % int(g[k]), Pal.LIFE4, PartyDraw.BOLD, PartyDraw.SANS_SIZE, true, colw, HORIZONTAL_ALIGNMENT_RIGHT)
 	draw_rect(Rect2(8, y + 3 * STAT_ROW + 1, W - 16, 1), Pal.INK3)
 
 

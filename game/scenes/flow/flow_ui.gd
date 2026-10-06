@@ -78,6 +78,34 @@ static func hbox(sep := 4) -> HBoxContainer:
 	return h
 
 
+## A centred line "<lead> · HP +10 · Mag +2": the lead in `lead_color`, the stat gains in green
+## (Pal.LIFE4, the advancement card's colour for a gain). Wider than `w`, the gains drop to a
+## second centred line. Its `text` meta holds the whole line (tests).
+static func gain_line(lead: String, lead_color: Color, gains: Dictionary, w: float, sep := " · ") -> Control:
+	var words := PartyModel.gain_words(gains)
+	var v := vbox(0)
+	v.custom_minimum_size.x = w
+	v.set_meta("text", lead + (sep + words if words != "" else ""))
+	if words == "" or UIText.width(lead + sep + words, UIText.BOLD, UIText.BODY) > w:
+		# two lines: a ":" separator stays on the lead ("Level 3 gives Wren:")
+		var head := lead + (":" if sep.strip_edges() == ":" and words != "" else "")
+		for pair: Array in [[head, lead_color], [words, Pal.LIFE4]]:
+			if String(pair[0]) == "":
+				continue
+			var l := label(String(pair[0]), &"GoldLabel", pair[1], w, HORIZONTAL_ALIGNMENT_CENTER)
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			v.add_child(l)
+		return v
+	var h := hbox(0)
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	h.custom_minimum_size.x = w
+	h.add_child(label(lead, &"GoldLabel", lead_color))
+	h.add_child(label(sep, &"GoldLabel", Pal.INK8))
+	h.add_child(label(words, &"GoldLabel", Pal.LIFE4))
+	v.add_child(h)
+	return v
+
+
 static func margin(child: Control, m := 8) -> MarginContainer:
 	var c := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
