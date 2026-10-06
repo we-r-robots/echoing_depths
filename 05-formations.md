@@ -7,7 +7,7 @@
 - **Every formation gives a stat bonus and a behaviour.** The behaviour must only make sense in that geometry. For example, no "protect the back row" when everyone stands in front.
 - **Every formation has a cost.** It's either a debuff or a weakness that follows from the shape.
 - **Every behaviour is visible.** When a behaviour fires, the battle shows it on the board (the rule in "Spec non-negotiables").
-- **Shapes must be edge-connected.** Heroes placed so that **no two stand side by side** form **Strays**, a real formation of its own (see below). A placement that is partly connected but is no shape (e.g. two side by side plus one apart) is **Unformed**: no bonus, no cost.
+- **Shapes must be edge-connected.** Heroes placed so that **no two stand side by side** form **Strays**, a real formation of its own (see below). A placement that is partly connected but is no single shape is split into its **connected parts**, and **every part that forms a shape counts** (user decision 2026-10-06, replacing Unformed-gets-nothing): e.g. two separate side-by-side pairs give two 2-hero formations, each with its own bonus and behaviour applied to its own heroes. A part that is no shape falls back to its largest unlocked shape inside it; heroes in no counting shape get nothing. Only a party with no shape anywhere is **Unformed**.
 - **Names loosely follow the lore:** the tide of the Fading, the lantern and its Keeper, the Lumari, and memory and echoes.
 
 ## Grid Reminder
@@ -66,7 +66,7 @@ Any shape can be formed from the first run, but a shape's bonus and behaviour on
 - Legendary uses a rising chance.
 - Names loosely follow the lore.
 - An opponent's formation is hidden until the fight starts (to revisit through playtesting).
-- Strays require heroes spread out (no two side by side) and are their own formation. Partly connected placements are Unformed (no bonus, no cost). A locked shape falls back to its largest unlocked smaller shape, else Unformed (user decision 2026-10-05).
+- Strays require heroes spread out (no two side by side) and are their own formation. Partly connected placements: every connected part that forms a shape counts on its own heroes (user decision 2026-10-06). A locked shape falls back to its largest unlocked smaller shape, else Unformed (user decision 2026-10-05).
 - The Training Grounds unlocks formation bonuses. Drills were dropped as too much to track.
 - The legend's-memory numbers stand as drafted for now (8%, +8% per node, 60% cap).
 - Strays' bonus doesn't scale.

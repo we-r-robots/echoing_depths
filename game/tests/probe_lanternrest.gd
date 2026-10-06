@@ -1,10 +1,11 @@
 extends Node
-## Probe (run by tests/run_all.gd over frames, so containers lay out and _draw runs): Lanternrest
-## at 1920x1080 and 2340x1080 (19.5:9). With the camera at the west edge, the lantern and the east
-## edge, every name plate stays on screen, under the top bar and clear of the other plates; every
-## panel (the Lantern, the Vault entrance with and without a saved run, the Training Grounds with a
-## shape picked, an empty plot, the mist, the first-visit identity) lies on screen under the top
-## bar, and each of its one-line texts fits its box and stays inside the panel.
+## Probe (run by tests/run_all.gd over frames, so containers lay out and _draw runs): the Lanternrest
+## town at 1920x1080 and 2340x1080 (19.5:9). With the camera at the opening view, each corner and
+## each edge, and every place hovered in turn, every signboard stays on screen, under the top bar
+## and clear of the other signs; edge cues stay off places. Every panel (the Lantern, the Vault
+## entrance with and without a saved run, the Training Grounds with a shape picked, empty plots, the
+## mist on each side, the first-visit identity) lies on screen under the top bar, beside its place
+## and never over it, and each of its one-line texts fits its box and stays inside the panel.
 
 var failures: Array = []
 var asserts := 0
@@ -36,13 +37,20 @@ func _run() -> void:
 		add_child(s)
 		await _frames(2)
 		var tag := "%dx%d" % [res.x, res.y]
-		for c in [0.0, 640.0, 1e9]:
-			s.set_cam(Village.cam_for(c, s.view_w()) if c < 1e8 else 1e9)
+		var view := s.view_size()
+		var maxc := Village.clamp_cam(Vector2(INF, INF), view)
+		var cams := [s.start_cam(), Vector2.ZERO, maxc, Vector2(maxc.x, 0), Vector2(0, maxc.y),
+			Vector2(maxc.x / 2, 0), Vector2(maxc.x / 2, maxc.y), Vector2(0, maxc.y / 2), Vector2(maxc.x, maxc.y / 2)]
+		for c: Vector2 in cams:
+			s.set_cam(c)
+			s.hovered = ""
+			_check_plates(s, "%s cam %s" % [tag, s.cam])
 			for id in s.visible_ids:
 				s.hovered = id
-				_check_plates(s, "%s cam %d hover %s" % [tag, s.cam, id])
+				_check_plates(s, "%s cam %s hover %s" % [tag, s.cam, id])
 		s.hovered = ""
-		for which in ["lantern", "vault", "vault_saved", "grounds", "plot_w2", "fog_east", "identity"]:
+		for which in ["lantern", "vault", "vault_saved", "grounds", "plot_w1", "plot_w2", "plot_e2", "plot_s1",
+				"fog_east", "fog_west", "fog_north", "fog_south", "identity"]:
 			var id: String = which.trim_suffix("_saved")
 			s._demo_args.erase("saved")
 			if which == "vault_saved":
@@ -56,7 +64,10 @@ func _run() -> void:
 			if s.panel is VaultPanel and which == "vault_saved":
 				(s.panel as VaultPanel).new_descent()
 			await _frames(3)
-			_check_panel(s, "%s %s" % [tag, which])
+			s._place_panel()
+			s.finish_camera()
+			await _frames(1)
+			_check_panel(s, "%s %s" % [tag, which], "lantern" if id == "identity" else id)
 			s.close_panel()
 		remove_child(s)
 		s.free()
@@ -67,23 +78,22 @@ func _run() -> void:
 func _check_plates(s: LanternrestScreen, at: String) -> void:
 	var vr := s.get_viewport_rect()
 	var rects := {}
+	var unseen := Village.unseen(GameState.meta)
 	for id in s.shown_plates():
-		var r := s.plate_rect(id)
-		# only plates whose place is on screen matter
-		var z := (s.places[id] as VillagePlace).world_zone()
-		var sx := s.to_screen(z.position).x
-		if sx + z.size.x < 0 or sx > vr.size.x:
-			continue
+		var r := s.plate_rect(id, unseen.has(id))
 		rects[id] = r
-		check(vr.encloses(r), "%s: %s plate %s on screen" % [at, id, r])
-		check(r.position.y >= LanternrestScreen.TOP, "%s: %s plate under the top bar" % [at, id])
+		check(vr.encloses(r), "%s: %s sign %s on screen" % [at, id, r])
+		check(r.position.y >= LanternrestScreen.TOP, "%s: %s sign under the top bar" % [at, id])
 	var ids := rects.keys()
 	for i in ids.size():
 		for j in range(i + 1, ids.size()):
-			check(not (rects[ids[i]] as Rect2).intersects(rects[ids[j]]), "%s: plates %s and %s overlap" % [at, ids[i], ids[j]])
+			check(not (rects[ids[i]] as Rect2).intersects(rects[ids[j]]), "%s: signs %s and %s overlap" % [at, ids[i], ids[j]])
+	for c: Dictionary in s.cue_rects():
+		for id in s.visible_ids:
+			check(not (c["rect"] as Rect2).intersects(s.zone_on_screen(id)), "%s: a cue sits on %s" % [at, id])
 
 
-func _check_panel(s: LanternrestScreen, at: String) -> void:
+func _check_panel(s: LanternrestScreen, at: String, place: String) -> void:
 	check(s.panel != null, "%s: a panel is open" % at)
 	if s.panel == null:
 		return
@@ -91,6 +101,9 @@ func _check_panel(s: LanternrestScreen, at: String) -> void:
 	var pr := s.panel.get_global_rect()
 	check(vr.encloses(pr), "%s: panel %s on screen" % [at, pr])
 	check(pr.position.y >= LanternrestScreen.TOP, "%s: panel under the top bar" % at)
+	var zs := s.zone_on_screen(place)
+	check(not pr.intersects(zs), "%s: panel %s covers its place %s" % [at, pr, zs])
+	check(Rect2(Vector2(0, LanternrestScreen.TOP), vr.size).intersects(zs), "%s: its place stays in view" % at)
 	_check_texts(s.panel, pr, at)
 
 

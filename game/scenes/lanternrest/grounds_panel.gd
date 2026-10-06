@@ -4,12 +4,16 @@ extends VillagePanel
 ## following Formations.UNLOCK_TREE (a shape grows from one you know). Saves at once (GameState).
 
 const GameData = preload("res://core/game_data.gd")
-## Shape tiles: 3 columns of icon + name (the longest name, "Lumari Chorus", is 66 design px).
-const TILE := Vector2(94, 32)
+## Shape tiles: 3 columns of icon + name, and under the name the shape's state: a check and
+## "Learned", its Shard price when it can be learned now, or (dimmed) a lock and the shape it grows
+## from (GameState.shape_parents). One lock style. The longest name, "Lumari Chorus", is 66 px.
+const TILE := Vector2(94, 34)
 const TILE_COLS := 3
 const TILE_PAD := 8          # every name keeps at least this much room to the tile's edges
 const TILE_ICON_PX := 4      # shape icon cell size; a 4-tall shape is 19 px, centred in the tile
 const TILE_TEXT_X := 20      # names start here, right of the icon column
+const STATUS_ICON := 11      # the check / lock before the status line
+const LOCK := preload("res://ui/effect_icons/lock.png")
 const GROUNDS_W := 290       # TILE_COLS * TILE.x + 2 * 4
 
 var _sel_shape := ""
@@ -25,11 +29,11 @@ func _init() -> void:
 
 
 func _build() -> void:
-	body.add_child(FlowUI.para("A shape's bonus and behaviour work in your runs once it is learned here. New shapes grow from ones you know.", GROUNDS_W, Pal.INK9))
+	body.add_child(FlowUI.para("Learn shapes with Shards. New ones grow from shapes you know.", GROUNDS_W, Pal.INK9))
 	var grid := GridContainer.new()
 	grid.columns = TILE_COLS
 	grid.add_theme_constant_override("h_separation", 4)
-	grid.add_theme_constant_override("v_separation", 4)
+	grid.add_theme_constant_override("v_separation", 3)
 	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for s: Dictionary in GameData.Formations.SHAPES:
 		var id := String(s["id"])
@@ -50,22 +54,55 @@ func _shape_tile(s: Dictionary) -> Button:
 	b.pressed.connect(select_shape.bind(id))
 	var nm := FlowUI.label(String(s["name"]), &"HeaderLabel", null, TILE.x - TILE_TEXT_X - TILE_PAD)
 	nm.name = "Name"
-	nm.position = Vector2(TILE_TEXT_X, 0)
-	nm.size = Vector2(TILE.x - TILE_TEXT_X - TILE_PAD, TILE.y)
+	nm.position = Vector2(TILE_TEXT_X, 1)
+	nm.size = Vector2(TILE.x - TILE_TEXT_X - TILE_PAD, 16)
 	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	b.add_child(nm)
+	var st := FlowUI.label("", &"MutedLabel", null, TILE.x - TILE_TEXT_X - TILE_PAD - STATUS_ICON)
+	st.name = "Status"
+	st.position = Vector2(TILE_TEXT_X + STATUS_ICON, 17)
+	st.size = Vector2(TILE.x - TILE_TEXT_X - TILE_PAD - STATUS_ICON, 15)
+	st.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	b.add_child(st)
 	b.draw.connect(func() -> void:
-		var known := GameState.is_shape_unlocked(id)
-		var avail := GameState.shape_available(id)
-		var fill := Pal.AMBER5 if known else (Pal.CRYSTAL4 if avail else Pal.INK6)
+		var state := shape_state(id)
+		var fill := Pal.AMBER5 if state == "learned" else (Pal.CRYSTAL4 if state == "learnable" else Pal.INK6)
 		FormationWords.draw_shape_glyph(b, shape_icon_pos(s), s, TILE_ICON_PX, fill, Pal.INK3)
-		if not known:
-			# a corner badge on the tile's top-right edge, clear of the name
-			var lock := preload("res://ui/effect_icons/lock.png")
-			b.draw_texture(lock, Vector2(TILE.x - 7, -3), Pal.CRYSTAL4 if avail else Pal.INK6)
+		var ic := Vector2(TILE_TEXT_X, 20)
+		if state == "learned":
+			# a check mark
+			for k in 3:
+				b.draw_rect(Rect2(ic + Vector2(k, 4 + k), Vector2(1, 1)), Pal.AMBER6)
+			for k in 5:
+				b.draw_rect(Rect2(ic + Vector2(3 + k, 5 - k), Vector2(1, 1)), Pal.AMBER6)
+		elif state == "locked":
+			b.draw_texture(LOCK, ic, Pal.INK8)
+			# dimmed: the tile sits back until the shape it grows from is learned
+			b.draw_rect(Rect2(Vector2(1, 1), TILE - Vector2(2, 2)), Color(Pal.INK1, 0.35))
 		if id == _sel_shape:
 			b.draw_rect(Rect2(Vector2.ZERO, TILE), Pal.AMBER6, false, 1.0))
 	return b
+
+
+## "learned", "learnable" (it grows from a known shape) or "locked".
+static func shape_state(id: String) -> String:
+	if GameState.is_shape_unlocked(id):
+		return "learned"
+	return "learnable" if GameState.shape_available(id) else "locked"
+
+
+## The tile's second line: "Learned", the price, or the shape it grows from.
+static func status_text(id: String) -> String:
+	match shape_state(id):
+		"learned":
+			return "Learned"
+		"learnable":
+			var cost := GameState.shape_cost(id)
+			return "%d Shard%s" % [cost, "" if cost == 1 else "s"]
+	var parents := GameState.shape_parents(id)
+	if parents.is_empty():
+		return ""
+	return String(FormationWords.shape_by_id(parents[0]).get("name", parents[0]))
 
 
 ## Top-left of a shape's icon inside its tile: centred vertically, in a fixed icon column.
@@ -107,7 +144,13 @@ func unlock_selected() -> void:
 
 func refresh() -> void:
 	for id: String in _shape_tiles:
-		(_shape_tiles[id] as Control).queue_redraw()
+		var t := _shape_tiles[id] as Control
+		var st := t.get_node("Status") as Label
+		st.text = status_text(id)
+		var state := shape_state(id)
+		st.add_theme_color_override("font_color", UIText.legible(Pal.AMBER6 if state == "learned" else (Pal.CRYSTAL5 if state == "learnable" else Pal.INK8)))
+		(t.get_node("Name") as Label).add_theme_color_override("font_color", UIText.legible(Pal.INK8) if state == "locked" else UIText.legible(Pal.INK10))
+		t.queue_redraw()
 	for c: Node in _detail.get_children():
 		c.queue_free()
 	if _sel_shape == "":

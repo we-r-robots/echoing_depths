@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://5xms2qh2botp"
-path="res://.godot/imported/fog_west.png-eae1551a8e061adbd2fadb1de56d5a37.ctex"
+uid="uid://cahsrufphp1uo"
+path="res://.godot/imported/glow_window.png-93cde54328c5c298148eb84c5b22d84e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/lanternrest/fog_west.png"
-dest_files=["res://.godot/imported/fog_west.png-eae1551a8e061adbd2fadb1de56d5a37.ctex"]
+source_file="res://assets/lanternrest/glow_window.png"
+dest_files=["res://.godot/imported/glow_window.png-93cde54328c5c298148eb84c5b22d84e.ctex"]
 
 [params]
 
