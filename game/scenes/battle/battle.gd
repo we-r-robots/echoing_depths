@@ -24,6 +24,7 @@ const Echo = preload("res://core/echo.gd")
 const Layout = preload("res://scenes/battle/battle_layout.gd")
 const Demo = preload("res://scenes/battle/battle_demo.gd")
 const Unit = preload("res://scenes/battle/battle_unit.gd")
+const LabelLayout = preload("res://scenes/battle/label_layout.gd")
 const META_PATH := "res://assets/sprites/sprite_meta.json"
 
 const DEMO_PVP_SEED := 34
@@ -33,6 +34,21 @@ const DEMO_MONSTER_DEPTH := 3
 const DEMO_PVP_OPTIONS := {"tuning": {"sudden_death_start_ms": 18000, "sudden_death_hp_pct_per_tick": 0.03, "sudden_death_dmg_mult_per_tick": 0.12}}
 
 const SPEEDS: Array[float] = [1.0, 2.0, 4.0]
+## Hit-stop on impact (frames at 60 fps), per Battle Effects level [Low, Medium, High]: the attacker
+## and the victim hold their impact pose, then the field shakes. "big" = a crit, a KO or an
+## ability's first blow. Tunable here (critic r10 fix 3).
+const HITSTOP_FRAMES := {"hit": [2, 3, 3], "big": [4, 6, 8]}
+## Shake after the hit-stop (world px amplitude), per level: normal hits barely move the field.
+const SHAKE_AFTER := {"hit": [0.5, 1.0, 1.5], "big": [2.0, 3.0, 4.0]}
+## A melee lunge stops this fraction of the victim's body width short of it (critic r10 fix 2).
+const LUNGE_GAP := 0.34
+## Sim seconds a struck victim draws above everyone (impact frames); a falling unit through its KO.
+const VICTIM_TOP := 0.32
+const KO_TOP := 1.0
+## The deciding blow gets a beat before the result card: the field plays on at FINAL_SLOW speed for
+## FINAL_HOLD seconds with the last KO's number up, then the band comes in (critic r10 fix 4).
+const FINAL_HOLD := 0.6
+const FINAL_SLOW := 0.35
 const INTRO_LEN := 2.6
 const ABILITY_FREEZE := 0.3
 const SHADOWS := {"s": preload("res://assets/sprites/env/shadow_s.png"),
@@ -98,11 +114,16 @@ var _ev_i := 0
 var _speed_i := 0
 var _freeze := 0.0
 var _freeze_actor := -1
+var _freeze_hard := false   # a hit-stop: everyone holds (the victim's hit pose too)
+var _shake_after := 0.0     # shake queued to start when the hit-stop ends
 var _shake := 0.0
 var _shake_t := 0.0
 var _cam_off := Vector2.ZERO
 var _intro_t := 0.0
 var _end_t := 0.0
+var _end_hold := 0.0         # the beat on the final KO before the result card
+var _end_ev: Dictionary = {}
+var end_clock := -1.0        # the fight's end time (the HUD clock stops there)
 var _emitted := false
 var _meta: Dictionary
 var _fill := 0.0007
@@ -128,6 +149,7 @@ var _ko_settle := 0.0
 var _cam_push := Vector2.ZERO
 var _num_max_dist := 0.0
 var _hits_in_action := 0
+var _cur_multi := false      # the current action strikes more than one unit (Cleave, Firestorm)
 var _split_tags := 0
 var _stale_seen := 0
 # frame-time probe (user arg --perf): wall-clock usec per frame, reported at the end of the fight
@@ -293,6 +315,7 @@ func skip() -> void:
 	_instant = false
 	fx.clear_all()
 	_freeze = 0.0
+	_shake_after = 0.0
 	for u in units:
 		u.plan_move(Unit.Move.STAY, sim_t, sim_t, sim_t, sim_t, u.home)
 
@@ -313,6 +336,8 @@ func _clear() -> void:
 	_fade_target = 0.0
 	fade_level = 0.0
 	hud.fading_tick = 0
+	_end_hold = 0.0
+	end_clock = -1.0
 
 
 # ---------------------------------------------------------------------------------------- frame
@@ -335,6 +360,9 @@ func _process(delta: float) -> void:
 	var frozen := _freeze > 0.0
 	if frozen:
 		_freeze -= vdt
+	elif _shake_after > 0.0:
+		shake(_shake_after)
+		_shake_after = 0.0
 	match _state:
 		State.INTRO:
 			_intro_t += vdt
@@ -363,7 +391,15 @@ func _process(delta: float) -> void:
 					if _state != State.PLAY:
 						break
 		State.END:
-			_end_t += delta
+			if _end_hold > 0.0:
+				# the beat on the deciding blow: the field plays on in slow motion, the number stays up
+				_end_hold -= delta
+				sim_t += vdt * FINAL_SLOW
+				if _end_hold <= 0.0:
+					_begin_result()
+			else:
+				sim_t += vdt   # the last attacker walks home under the card
+			_end_t += delta if _end_hold <= 0.0 else 0.0
 			if _end_t > 3.5 and _emitted and _demo_running:
 				_end_t = 0.0
 				play_result(result, _display)   # demo: loop the fight
@@ -375,7 +411,7 @@ func _process(delta: float) -> void:
 	# units
 	for u in units:
 		var us := speed
-		if frozen and u.uid != _freeze_actor and u.spr.animation != &"hit":
+		if frozen and u.uid != _freeze_actor and (_freeze_hard or u.spr.animation != &"hit"):
 			us = 0.0   # (a hit reaction keeps playing so no unit freezes on its white hit frame)
 		u.tick(sim_t, 0.0 if (frozen and u.uid != _freeze_actor) else vdt, us, vdt)
 	if not _pending_moves.is_empty() and _focus_end < 0.0 and _freeze <= 0.0 and _vclock > _ko_settle:
@@ -402,6 +438,8 @@ func _process(delta: float) -> void:
 	if fade_rect.visible:
 		(fade_rect.material as ShaderMaterial).set_shader_parameter("level", fade_level)
 	stage.tick(vdt)
+	# effects stay on the battlefield: nothing draws under the roster, caption or banners (fix 5)
+	fx.clip_rects = _hud_world_rects(_world_xf().affine_inverse()) if _state == State.PLAY else []
 	fx.tick(delta * speed, sim_t)
 	plates.tick(vdt, sim_t)
 	hud.tick(vdt)
@@ -483,12 +521,23 @@ func shake(amount: float) -> void:
 	_shake = maxf(_shake, amount)
 
 
-func hitstop(t: float, actor := -1) -> void:
+func hitstop(t: float, actor := -1, hard := false) -> void:
 	if _instant:
 		return
 	if t > _freeze:
 		_freeze = t
 		_freeze_actor = actor
+		_freeze_hard = hard
+
+
+## An impact's hit-stop and the shake after it (HITSTOP_FRAMES / SHAKE_AFTER, by spectacle level).
+func impact(big: bool, extra_shake := 0.0) -> void:
+	if _instant:
+		return
+	var k := "big" if big else "hit"
+	var lv := clampi(spectacle_level, 0, 2)
+	hitstop(float(HITSTOP_FRAMES[k][lv]) / 60.0, -1, true)
+	_shake_after = maxf(_shake_after, float(SHAKE_AFTER[k][lv]) + extra_shake)
 
 
 # ------------------------------------------------------------------------------------- dispatch
@@ -1006,12 +1055,19 @@ func _on_action_start(ev: Dictionary) -> void:
 	var is_ab := String(ev.get("kind", "basic")) == "ability"
 	var aid := String(ev.get("action", ""))
 	var cols := _fx_cols(aid)
-	hud.show_caption(a.uid, String(ev.get("name", aid)), tid if area != "all_allies" else -1, is_ab, area,
-		_extra_targets(tid, a.side) if area == "single" else 0)
+	var extra := _extra_targets(tid, a.side) if area == "single" else 0
+	_cur_multi = area != "single" or extra > 0
+	hud.show_caption(a.uid, String(ev.get("name", aid)), tid if area != "all_allies" else -1, is_ab, area, extra)
 	match anim:
 		"melee", "melee_big", "dash", "slam", "slam_big":
 			if tgt != null:
-				var reach := 48.0 if a.height > 50 or tgt.height > 50 else 30.0
+				# stop short: the attack strip's front edge lands LUNGE_GAP of the victim's width before
+				# its body, so attacker and victim each stay readable (critic r10 fix 2)
+				var tr: Rect2 = tgt.home_rect()
+				var near: float = (tgt.home.x - tr.position.x) if a.side == 0 else (tr.end.x - tgt.home.x)
+				if anim == "dash":
+					near = (tr.end.x - tgt.home.x) if a.side == 0 else (tgt.home.x - tr.position.x)
+				var reach := maxf(48.0 if a.height > 50 or tgt.height > 50 else 30.0, near + tr.size.x * LUNGE_GAP + a.attack_front())
 				var dest := Layout.strike_pos(tgt.home, a.side, reach)
 				if anim == "dash":
 					dest = Layout.strike_pos(tgt.home, 1 - a.side, reach)   # blink in behind the target
@@ -1046,6 +1102,14 @@ func _on_action_start(ev: Dictionary) -> void:
 			fx.light(a.chest(), cols[0], 1, 0.45, maxf(0.3, imp - t0 + 0.2))
 			if tgt != null and tgt != a and anim.begins_with("heal"):
 				fx.trail(a.chest(), tgt.chest(), Pal.LIFE4)
+			if area == "all_enemies" and not anim.begins_with("heal"):
+				# an area spell: one bolt from the caster to each target (critic r10 fix 7)
+				var from3: Vector2 = a.chest() + Vector2(a.facing * 10, -6)
+				var k3 := 0
+				for n in units:
+					if n.alive and n.side == tside:
+						fx.projectile(from3, n.chest(), maxf(t0 + 0.08, imp - 0.24 + 0.03 * k3), imp, cols[0], cols[1], 0, 10.0 + 6.0 * k3)
+						k3 += 1
 			if tgt != null and String(ev.get("area", "single")) == "single" and not anim.begins_with("heal"):
 				var from2: Vector2 = a.chest() + Vector2(a.facing * 10, -6)
 				var kind := 1 if aid == "meteor" else 0
@@ -1077,13 +1141,11 @@ func _ability_shape(aid: String, T, cols: Array) -> void:
 		"cleave", "aegis_strike", "lantern_oath", "rampage", "riposte":
 			# a blade sweep through the target's column, crossing the rows above and below it
 			var c0: Vector2 = T.chest()
+			# one blade line through the struck column (each struck unit gets its own ground ring in
+			# _on_damage); no hoop or slash sprites over the victims (critic r10 fix 7)
 			var d := Vector2(Layout.SKEW, 22.0)
-			fx.sweep(c0 - d * (1.2 + 0.6 * spectacle_level), c0 + d * (1.2 + 0.6 * spectacle_level), cols[0])
-			if spectacle_level > 0:
-				fx.sweep(c0 - d * 1.6 + Vector2(-6, 0), c0 + d * 1.6 + Vector2(6, 0), Pal.INK10)
-				fx.ring(c0, 6, 30 + 16 * spectacle_level, 0.4, cols[0], 1.4)
-			for k in 3:
-				fx.sprite_fx(&"slash", c0 + d * (k - 1), T.facing > 0, Color.WHITE, 1.0)
+			var c1: Vector2 = c0 + Vector2(-T.facing * 10.0, 0.0)   # on the attacker's side of the column
+			fx.sweep(c1 - d * (1.1 + 0.3 * spectacle_level), c1 + d * (1.1 + 0.3 * spectacle_level), cols[0])
 		"mend", "sanctuary":
 			fx.pillar(T.position.x, T.position.y, 14.0 + 8.0 * spectacle_level, 0.7, Pal.LIFE4)
 			fx.ring(T.position, 4, 26, 0.6, Pal.LIFE4, 0.35)
@@ -1104,11 +1166,8 @@ func _big_area(aid: String, side: int, cols: Array) -> void:
 		if u.side != side or not u.alive:
 			continue
 		if aid == "unravel" or aid == "hexfire":
-			for k in 3:   # a spiral: staggered rings winding in
-				fx.ring(u.chest() + Vector2(cos(k * 2.1) * 8.0, sin(k * 2.1) * 4.0), 30 + 14 * lv - k * 8, 2, 0.5 + k * 0.1, cols[k % 2], 0.6)
-		else:
-			fx.ring(u.position, 4, 18, 0.5, cols[0], 0.35)
-	fx.light(Vector2(320.0 + (90.0 if side == 1 else -90.0), 190), cols[1], 4, 0.4 * lv, 0.7)
+			for k in 2:   # a small spiral winding in on each target
+				fx.ring(u.chest() + Vector2(cos(k * 2.1) * 4.0, sin(k * 2.1) * 2.0), 14 + 3 * lv - k * 5, 2, 0.5 + k * 0.1, cols[k % 2], 0.6)
 
 
 func _fx_cols(aid: String) -> Array:
@@ -1139,9 +1198,10 @@ func _on_damage(ev: Dictionary) -> void:
 	var delay := _stagger(dst) + 0.08 * _hits_in_action
 	if kind != "sudden_death":
 		T.hit(dir, amp)
+		T.top_until = maxf(T.top_until, sim_t + VICTIM_TOP)
 		hud.row_flash[dst] = 1.0
 	var c: Vector2 = T.chest()
-	c.x -= 4.0 * float(T.facing)   # on the far side of the target, away from the attacker
+	c.x += 7.0 * float(T.facing)   # on the struck edge (toward the attacker), off the face (fix 7)
 	# impact art
 	if kind == "sudden_death":
 		fx.particles(c, 8, Pal.BLOOD3, 30.0, 10.0, 0.5, 60.0, 1, 2.0)
@@ -1154,43 +1214,43 @@ func _on_damage(ev: Dictionary) -> void:
 		fx.particles(c, 6 + (6 if crit else 0), Pal.AMBER6, 70.0, 10.0, 0.35, 120.0, 1, 1.0)
 		if anim.begins_with("slam"):
 			fx.ring(T.position, 4, 30, 0.4, Pal.INK9, 0.3)
-			shake(2.5)
+			_shake_after = maxf(_shake_after, 2.5)
 	else:
 		if aid == "smite":
 			fx.pillar(c.x, T.position.y, 7.0, 0.35, cols[0])
-		if anim == "cast_big" and String(_cur_action.get("area", "single")) == "all_enemies":
-			fx.ring(T.position, 4, 22, 0.45, cols[1], 0.3)
 		fx.ring(c, 2, 11, 0.3, cols[1].lerp(Color.WHITE, 0.4), 1.0)
 		fx.particles(c, 8 + (6 if crit else 0), cols[1], 55.0, 15.0, 0.45, 40.0, 1, 2.0)
 	if is_ab and not _action_first_hit:
 		_action_first_hit = true
-		shake(3.0 * (1.0 + 0.5 * spectacle_level))
-		hitstop(0.3 + 0.06 * spectacle_level)
+		impact(true, 0.5 * spectacle_level)
 		_cam_push = (T.position - Vector2(320, 180)).normalized() * 3.0
 		_ability_shape(aid, T, cols)
 		if String(_cur_action.get("area", "single")) == "all_enemies":
-			var cx := 320.0 + (60.0 if T.side == 1 else -60.0)
-			var g := 1.0 + 0.6 * spectacle_level
-			fx.ring(Vector2(cx, 185), 6, 70 * g, 0.55, cols[0], 0.45)
-			fx.light(Vector2(cx, 185), cols[0], 2 + spectacle_level, 0.35, 0.6)
+			# no single giant ellipse: each target gets its own ground ring (below) and burst
 			if spectacle_level > 0:
 				_big_area(aid, T.side, cols)
-			for k in 3 + 3 * spectacle_level:
-				fx.particles(Vector2(cx + randf_range(-40, 40), 180 + randf_range(-30, 30)), 14, cols[1], 90.0, 30.0, 0.6, 60.0, 1, 6.0)
+			for n in units:
+				if n.alive and n.side == T.side:
+					fx.particles(n.chest(), 4 + 4 * spectacle_level, cols[1], 70.0, 25.0, 0.5, 60.0, 1, 3.0)
+	# a multi-target blow: a ground ring under each struck unit, so every victim reads on its own cell
+	if _cur_multi and kind != "sudden_death":
+		fx.ring(T.position + Vector2(0, 1), 8, 16 + 2 * spectacle_level, 0.5, cols[0].lerp(Pal.INK10, 0.2), 0.32)
 	if kind == "magic" and String(_cur_action.get("area", "single")) == "single":
 		fx.light(c, cols[0], 1, 0.5, 0.45)
 	elif kind == "physical":
 		fx.light(c, Pal.AMBER5, 1, 0.35 if not crit else 0.6, 0.3)
-	if crit:
-		fx.ring(c, 3, 16, 0.3, Pal.AMBER6, 1.0)
-		hitstop(0.07)
-		shake(3.0)
+	if crit or T.hp <= 0:
+		if crit:
+			fx.ring(c, 3, 16, 0.3, Pal.AMBER6, 1.0)
+		impact(true)
+	elif kind != "sudden_death":
+		impact(false)
 	# number + one primary annotation
 	var row: int = fx.Row.PHYS
 	if kind == "magic":
 		row = fx.Row.MAGIC
 	elif kind == "sudden_death":
-		row = fx.Row.DEATH
+		row = fx.Row.MUTED   # a Fading tick: grey with a mote glyph, never a hit's colour (fix 8)
 	if crit:
 		row = fx.Row.CRIT
 	var note := _annotation(ev)
@@ -1219,7 +1279,7 @@ func _on_damage(ev: Dictionary) -> void:
 			split = ""   # one "halved"/"shared" tag per action; the dashed links mark the rest
 	_layout_ctx()
 	fx.popup(amount, row, dst, 1, false, head, head_col, split, Pal.CRYSTAL5 if split == "halved" else Pal.AMBER6, delay,
-		T.hp <= 0 and not T.is_crystal)
+		T.hp <= 0 and not T.is_crystal, false, kind == "sudden_death")
 	_num_max_dist = maxf(_num_max_dist, fx.LabelLayout.dist(fx.last_box().get_center(), T.body_rect()) * 6.0)
 	var pid := String((ev.get("primary", {}) as Dictionary).get("id", "")) if ev.get("primary", null) is Dictionary else ""
 	if was_split or pid == "share_the_blow" or pid == "brace" or pid == "echo_step":
@@ -1277,13 +1337,13 @@ func _annotation(ev: Dictionary) -> Array:
 		var nm := String(form.get("name", "Formation")).to_upper()
 		return ["%s %+d%%" % [nm, pct], side_colors[clampi(fs2, 0, 1)].lerp(Pal.INK10, 0.25)]
 	if back_t and back_a:
-		return ["Rear 1/4", Pal.INK9]
+		return [fx.REAR_QUARTER, Pal.INK9]
 	if back_t:
-		return ["Rear 1/2", Pal.INK9]
+		return [fx.REAR_HALF, Pal.INK9]
 	if back_a:
-		return ["Rear 1/2", Pal.INK9]
+		return [fx.REAR_HALF, Pal.INK9]
 	if sdm > 1.0:
-		return ["fading ×%.2f" % sdm, Pal.FADE4]
+		return ["Fading ×%.2f" % sdm, Pal.FADE4]
 	return ["", Color.WHITE]
 
 
@@ -1293,10 +1353,10 @@ func _primary_note(p: Dictionary) -> Array:
 		"crit": return ["", Color.WHITE]          # the CRIT! head word already says it
 		"execute": return ["EXECUTE x%.1f" % mult, Pal.BLOOD4]
 		"pierce": return ["pierce", Pal.VIOLET4]
-		"back_row": return ["Rear 1/4" if mult < 0.3 else "Rear 1/2", Pal.INK9]
-		"back_row_both": return ["Rear 1/4", Pal.INK9]
-		"back_row_target": return ["Rear 1/2", Pal.INK9]
-		"back_row_attacker": return ["Rear 1/2", Pal.INK9]
+		"back_row": return [fx.REAR_QUARTER if mult < 0.3 else fx.REAR_HALF, Pal.INK9]
+		"back_row_both": return [fx.REAR_QUARTER, Pal.INK9]
+		"back_row_target": return [fx.REAR_HALF, Pal.INK9]
+		"back_row_attacker": return [fx.REAR_HALF, Pal.INK9]
 		"formation":
 			var fs := clampi(int(p.get("side", 0)), 0, 1)
 			var nm := String(p.get("name", "Formation")).to_upper()
@@ -1308,7 +1368,7 @@ func _primary_note(p: Dictionary) -> Array:
 		"echo_step": return ["halved", Pal.CRYSTAL5]
 		"chorus_splash": return ["Chorus", Pal.VIOLET4]
 		"sudden_death":
-			return ["fading ×%.2f" % mult, Pal.FADE4] if mult > 1.0 else ["", Color.WHITE]
+			return ["Fading ×%.2f" % mult, Pal.FADE4] if mult > 1.0 else ["", Color.WHITE]
 	return ["", Color.WHITE]
 
 
@@ -1386,7 +1446,16 @@ func _layout_ctx(keep := -1) -> void:
 	for u in units:
 		if u == null or not (u.alive or u.uid == keep):
 			continue
-		geo.append({"uid": u.uid, "body": u.body_rect(), "bar": u.plate_rect()})
+		# where the unit is drawn this frame (hit frame, knock-back, lunge), plus its home slot when
+		# it is displaced: it will stand there again while the label is still up
+		var dr: Rect2 = u.drawn_rect()
+		var hr: Rect2 = u.home_rect()
+		var also: Array = []
+		if dr.position.distance_to(hr.position) > 2.0 or (u.acting and u.position.distance_to(u.home) > 2.0):
+			also.append(hr)
+		if u.acting and u.move_dest() != u.home:
+			also.append(Rect2(hr.position + u.move_dest() - u.home, hr.size))   # where its lunge is taking it
+		geo.append({"uid": u.uid, "body": dr, "bar": u.plate_rect(), "head": LabelLayout.head_of(dr), "also": also})
 	fx.units_geo = geo
 	var to_world := _world_xf().affine_inverse()
 	var vis := hud.get_viewport_rect()
@@ -1394,15 +1463,21 @@ func _layout_ctx(keep := -1) -> void:
 	var b: Vector2 = to_world * vis.end
 	var top: float = (to_world * Vector2(0.0, hud.BANNER_H + 4.0)).y
 	fx.field = Rect2(a.x + 2.0, top, b.x - a.x - 4.0, b.y - top)
+	var bl: Array = _hud_world_rects(to_world)
+	# the Crystal's integrity bar is HUD too: no label covers it
+	if crystal_uid >= 0 and crystal_uid < units.size() and units[crystal_uid].alive:
+		bl.append(units[crystal_uid].plate_rect())
+	fx.blocked = bl
+
+
+## The HUD's rects (rosters, caption, banners, badges) in world px.
+func _hud_world_rects(to_world: Transform2D) -> Array:
 	var bl: Array = []
 	for r: Rect2 in hud.blocked_rects():
 		var p0: Vector2 = to_world * r.position
 		var p1: Vector2 = to_world * r.end
 		bl.append(Rect2(p0, p1 - p0))
-	# the Crystal's integrity bar is HUD too: no label covers it
-	if crystal_uid >= 0 and crystal_uid < units.size() and units[crystal_uid].alive:
-		bl.append(units[crystal_uid].plate_rect())
-	fx.blocked = bl
+	return bl
 
 
 ## World -> UI transform from the camera's own settings (the same as the view's canvas transform
@@ -1487,8 +1562,8 @@ func _on_ko(ev: Dictionary) -> void:
 	stage.alive_cells[u.side].erase(Vector2i(u.col, u.row))
 	if _instant:
 		return
-	hitstop(0.12)
-	shake(3.5)
+	u.top_until = maxf(u.top_until, sim_t + KO_TOP)
+	impact(true)
 	fx.particles(u.chest(), 26, Pal.INK10, 80.0, 20.0, 0.7, 80.0, 1, 3.0)
 	fx.particles(u.chest(), 16, u.side_color, 50.0, 30.0, 0.9, 20.0, 2, 3.0)
 	fx.ring(u.chest(), 3, 18, 0.4, Pal.INK10, 1.0)
@@ -1509,6 +1584,7 @@ func _on_sudden_death(ev: Dictionary) -> void:
 	_cur_action = {}
 	_fade_target = minf(1.0, 0.3 + tick * 0.12)
 	hud.fading_tick = tick
+	hud.caption_stale = true
 	if _instant:
 		fade_level = _fade_target
 		return
@@ -1523,9 +1599,20 @@ func _on_sudden_death(ev: Dictionary) -> void:
 
 
 func _on_fight_end(ev: Dictionary) -> void:
-	fx.clear_all()
 	_state = State.END
 	_end_t = 0.0
+	_end_ev = ev
+	end_clock = float(ev.get("t", sim_t))
+	_cur_action = {}
+	_end_hold = 0.0 if _instant else FINAL_HOLD
+	if _end_hold <= 0.0:
+		_begin_result()
+
+
+## The result card: the band, the winners lit and hopping, the colour coming back.
+func _begin_result() -> void:
+	var ev := _end_ev
+	fx.clear_all()
 	var w := int(ev.get("winner", -1))
 	hud.winner = w
 	hud.end_t = 0.0
@@ -1539,8 +1626,14 @@ func _on_fight_end(ev: Dictionary) -> void:
 	var reason := String(ev.get("reason", "wipe"))
 	if reason == "shard" and crystal_uid >= 0:
 		var c = units[crystal_uid]
-		fx.shard_fly(c.chest() + Vector2(0, -24), Vector2(320, 116))
-		fx.light(Vector2(320, 116), Pal.CRYSTAL5, 4, 0.7, 2.5)
+		# the Shard settles in the open middle of the field, under the result band (C1)
+		fx.shard_fly(c.chest() + Vector2(0, -24), Vector2(320, 166))
+		fx.light(Vector2(320, 166), Pal.CRYSTAL5, 4, 0.7, 2.5)
+		# the memories still standing dissolve with the Crystal's hold on them (C2)
+		for u in units:
+			if u != null and u.alive and u.side != w and not u.is_crystal:
+				u.knock_out()
+				fx.particles(u.chest(), 18, Pal.VIOLET4, 40.0, 30.0, 1.0, -20.0, 1, 5.0)
 		hud.screen_flash(Pal.CRYSTAL5, 0.6)
 		shake(4.0)
 	end_subtitle = "%s wins  ·  %.1f s%s" % [wname, float(ev.get("t", sim_t)), "  ·  the Fading" if reason == "fading" else ""]

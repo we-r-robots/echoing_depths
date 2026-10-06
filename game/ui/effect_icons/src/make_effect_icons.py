@@ -2,7 +2,7 @@
 """Shared effect icon set (game/ui/effect_icons/): white 9x9 masks tinted in code with a palette
 colour, plus the 5x3 buff / cost arrows. Stats: def atk mag spd hp heal charge crit dmg_taken.
 Behaviours: one glyph per formation behaviour id. Costs that are geometry: draws_melee, no_front,
-exposed, capped, no_behaviour. Misc: bond (class bond), lock, info."""
+exposed, capped, no_behaviour. Misc: bond (class bond), lock, info, rear_half (back-column half damage)."""
 import os
 from PIL import Image
 
@@ -260,6 +260,17 @@ M = {
 #..#....#
 .#..#..#.
 ..#...#..
+...#.#...
+....#....""",
+    # back column: a shield, half of it struck away (a back-rank hero deals and takes half physical)
+    'rear_half': """
+.###.###.
+#..#.####
+#..#.####
+#..#.####
+#..#.####
+.#.#.###.
+..##.##..
 ...#.#...
 ....#....""",
     'cost_capped': """

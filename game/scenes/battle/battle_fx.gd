@@ -91,6 +91,7 @@ var _pp_small: Array[bool] = []         # head drawn in the light font (formatio
 var _pp_head_col := PackedColorArray()
 var _pp_tag: Array[String] = []         # one annotation under the number
 var _pp_tag_col := PackedColorArray()
+var _pp_mote: Array[bool] = []         # a Fading tick: a grey mote glyph before the number
 var _pp_ko: Array[bool] = []           # KO! pill beside the number
 var _pp_ko_t := PackedFloat32Array()    # when the pill shows (label time)
 var _pp_unit := PackedInt32Array()      # the unit the label belongs to
@@ -152,6 +153,7 @@ func setup(pop_canvas: Control, to_ui: Callable) -> void:
 	_pp_small.resize(MAX_POP)
 	_pp_head.resize(MAX_POP); _pp_head_col.resize(MAX_POP); _pp_tag.resize(MAX_POP); _pp_tag_col.resize(MAX_POP)
 	_pp_link.resize(MAX_POP)
+	_pp_mote.resize(MAX_POP)
 	_pp_ko.resize(MAX_POP); _pp_ko_t.resize(MAX_POP); _pp_unit.resize(MAX_POP); _pp_box.resize(MAX_POP)
 	_shield_pts.resize(6)
 	_pop_node = pop_canvas
@@ -284,10 +286,60 @@ const HEAD_DIP := 3.0
 ## The KO! pill beside a number: gap to the number and padding round the word (UI design px).
 const KO_GAP := 3.0
 const KO_PAD := 3.0
+## Back-column damage as an icon, not jargon (critic r10 fix 9: "Rear 1/2" on a Backstab read as a
+## contradiction): head words that draw the shared rear_half glyph (twice for a quarter: both ranks
+## at the back). The full sentence is in the shared tooltip on the icon (tap / hover).
+const REAR_HALF := "@rear1"
+const REAR_QUARTER := "@rear2"
+const REAR_TIP := ["Back rank", "A hero in the back column deals and takes half physical damage."]
+const REAR_TIP_QUARTER := ["Back rank, both", "Both are in the back column: half dealt, then half taken, a quarter of the blow."]
+const ICON_PX := 9.0
+const MAX_TIPS := 6
+
+
+static func head_icons(head: String) -> int:
+	return 1 if head == REAR_HALF else (2 if head == REAR_QUARTER else 0)
+
+
+## The Fading tick's mote glyph before its number (UI design px).
+const MOTE_W := 9.0
+const MOTE_GAP := 2.0
 
 ## The solver's view of the field, set by the controller before each popup (BattleFX labels are
 ## world-space): every unit {uid, body, bar}, the HUD rects labels keep clear of, and the field.
 var units_geo: Array = []
+## HUD rects (world px) effects never draw into: the rosters, caption, banners (set every frame).
+var clip_rects: Array = []
+
+
+func _clipped(p: Vector2) -> bool:
+	for r: Rect2 in clip_rects:
+		if r.has_point(p):
+			return true
+	return false
+
+
+## A polyline drawn only where it is off the HUD.
+func _clip_polyline(pts: PackedVector2Array, c: Color) -> void:
+	if clip_rects.is_empty():
+		draw_polyline(pts, c, 1.0)
+		return
+	for k in pts.size() - 1:
+		if not _clipped(pts[k]) and not _clipped(pts[k + 1]):
+			draw_line(pts[k], pts[k + 1], c, 1.0)
+
+
+## A line drawn only up to where it would enter the HUD.
+func _clip_line(a: Vector2, b: Vector2, c: Color, w: float) -> void:
+	if not clip_rects.is_empty():
+		if _clipped(a):
+			return
+		var n := 8
+		for k in range(1, n + 1):
+			if _clipped(a.lerp(b, float(k) / n)):
+				b = a.lerp(b, float(k - 1) / n)
+				break
+	draw_line(a, b, c, w)
 ## Tests: every placement with the field it was solved against (tests/test_label_layout.gd).
 var recording := false
 var record: Array = []
@@ -296,11 +348,11 @@ var field := Rect2(164, 92, 312, 176)
 
 
 ## The label box size for its contents (world px).
-static func label_size(value: int, plus: bool, head: String, small: bool, tag: String, ko: bool) -> Vector2:
+static func label_size(value: int, plus: bool, head: String, small: bool, tag: String, ko: bool, mote := false) -> Vector2:
 	var row_w := 0.0
 	var h := 0.0
 	if value >= 0:
-		row_w = (UIText.width(("+" if plus else "") + str(value), UIText.BOLD, NUM_SIZE) + 4.0) / ZOOM
+		row_w = (UIText.width(("+" if plus else "") + str(value), UIText.BOLD, NUM_SIZE) + 4.0 + ((MOTE_W + MOTE_GAP) if mote else 0.0)) / ZOOM
 		if ko:
 			row_w += (KO_GAP + _ko_w()) / ZOOM
 		h += NUM_RISE + NUM_H
@@ -311,6 +363,8 @@ static func label_size(value: int, plus: bool, head: String, small: bool, tag: S
 	if head != "":
 		var hs := TAG_SIZE if small else HEAD_SIZE
 		hw = (UIText.width(head, UIText.BOLD, hs) + (8.0 if small else 3.0)) / ZOOM
+		if head_icons(head) > 0:
+			hw = (head_icons(head) * (ICON_PX + 2.0) + 2.0) / ZOOM
 		h += (TAG_H + 1.0) if small else HEAD_H
 		if value < 0 and not small:
 			h += NUM_RISE
@@ -347,7 +401,7 @@ func _geo(uid: int) -> Dictionary:
 
 ## Lays out label j against everything else on screen this action (LabelLayout.place).
 func _place(j: int) -> void:
-	var sz := label_size(_pp_val[j], _pp_plus[j], _pp_head[j], _pp_small[j], _pp_tag[j], _pp_ko[j])
+	var sz := label_size(_pp_val[j], _pp_plus[j], _pp_head[j], _pp_small[j], _pp_tag[j], _pp_ko[j], _pp_mote[j])
 	var own := _geo(_pp_unit[j])
 	if own.is_empty():
 		own = {"uid": _pp_unit[j], "body": Rect2(_pp_x[j] - 11.0, _pp_y[j], 22.0, 40.0), "bar": Rect2()}
@@ -365,7 +419,8 @@ func _place(j: int) -> void:
 	_pp_box[j] = LabelLayout.place(sz, pref, own, units_geo, placed, blocked, field)
 	if recording:
 		record.append({"uid": _pp_unit[j], "box": _pp_box[j], "text": _label_text(j), "geo": units_geo.duplicate(),
-			"placed": placed, "blocked": blocked.duplicate(), "field": field, "small": _pp_small[j]})
+			"placed": placed, "blocked": blocked.duplicate(), "field": field, "small": _pp_small[j],
+			"fallback": LabelLayout.last_fallback, "t": sim_t})
 	_pp_x[j] = _pp_box[j].get_center().x
 	_pp_y[j] = _pp_box[j].end.y
 
@@ -385,6 +440,8 @@ func label_boxes() -> Array:
 
 func _label_text(j: int) -> String:
 	var s := _pp_head[j]
+	if head_icons(s) > 0:
+		s = "[rear x%s]" % ("1/2" if head_icons(s) == 1 else "1/4")
 	if _pp_val[j] >= 0:
 		s += (" " if s != "" else "") + str(_pp_val[j])
 	if _pp_ko[j]:
@@ -396,7 +453,7 @@ func _label_text(j: int) -> String:
 
 ## A number (value >= 0) or word label on unit `uid`, laid out with the action's other labels.
 ## `delay` staggers popups that land together; `ko` adds the KO! pill beside the number.
-func popup(value: int, row: int, uid: int, scale: int, plus: bool, head: String, head_col: Color, tag: String, tag_col: Color, delay := 0.0, ko := false, small := false) -> int:
+func popup(value: int, row: int, uid: int, scale: int, plus: bool, head: String, head_col: Color, tag: String, tag_col: Color, delay := 0.0, ko := false, small := false, mote := false) -> int:
 	# one number per target per action: a further hit on the same target adds to its number
 	if value >= 0:
 		for j in MAX_POP:
@@ -440,6 +497,7 @@ func popup(value: int, row: int, uid: int, scale: int, plus: bool, head: String,
 	_pp_tag[best] = tag
 	_pp_tag_col[best] = tag_col
 	_pp_ko[best] = ko
+	_pp_mote[best] = mote
 	_pp_ko_t[best] = 0.3 if ko and value >= 0 else 0.0
 	_place(best)
 	_pp_on[best] = true
@@ -573,6 +631,7 @@ func tick(vdt: float, now_sim: float) -> void:
 				l.modulate = Color(_lcol[i], roundf(a * 8.0) / 8.0)
 	queue_redraw()
 	_pop_node.queue_redraw()
+	_place_tips()
 
 
 func _draw() -> void:
@@ -584,14 +643,17 @@ func _draw() -> void:
 		var w := roundf(_pl_w[i] * (1.0 - u * u))
 		var c := _pl_col[i]
 		var top := -20.0
+		for r: Rect2 in clip_rects:   # a pillar starts under a banner, never inside it
+			if r.end.y < _pl_y[i] and r.position.x < _pl_x[i] + w and r.end.x > _pl_x[i] - w:
+				top = maxf(top, r.end.y)
 		draw_rect(Rect2(_pl_x[i] - w, top, w * 2.0, _pl_y[i] - top), Color(c, 0.35 * (1.0 - u)))
 		draw_rect(Rect2(_pl_x[i] - maxf(1.0, w * 0.4), top, maxf(2.0, w * 0.8), _pl_y[i] - top), Color(Pal.INK10, 0.8 * (1.0 - u)))
 	# the freed Shard
 	if _shard_t >= 0.0:
 		var su := clampf(_shard_t / 1.1, 0.0, 1.0)
 		var e := 1.0 - pow(1.0 - su, 3.0)
-		var sp := _shard_from.lerp(_shard_to, e) + Vector2(0, -sin(su * PI) * 30.0)
-		var sc := 1 + int(e * 2.0)
+		var sp := _shard_from.lerp(_shard_to, e) + Vector2(0, -sin(su * PI) * 12.0)
+		var sc := 1   # at world pixel scale, like every sprite on the field (critic r10 C1)
 		var gl := 10.0 + 14.0 * e + 3.0 * sin(_shard_t * 9.0)
 		draw_circle(sp, gl, Color(Pal.CRYSTAL4, 0.25))
 		draw_circle(sp, gl * 0.6, Color(Pal.CRYSTAL5, 0.35))
@@ -623,10 +685,10 @@ func _draw() -> void:
 			var fade := 1.0 - clampf((st - 0.15) / 0.3, 0.0, 1.0)
 			var e := _sw_a[i].lerp(_sw_b[i], grow)
 			if _sw_thin[i]:
-				draw_line(_sw_a[i], e, Color(_sw_col[i], fade * 0.55), 1.0)
+				_clip_line(_sw_a[i], e, Color(_sw_col[i], fade * 0.55), 1.0)
 			else:
-				draw_line(_sw_a[i] + Vector2(2, 0), e + Vector2(2, 0), Color(_sw_col[i], fade * 0.6), 5.0)
-				draw_line(_sw_a[i], e, Color(Pal.INK10, fade), 3.0)
+				_clip_line(_sw_a[i] + Vector2(2, 0), e + Vector2(2, 0), Color(_sw_col[i], fade * 0.6), 5.0)
+				_clip_line(_sw_a[i], e, Color(Pal.INK10, fade), 3.0)
 	# rings
 	for i in MAX_RING:
 		if not _rg_on[i]:
@@ -639,13 +701,13 @@ func _draw() -> void:
 		for k in 33:
 			var a := TAU * k / 32.0
 			_ring_pts[k] = Vector2(roundf(_rg_c[i].x + cos(a) * r), roundf(_rg_c[i].y + sin(a) * r * _rg_flat[i]))
-		draw_polyline(_ring_pts, c, 1.0)
+		_clip_polyline(_ring_pts, c)
 		if _rg_r1[i] >= 36.0:
 			for k in 33:
 				_ring_pts[k].y += 1.0
-			draw_polyline(_ring_pts, c, 1.0)
+			_clip_polyline(_ring_pts, c)
 		if u < 0.5:
-			draw_polyline(_ring_pts, Color(Pal.INK10, (0.5 - u)), 1.0)
+			_clip_polyline(_ring_pts, Color(Pal.INK10, (0.5 - u)))
 	# projectiles
 	for i in MAX_PROJ:
 		if not _pj_on[i] or sim_t < _pj_t0[i]:
@@ -673,6 +735,8 @@ func _draw() -> void:
 			var c := _pcol[k]
 			c.a = clampf(_life[k] / _lmax[k] * 1.6, 0.0, 1.0)
 			var s := float(_psize[k])
+			if not clip_rects.is_empty() and _clipped(Vector2(_px[k], _py[k])):
+				continue
 			draw_rect(Rect2(roundf(_px[k]), roundf(_py[k]), s, s), c)
 
 
@@ -693,6 +757,7 @@ func _proj_pos(i: int, u: float) -> Vector2:
 func _draw_pop_layer() -> void:
 	if not _to_ui.is_valid():
 		return
+	_tip_rects.clear()
 	var ci := _pop_node
 	# links: a shared/halved number tied to the hit it came from
 	for i in MAX_POP:
@@ -715,6 +780,34 @@ func _draw_pop_layer() -> void:
 		for i in MAX_POP:
 			if _pp_on[i]:
 				_dbg_rect(ci, _pp_box[i], Color.WHITE)
+
+
+## Rear icons drawn this frame [UI rect, icons] and the pooled tooltip hit areas over them.
+var _tip_rects: Array = []
+var _tips: Array[Control] = []
+
+
+func _place_tips() -> void:
+	if _tips.is_empty():
+		for i in MAX_TIPS:
+			var c := Control.new()
+			c.mouse_filter = Control.MOUSE_FILTER_STOP
+			c.visible = false
+			_pop_node.add_child(c)
+			_tips.append(c)
+	for i in MAX_TIPS:
+		var c := _tips[i]
+		if i < _tip_rects.size():
+			var r: Rect2 = _tip_rects[i][0]
+			# a 16 px minimum hit target (BUILD.md touch rule)
+			c.position = r.get_center() - Vector2(maxf(16.0, r.size.x), maxf(16.0, r.size.y)) * 0.5
+			c.size = Vector2(maxf(16.0, r.size.x), maxf(16.0, r.size.y))
+			var tip: Array = REAR_TIP if int(_tip_rects[i][1]) == 1 else REAR_TIP_QUARTER
+			if String((c.get_meta("tip", {}) as Dictionary).get("title", "")) != tip[0]:
+				Tip.attach(c, tip[0], tip[1], Pal.INK9)
+			c.visible = true
+		elif c.visible:
+			c.visible = false
 
 
 var debug_boxes := OS.get_cmdline_user_args().has("--label-boxes")
@@ -748,7 +841,19 @@ func _draw_popup(ci: CanvasItem, i: int) -> void:
 	# the label rises NUM_RISE after it lands: its content starts at the bottom of its box
 	var rise := 1.0 - pow(1.0 - clampf(t / 0.28, 0.0, 1.0), 3.0)
 	var y := box.position.y + NUM_RISE * (1.0 - rise)   # world y of the content's top
-	if head != "":
+	if head_icons(head) > 0:
+		var top2: Vector2 = _to_ui.call(Vector2(x, y))
+		var n := head_icons(head)
+		var w := n * (ICON_PX + 2.0) - 2.0
+		var ix := roundf(top2.x - w * 0.5)
+		var iy := roundf(top2.y + 2.0)
+		for k in n:
+			var p := Vector2(ix + k * (ICON_PX + 2.0), iy)
+			ci.draw_texture(EffectIcons.icon("rear_half"), p + Vector2(1, 1), Pal.INK1)
+			ci.draw_texture(EffectIcons.icon("rear_half"), p, Pal.INK9)
+		_tip_rects.append([Rect2(ix - 3.0, iy - 3.0, w + 6.0, ICON_PX + 6.0), n])
+		y += HEAD_H
+	elif head != "":
 		var top: Vector2 = _to_ui.call(Vector2(x, y))
 		UIText.outlined(ci, Vector2(top.x, top.y + UIText.cap(UIText.BOLD, HEAD_SIZE) - UIText.ascent(UIText.BOLD, HEAD_SIZE)), head, _pp_head_col[i], UIText.BOLD, HEAD_SIZE, 1)
 		y += HEAD_H
@@ -758,10 +863,14 @@ func _draw_popup(ci: CanvasItem, i: int) -> void:
 		var sz := NUM_PUNCH if t < 0.06 else NUM_SIZE
 		var s := ("+" if _pp_plus[i] else "") + str(val)
 		var nw := UIText.width(s, UIText.BOLD, NUM_SIZE) + 4.0
-		var row_w := nw + ((KO_GAP + _ko_w()) if _pp_ko[i] else 0.0)
+		var mw := (MOTE_W + MOTE_GAP) if _pp_mote[i] else 0.0
+		var row_w := mw + nw + ((KO_GAP + _ko_w()) if _pp_ko[i] else 0.0)
 		var c: Vector2 = _to_ui.call(Vector2(x, y + 0.75))
 		var x0 := c.x - row_w * 0.5
 		var base := c.y + UIText.cap(UIText.BOLD, NUM_SIZE)
+		if _pp_mote[i]:
+			_draw_mote(ci, Vector2(roundf(x0 + MOTE_W * 0.5), roundf(base - UIText.cap(UIText.BOLD, NUM_SIZE) * 0.5)))
+			x0 += mw
 		# a two-font-pixel dark ring keeps the digits apart from bright slashes and sparks
 		UIText.outlined(ci, Vector2(roundf(x0 + nw * 0.5), base - UIText.ascent(UIText.BOLD, sz)), s, ROW_COL[_pp_row[i]], UIText.BOLD, sz, 1, Pal.INK1, true, 2)
 		if ko_on:
@@ -774,6 +883,19 @@ func _draw_popup(ci: CanvasItem, i: int) -> void:
 	elif ko_on:
 		var c2: Vector2 = _to_ui.call(Vector2(x, y + HEAD_H * 0.5))
 		_draw_ko(ci, Vector2(c2.x - _ko_w() * 0.5, c2.y))
+
+
+## The Fading's mote: a small grey four-point spark with a dark ring (the drifting motes of the
+## arena's greying), marking a number as a Fading tick rather than anyone's blow.
+func _draw_mote(ci: CanvasItem, c: Vector2) -> void:
+	var r := MOTE_W * 0.5
+	var pts := PackedVector2Array([c + Vector2(0, -r - 1), c + Vector2(1.5, -1.5), c + Vector2(r + 1, 0), c + Vector2(1.5, 1.5),
+		c + Vector2(0, r + 1), c + Vector2(-1.5, 1.5), c + Vector2(-r - 1, 0), c + Vector2(-1.5, -1.5)])
+	ci.draw_colored_polygon(pts, Pal.INK1)
+	var pts2 := PackedVector2Array()
+	for p in pts:
+		pts2.append(c + (p - c) * 0.72)
+	ci.draw_colored_polygon(pts2, Pal.FADE4)
 
 
 ## The KO! pill: red word on a dark pill with a red rim, left edge at p.x, centred on p.y (UI px).

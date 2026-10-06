@@ -5,6 +5,7 @@ extends Node2D
 
 const Layout = preload("res://scenes/battle/battle_layout.gd")
 const SHADER = preload("res://scenes/battle/unit.gdshader")
+const LabelLayout = preload("res://scenes/battle/label_layout.gd")
 
 enum Move { NONE, LUNGE, HOP, STAY }
 
@@ -58,6 +59,10 @@ var _pending_at := 0.0
 # --- visual timers (visual time) ---
 var _flash := 0.0
 var _flash_color := Color.WHITE
+var _flash_cap := 1.0
+## Sim time until which this unit draws above everyone (a struck victim during the impact frames,
+## a falling unit through its KO), so the attacker never hides it.
+var top_until := -1.0
 var _knock_t := 9.0
 var _knock_dir := 0.0
 var _knock_amp := 0.0
@@ -146,7 +151,9 @@ func setup(u: Dictionary, sprite_meta: Dictionary, shadow_tex: Texture2D, echo: 
 	shadow = Sprite2D.new()
 	shadow.texture = shadow_tex
 	shadow.position = Vector2(0, 0)
+	shadow.show_behind_parent = true   # the team foot plate (_draw) reads over the shadow
 	add_child(shadow)
+	_plate_rx = maxf(12.0, shadow_tex.get_width() * 0.5 + 2.0)
 
 	_ghost_mat = ShaderMaterial.new()
 	_ghost_mat.shader = SHADER
@@ -217,6 +224,39 @@ func has_anim(anim: String) -> bool:
 	return _anim_fps.has(anim)
 
 
+## Team foot plate (critic r10 fix 6): a ring in the side's colour round the feet, travelling with
+## the unit, so a unit that has dashed into the middle still reads as its own side in a mirror match.
+var _plate_rx := 12.0
+var _plate_on := true
+
+
+func _draw() -> void:
+	if not _plate_on or is_crystal:
+		return
+	var pts := PackedVector2Array()
+	var ry := 4.0 if _plate_rx < 16.0 else 5.0
+	for k in 25:
+		var a := TAU * k / 24.0
+		pts.append(Vector2(roundf(cos(a) * _plate_rx), roundf(sin(a) * ry) + 1.0))
+	draw_colored_polygon(pts, Color(side_color, 0.22))
+	draw_polyline(pts, Color(side_color, 1.0), 1.0)
+
+
+## How far the attack strip's opaque core reaches in front of the feet (world px, facing direction):
+## a lunge stops so this edge lands short of the victim's body.
+func attack_front() -> float:
+	var fr := spr.sprite_frames
+	var best := float(core_r)
+	for an: StringName in [&"attack"]:
+		if not fr.has_animation(an):
+			continue
+		for i in fr.get_frame_count(an):
+			var c := _frame_core(fr.get_frame_texture(an, i))
+			if c.has_area():
+				best = maxf(best, c.end.x - _ox)
+	return best
+
+
 ## Plans a move to `dest` that arrives at `t_arrive`, holds, then returns home by `t_end`.
 func plan_move(kind: int, t0: float, t_arrive: float, t_leave: float, t_end: float, dest: Vector2, hop_h: float = 0.0, ghosts: bool = false) -> void:
 	_move = kind
@@ -242,7 +282,9 @@ func play_now(anim: StringName) -> void:
 		return
 	if spr.sprite_frames.has_animation(anim):
 		spr.play(anim)
-		spr.frame = 0
+		# the hit and KO strips open on a white silhouette frame: skip it, the shader's partial
+		# flash (2-3 frames) marks the impact without erasing the struck sprite (critic r10 fix 7)
+		spr.frame = 1 if (anim == &"hit" or anim == &"ko") and spr.sprite_frames.get_frame_count(anim) > 2 else 0
 
 
 func gauge_at(t: float) -> float:
@@ -255,14 +297,19 @@ func hit(dir: float, amp: float) -> void:
 	_knock_dir = dir
 	_knock_amp = amp
 	_knock_t = 0.0
-	flash(Color.WHITE, 1.0)
+	flash(Color.WHITE, 1.0, HIT_FLASH)
 	if alive and _move == Move.NONE and spr.animation != &"attack" and spr.animation != &"cast":
 		play_now(&"hit")
 
 
-func flash(c: Color, amount: float) -> void:
+## Peak strength of the white hit flash (1 = a full silhouette): the sprite stays readable under it.
+const HIT_FLASH := 0.7
+
+
+func flash(c: Color, amount: float, cap := 1.0) -> void:
 	_flash = amount
 	_flash_color = c
+	_flash_cap = cap
 
 
 func set_hp(v: int) -> void:
@@ -283,7 +330,7 @@ func knock_out() -> void:
 	is_ready = false
 	ko_t = 0.0
 	play_now(&"ko")
-	flash(Color.WHITE, 1.0)
+	flash(Color.WHITE, 1.0, HIT_FLASH)
 
 
 ## Called every frame by the battle controller.
@@ -363,7 +410,7 @@ func tick(sim_t: float, vdt: float, speed: float, real_dt := 0.0) -> void:
 	# flash / tint / ready outline
 	if _flash > 0.0:
 		_flash = maxf(0.0, _flash - maxf(vdt, real_dt) * 14.0)   # 1-2 frames of white, then its own colours
-	mat.set_shader_parameter("flash", 1.0 if _flash > 0.6 else (_flash * 0.9))
+	mat.set_shader_parameter("flash", (1.0 if _flash > 0.6 else (_flash * 0.9)) * _flash_cap)
 	mat.set_shader_parameter("flash_color", _flash_color if _flash <= 0.6 else Color.WHITE)
 	if buff_glow > 0.0 and alive:
 		buff_glow -= vdt
@@ -392,6 +439,9 @@ func tick(sim_t: float, vdt: float, speed: float, real_dt := 0.0) -> void:
 		mat.set_shader_parameter("gray", g2)
 		modulate.a = 1.0 - 0.45 * g2
 		shadow.visible = ko_t < 0.6
+		if not shadow.visible and _plate_on:
+			_plate_on = false
+			queue_redraw()
 	if form_t >= 0.0:
 		form_t += vdt
 		var fa := clampf(form_t / 0.7, 0.0, 1.0)
@@ -419,7 +469,11 @@ func tick(sim_t: float, vdt: float, speed: float, real_dt := 0.0) -> void:
 	else:
 		charge_shown = move_toward(charge_shown, float(charge), vdt * (60.0 if charge_pulse > 0.0 else 160.0))
 	charge_pulse = maxf(0.0, charge_pulse - vdt)
-	if not acting:
+	if sim_t < top_until:
+		z_index = 35
+	elif acting:
+		z_index = 30
+	else:
 		z_index = 25 if lit else 0
 
 
@@ -540,6 +594,88 @@ func body_rect() -> Rect2:
 	var l := core_l if facing > 0 else -core_r
 	var r := core_r if facing > 0 else -core_l
 	return Rect2(roundf(p.x + l), roundf(p.y - top_h), r - l, top_h)
+
+
+## Per frame texture: the opaque core of that frame in texture px (columns at least 30% as full as
+## the fullest, from the top opaque pixel to the bottom one). Shared by every unit (one cache).
+static var _core_cache := {}
+
+
+static func _frame_core(tex: Texture2D) -> Rect2:
+	if tex == null:
+		return Rect2()
+	if _core_cache.has(tex):
+		return _core_cache[tex]
+	var img: Image = tex.get_image()
+	var out := Rect2()
+	if img != null:
+		if img.is_compressed():
+			img.decompress()
+		# only inside the opaque bounds (native get_used_rect): a frame costs ~1-2k samples, once
+		var used := img.get_used_rect()
+		var w := img.get_width()
+		var cnt := PackedInt32Array()
+		cnt.resize(w)
+		var mx := 0
+		var y0 := used.end.y
+		var y1 := -1
+		for x in range(used.position.x, used.end.x):
+			var c := 0
+			for y in range(used.position.y, used.end.y):
+				if img.get_pixel(x, y).a > 0.5:
+					c += 1
+					y0 = mini(y0, y)
+					y1 = maxi(y1, y)
+			cnt[x] = c
+			mx = maxi(mx, c)
+		var l := w
+		var r := -1
+		for x in range(used.position.x, used.end.x):
+			if mx > 0 and cnt[x] * 10 >= mx * 3:
+				l = mini(l, x)
+				r = maxi(r, x + 1)
+		if l < r and y0 <= y1:
+			out = Rect2(l, y0, r - l, y1 - y0 + 1)
+	_core_cache[tex] = out
+	return out
+
+
+## Where the unit is DRAWN this frame (world px): the opaque core of its current animation frame at
+## the sprite's current position (lunge, knock-back, hop, KO fall and flip included). The label
+## solver measures attribution against this, not the home slot (battle-scene round 15).
+func drawn_rect() -> Rect2:
+	if spr == null or spr.sprite_frames == null:
+		return body_rect()
+	var tex := spr.sprite_frames.get_frame_texture(spr.animation, spr.frame)
+	var c := _frame_core(tex)
+	if not c.has_area():
+		return body_rect()
+	var fw := float(tex.get_width())
+	var x0 := c.position.x if not spr.flip_h else fw - c.end.x
+	var o := position + spr.position
+	return Rect2(o.x + x0, o.y + c.position.y, c.size.x, c.size.y)
+
+
+## The face point the eye ties a label to (LabelLayout.head_of the drawn core).
+func head_point() -> Vector2:
+	return LabelLayout.head_of(drawn_rect())
+
+
+## On the way to or back from its lunge (between home and its strike spot) at sim time t.
+func in_transit(t: float) -> bool:
+	return (_move == Move.LUNGE or _move == Move.HOP) and (t < _t_arrive or t > _t_leave)
+
+
+## Where the current move is heading (its home when standing).
+func move_dest() -> Vector2:
+	return _dest if (_move == Move.LUNGE or _move == Move.HOP) else home
+
+
+## The idle core at the home slot: where the unit stands once a lunge or knock-back is over.
+func home_rect() -> Rect2:
+	var l := core_l if facing > 0 else -core_r
+	var r := core_r if facing > 0 else -core_l
+	return Rect2(roundf(home.x + l), roundf(home.y - top_h), r - l, top_h)
 
 
 ## The Crystal's integrity bar: 52 world px, its left end CRYSTAL_BAR_DX from the Crystal's centre

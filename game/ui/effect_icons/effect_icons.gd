@@ -42,6 +42,7 @@ const ICONS := {
 	"cost_no_front": preload("res://ui/effect_icons/cost_no_front.png"),
 	"down": preload("res://ui/effect_icons/down.png"),
 	"lock": preload("res://ui/effect_icons/lock.png"),
+	"rear_half": preload("res://ui/effect_icons/rear_half.png"),
 	"stat_atk": preload("res://ui/effect_icons/stat_atk.png"),
 	"stat_charge": preload("res://ui/effect_icons/stat_charge.png"),
 	"stat_crit": preload("res://ui/effect_icons/stat_crit.png"),

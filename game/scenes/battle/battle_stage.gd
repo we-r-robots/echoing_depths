@@ -133,7 +133,9 @@ func _draw() -> void:
 				var cell := Vector2i(col, row)
 				var occ: bool = occupied[side].has(cell)
 				var alive: bool = alive_cells[side].has(cell)
-				var c := Color(Pal.INK6, 0.55)
+				# every cell carries its side's colour (amber left / cyan right in PvP), so the two
+				# halves of a mirror match read apart at a glance (critic r10 fix 6)
+				var c := Color(sc.lerp(Pal.INK6, 0.45), 0.6)
 				if occ:
 					c = Color(sc, (0.45 + 0.55 * pulse) * glyph_reveal) if alive else Color(Pal.FADE1, 0.7)
 				_tile(p, row, c, col == 1, occ and alive)
@@ -173,6 +175,7 @@ func _tile(p: Vector2, _row: int, c: Color, back: bool, lit: bool) -> void:
 		draw_colored_polygon(_quad_fill(), Color(c, c.a * 0.18))
 	else:
 		draw_colored_polygon(_quad_fill(), Color(Pal.INK1, 0.25))
+		draw_colored_polygon(_quad_fill(), Color(c, 0.1))
 	draw_polyline(_quad, c, 1.0)
 	if back:
 		# back column: an inner ring marks the half-damage rank

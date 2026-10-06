@@ -68,4 +68,5 @@ static func shape_party(shape_id: String, row_off := 0) -> Dictionary:
 static func demo_party_unlocked() -> Dictionary:
 	var p: Dictionary = PartyGen.demo_party()
 	p["unlocked_formations"] = all_shape_ids()
+	p["name"] = "The Lanternrest Company"   # the game's default team name (GameState.DEFAULT_TEAM)
 	return p

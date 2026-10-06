@@ -49,7 +49,7 @@ func _check_label(box: Rect2, uid: int, geo: Array, placed: Array, blocked: Arra
 	for r: Rect2 in blocked:
 		check(not box.intersection(r).has_area(), "%s %s overlaps the HUD %s" % [what, box, r])
 	check(field.encloses(box), "%s %s stays inside the field %s" % [what, box, field])
-	check(LabelLayout.nearest_is_own(box, own["body"], others), "%s %s is nearest its own unit %d" % [what, box, uid])
+	check(LabelLayout.nearest_is_own(box, own, others, 0.0), "%s %s is nearest its own unit %d" % [what, box, uid])
 	# never off its own unit's column: its centre stays over its own body's span
 	var b: Rect2 = own["body"]
 	var sl := LabelLayout.SPAN_SLACK + 0.5
@@ -87,7 +87,7 @@ func test_every_four_hero_shape_takes_a_crit_kill_on_every_hero() -> void:
 
 
 func test_a_whole_side_in_the_fading_with_tags() -> void:
-	# the Fading hits every unit: number + "fading ×1.48" tag on each of two full parties
+	# the Fading hits every unit: number + "Fading ×1.48" tag on each of two full parties
 	var shapes: Array = []
 	for f: Dictionary in Formations.SHAPES:
 		if int(f["size"]) == 4:
@@ -96,7 +96,7 @@ func test_a_whole_side_in_the_fading_with_tags() -> void:
 		var geo := _parties(ca, ca)
 		var placed: Array = []
 		for g: Dictionary in geo:
-			var sz := FX.label_size(24, false, "", false, "fading ×1.48", false)
+			var sz := FX.label_size(24, false, "", false, "Fading ×1.48", false)
 			var body: Rect2 = g["body"]
 			var box := LabelLayout.place(sz, Vector2(body.get_center().x, body.position.y - 1.0), g, geo, placed, [], FIELD)
 			_check_label(box, int(g["uid"]), geo, placed, [], FIELD, "Fading %s unit %d" % [ca, g["uid"]])
@@ -161,7 +161,7 @@ func _check_fight(fight: String, rec: Array, sequence := "") -> Dictionary:
 			stats["ko"] += 1
 		if tx.contains("CRIT!"):
 			stats["crit"] += 1
-		if tx.contains("fading"):
+		if tx.contains("Fading"):
 			stats["fading"] += 1
 		if bool(r["small"]):
 			stats["cues"] += 1
@@ -253,3 +253,92 @@ func _crystal_hud(b: Node) -> void:
 	for u in b.units:
 		if u != c and u.alive:
 			check(not u.plate_rect().intersects(pr), "%s's HP plate clears the Crystal's pips at %.1f s" % [u.label, b.sim_t])
+
+
+# ------------------------------------------------------------------ attribution against drawn units
+## Critic round 10 measured four labels nearer the wrong unit on screen (Cleave "CRIT! 103" by Corin
+## and "32" by Moth, Firestorm "CRIT! 65 KO!" by Ilse, the monsters' "77 KO!" over the attacker
+## Brakka). The cause: the solver measured bodies at their home slots with the idle frame and a
+## centre-to-box rule, while the units were DRAWN knocked back, in their hit frames and lunged, and a
+## label over a front-row head sat beside the face of the unit one row behind. These tests check
+## every live label on every frame of the real fights against where each unit is drawn that frame
+## (its current animation frame at its current position): the label's centre is nearer its own
+## unit's drawn body than any other's, and clearly nearer its own face point (LabelLayout.HEAD_RATIO).
+## A unit dashing to or back from its strike spot is a transient and isn't counted against other
+## labels (it is checked where it stands: home and the strike spot).
+const FIXTURES := {
+	"pvp": [["CRIT! 103", "Moth"], ["32", "Tamsin"], ["CRIT! 65 KO!", "Vael"]],
+	"monsters": [["77 KO!", "Hollow Rat"]],
+	"crystal": [],
+}
+var _drawn_checks := 0
+var _drawn_fails := 0
+var _fixture_frames := {}
+
+
+func _drawn_attribution(b: Node, fight: String) -> void:
+	var fx = b.fx
+	for j in fx.MAX_POP:
+		if not fx._pp_on[j] or fx._pp_t[j] < 0.0:
+			continue
+		var own := int(fx._pp_unit[j])
+		if b.units[own].acting and b.units[own].in_transit(b.sim_t):
+			continue   # its own unit is dashing: the label stays over its slot and plate
+		var og := {}
+		var others: Array = []
+		for u in b.units:
+			if u == null or not (u.alive or u.uid == own):
+				continue
+			if u.acting and u.uid != own and u.in_transit(b.sim_t):
+				continue
+			var g := {"uid": u.uid, "body": u.drawn_rect()}
+			if u.uid == own:
+				og = g
+			else:
+				others.append(g)
+		var box: Rect2 = fx._pp_box[j]
+		var text: String = fx._label_text(j)
+		_drawn_checks += 1
+		var miss: float = LabelLayout.misattribution(box, og, others, 0.0)
+		if miss > 0.0:
+			_drawn_fails += 1
+			if _drawn_fails <= 12:
+				check(false, "%s %.2f s: \"%s\" on %s %s is nearest its own unit as drawn (misses by %.1f px)" % [fight, b.sim_t, text, b.units[own].label, box, miss])
+		for fxt: Array in FIXTURES[fight]:
+			if text == fxt[0] and b.units[own].label == fxt[1]:
+				var k := "%s/%s" % [fxt[0], fxt[1]]
+				_fixture_frames[k] = int(_fixture_frames.get(k, 0)) + 1
+				# the critic's own measure: the nearest face on screen is the victim's
+				var best := ""
+				var bd := INF
+				for u in b.units:
+					if u != null and (u.alive or u.uid == own):
+						var d: float = box.get_center().distance_to(u.head_point())
+						if d < bd:
+							bd = d
+							best = u.label
+				check(best == fxt[1], "%s: \"%s\" sits nearest %s's face as drawn (nearest: %s) at %.2f s" % [fight, fxt[0], fxt[1], best, b.sim_t])
+
+
+func _drawn_fight(fight: String) -> void:
+	_drawn_checks = 0
+	_drawn_fails = 0
+	_fixture_frames = {}
+	_play(fight, "ch1", func(b: Node) -> void: _drawn_attribution(b, fight), 1)
+	check(_drawn_checks > 200, "%s: live labels were checked against the drawn units (%d label-frames)" % [fight, _drawn_checks])
+	eq(_drawn_fails, 0, "%s: label-frames attributed to the wrong drawn unit" % fight)
+	for fxt: Array in FIXTURES[fight]:
+		var k := "%s/%s" % [fxt[0], fxt[1]]
+		check(int(_fixture_frames.get(k, 0)) >= 20, "%s: critic case \"%s\" on %s was on screen and checked (%d frames)" % [fight, fxt[0], fxt[1], int(_fixture_frames.get(k, 0))])
+
+
+func test_drawn_attribution_pvp_cleave_103_and_32_firestorm_65() -> void:
+	_drawn_fight("pvp")
+
+
+func test_drawn_attribution_monsters_77_ko_on_the_rat() -> void:
+	_drawn_fight("monsters")
+
+
+func test_drawn_attribution_crystal() -> void:
+	_drawn_fight("crystal")

@@ -108,6 +108,20 @@ func _layout() -> void:
 	if speed_btn != null:
 		speed_btn.position = Vector2(_c - 42, 336)
 		skip_btn.position = Vector2(_c + 4, 336)
+		# x1 / SKIP mean nothing once the fight is over (critic r10 fix 4)
+		speed_btn.visible = end_t < 0.0 and not b_ended()
+		skip_btn.visible = speed_btn.visible
+
+
+func b_ended() -> bool:
+	return b != null and int(b._state) == 3
+
+
+## The team's name as the fight knows it (sides[].name), shown on its roster tab and in the result.
+func team_name(side: int) -> String:
+	if b == null or side < 0 or side >= b.sides.size():
+		return ""
+	return String(b.sides[side].get("name", ""))
 
 
 func tick(vdt: float) -> void:
@@ -180,7 +194,13 @@ func screen_flash(c: Color, a: float) -> void:
 	flash_a = maxf(flash_a, a)
 
 
+## True while only Fading ticks have happened since the caption's action: the caption dims so the
+## ticks don't read as that action hitting both sides (critic r10 fix 8).
+var caption_stale := false
+
+
 func show_caption(uid: int, text: String, target: int, is_ability: bool, area := "single", extra := 0) -> void:
+	caption_stale = false
 	caption_extra = extra
 	caption_area = area
 	caption_uid = uid
@@ -483,7 +503,7 @@ func _panel_bg(r: Rect2, sc: Color, alpha: float, pulse := 0.0) -> void:
 
 # --- timer ------------------------------------------------------------------------------------
 func _draw_timer() -> void:
-	var st: float = b.sim_t
+	var st: float = b.sim_t if b.end_clock < 0.0 else minf(b.sim_t, b.end_clock)
 	var secs := int(st)
 	var r := Rect2(_c - 98, 334, 52, 24)
 	var sd: bool = st >= b.sd_at and b.sd_at > 0.0
@@ -548,6 +568,7 @@ func _draw_caption() -> void:
 		x = UIText.outlined(self, Vector2(x, y), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
 		if tgt != "":
 			_caption_target(x, r.get_center().y, y, tgt, tgt_col, arrow_w, sz)
+		_dim_stale(r)
 		return
 	# Too long for one line (long memory names in the Crystal fight): two lines, the panel grows
 	# upward and, if it must, wider into the gap between the party panels. Names are never cut.
@@ -566,6 +587,12 @@ func _draw_caption() -> void:
 		var y2 := y1 + lh
 		var x2 := roundf(_c - (arrow_w + w_tgt) / 2.0)
 		_caption_target(x2, y2 + UIText.cap(BOLD, sz) * 0.5 + (UIText.ascent(BOLD, sz) - UIText.cap(BOLD, sz)), y2, tgt, tgt_col, arrow_w, sz)
+	_dim_stale(r2)
+
+
+func _dim_stale(r: Rect2) -> void:
+	if caption_stale:
+		draw_rect(r.grow(-1.0), Color(Pal.INK1, 0.6))
 
 
 func _caption_target(x: float, cy: float, y: float, tgt: String, col: Color, arrow_w: float, sz: int) -> void:
@@ -587,6 +614,16 @@ func _draw_panel(side: int) -> void:
 	var r := Rect2(x0, y0, PANEL_W, h)
 	panel_drawn[side] = r
 	_panel_bg(r, b.side_colors[side], 0.95)
+	# the team's name on a tab over its roster: the same name the result card says won
+	var tn := team_name(side)
+	if tn != "":
+		var tw := minf(PANEL_W, UIText.width(tn, BOLD, UIText.LABEL) + 12.0)
+		var tab := Rect2(x0 if side == 0 else x0 + PANEL_W - tw, y0 - 13.0, tw, 14.0)
+		draw_rect(tab, Color(Pal.INK1, 0.9))
+		draw_rect(Rect2(tab.position.x, tab.position.y, tab.size.x, 1), b.side_colors[side])
+		UIText.outlined(self, Vector2(tab.get_center().x, UIText.centered_y(tab.position.y + 1.0, tab.size.y - 1.0, BOLD, UIText.LABEL)),
+			UIText.fit(tn, tw - 8.0, BOLD, UIText.LABEL), UIText.legible(b.side_colors[side].lerp(Pal.INK10, 0.2)), BOLD, UIText.LABEL, 1, Pal.INK1, false)
+		panel_drawn[side] = r.merge(tab)
 	# names one size up (critic r3: the roster read thinner than the old 640x360 frame at phone
 	# size) when every name on this side fits; else the whole side stays at the label size
 	var sz := UIText.NUMBER
@@ -922,7 +959,7 @@ func blocked_rects() -> Array:
 	else:
 		var lb := lore_bottom()
 		if lb > 0.0:
-			out.append(Rect2(_c - 240, 40, 480, lb - 40.0).grow(BANNER_MARGIN))
+			out.append(lore_rect().grow(BANNER_MARGIN))
 	if b != null and b.sd_at > 0.0 and b.sim_t >= b.sd_at - 0.5:
 		out.append(Rect2(_c - 160, 38, 320, 24).grow(BANNER_MARGIN))
 	return out
@@ -930,21 +967,38 @@ func blocked_rects() -> Array:
 
 ## Clear space kept round every banner (UI design px), so no number touches its rule.
 const BANNER_MARGIN := 4.0
-## Lore lines the reserve allows for (the longest memory lore wraps to 2 lines at 456 px).
-const LORE_MAX_LINES := 3
+## The lore banner is one line (critic r10 C3: two lines covered the back-row heads and left a
+## widow): as wide as the view allows, and a line that still doesn't fit ends in an ellipsis.
+const LORE_MAX_LINES := 1
+
+
+func _lore_w() -> float:
+	return minf(_vw - 24.0, 624.0)
+
+
+func _lore_lines() -> PackedStringArray:
+	var w := _lore_w() - 16.0
+	if UIText.width(lore_text, BOLD, UIText.BODY) <= w:
+		return PackedStringArray([lore_text])
+	return PackedStringArray([UIText.fit(lore_text, w, BOLD, UIText.BODY)])
 
 
 ## The lore banner as drawn right now (UI design px), or an empty rect.
 func lore_rect() -> Rect2:
 	var lb := lore_bottom()
-	return Rect2(_c - 240, 40, 480, lb - 40.0) if lb > 0.0 else Rect2()
+	return Rect2(_c - _lore_w() / 2.0, 40, _lore_w(), lb - 40.0) if lb > 0.0 else Rect2()
 
 
 ## The tallest lore banner plus the margin: reserved for the whole of a Crystal fight.
 func lore_reserve() -> Rect2:
-	var n := maxi(LORE_MAX_LINES, UIText.wrap_lines(lore_text, 456.0, BOLD, UIText.BODY).size() if lore_text != "" else 0)
+	var n := LORE_MAX_LINES
 	var h := ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + n * UIText.line_h(BOLD, UIText.BODY) + 6.0)
-	return Rect2(_c - 240, 40, 480, h).grow(BANNER_MARGIN)
+	# + the camera's travel: a world label placed now moves with the camera push and shake (up to
+	# ~5 world px = 10 UI px) while the banner stays put
+	return Rect2(_c - _lore_w() / 2.0, 40, _lore_w(), h + RESERVE_SLACK).grow(BANNER_MARGIN)
+
+
+const RESERVE_SLACK := 10.0
 
 
 var caption_drawn := Rect2()
@@ -954,7 +1008,7 @@ var panel_drawn: Array[Rect2] = [Rect2(), Rect2()]
 func lore_bottom() -> float:
 	if lore_t > 3.6 or lore_name == "":
 		return -1.0
-	var lines := UIText.wrap_lines(lore_text, 456.0, BOLD, UIText.BODY)
+	var lines := _lore_lines()
 	return 40.0 + ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + lines.size() * UIText.line_h(BOLD, UIText.BODY) + 6.0)
 
 
@@ -962,10 +1016,10 @@ func _draw_lore() -> void:
 	if lore_t > 3.6 or lore_name == "":
 		return
 	var a := clampf(lore_t / 0.25, 0.0, 1.0) * (1.0 - clampf((lore_t - 3.2) / 0.4, 0.0, 1.0))
-	var lines := UIText.wrap_lines(lore_text, 456.0, BOLD, UIText.BODY)
+	var lines := _lore_lines()
 	var lh := UIText.line_h(BOLD, UIText.BODY)
 	var h := ceilf(10.0 + UIText.ascent(SERIF, UIText.TITLE) + 6.0 + lines.size() * lh + 6.0)
-	var r := Rect2(_c - 240, 40, 480, h)
+	var r := Rect2(_c - _lore_w() / 2.0, 40, _lore_w(), h)
 	draw_rect(r, Color(Pal.INK1, 0.85 * a))
 	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1), Color(Pal.VIOLET3, a))
 	draw_rect(Rect2(r.position.x, r.end.y - 1, r.size.x, 1), Color(Pal.VIOLET3, a))
@@ -1017,7 +1071,9 @@ func _draw_cutin() -> void:
 	# speed lines
 	for k in 9:
 		var ly := band.position.y + 4.0 + fmod(k * 7.0, maxf(1.0, band_h - 8.0))
-		var lx := bx + fmod(t * 500.0 * -dir + k * 67.0, bw - 40.0)
+		# fposmod: a plain fmod went negative for the left team's cut-in and drew the lines across
+		# the roster (critic r10: Unravel's red streaks through "Sable 116")
+		var lx := bx + 4.0 + fposmod(t * 500.0 * -dir + k * 67.0, bw - 48.0)
 		draw_rect(Rect2(roundf(lx), roundf(ly), 20 + (k % 3) * 8, 1), Color(sc, 0.35))
 	if band_h < 30.0:
 		return
@@ -1044,12 +1100,14 @@ func _draw_end() -> void:
 	var a := clampf(end_t / 0.3, 0.0, 1.0)
 	var win: bool = winner == b.player_side
 	var col := Pal.AMBER6 if win else (Pal.FADE3 if winner == -1 else Pal.BLOOD4)
-	var h := 72.0 * a
-	var cy := 150.0
+	# the band sits in the top band of the screen, over the formation badges, so the survivors
+	# below it stay visible and unclipped while they celebrate (critic r10 fix 4)
+	var h := 64.0 * a
+	var cy := 36.0
 	draw_rect(Rect2(0, cy - h * 0.5, _vw, h), Color(Pal.INK1, 0.95))
 	draw_rect(Rect2(0, cy - h * 0.5, _vw, 1), Color(col, a))
 	draw_rect(Rect2(0, cy + h * 0.5 - 1, _vw, 1), Color(col, a))
-	if h < 68.0:
+	if h < 60.0:
 		return
 	# the word settles in as one piece (critic r5: letters dropping one by one left a frame reading
 	# "VICTᴼ", a raised letter that looked like a glyph bug)
@@ -1061,7 +1119,18 @@ func _draw_end() -> void:
 		UIText.outlined(self, Vector2(_c, cy - 25.0 + dy), word, Color(col, lt), SERIF, sz, 1)
 	if end_t > 0.8:
 		var sub_a := clampf((end_t - 0.8) / 0.3, 0.0, 1.0)
-		UIText.outlined(self, Vector2(_c, cy + 14.0), b.end_subtitle, Color(Pal.INK10, sub_a), BOLD, UIText.LABEL, 1, Pal.INK1, false)
+		var sub: String = b.end_subtitle
+		var tn := team_name(winner) if winner >= 0 else ""
+		var sy := cy + 13.0
+		if tn != "" and sub.begins_with(tn):
+			# the winning team's name in its side colour, as on its roster tab
+			var rest := sub.substr(tn.length())
+			var w1 := UIText.width(tn, BOLD, UIText.LABEL)
+			var x := roundf(_c - (w1 + UIText.width(rest, BOLD, UIText.LABEL)) / 2.0)
+			x = UIText.outlined(self, Vector2(x, sy), tn, Color(UIText.legible(b.side_colors[winner].lerp(Pal.INK10, 0.2)), sub_a), BOLD, UIText.LABEL, 0, Pal.INK1, false)
+			UIText.outlined(self, Vector2(x, sy), rest, Color(Pal.INK10, sub_a), BOLD, UIText.LABEL, 0, Pal.INK1, false)
+		else:
+			UIText.outlined(self, Vector2(_c, sy), sub, Color(Pal.INK10, sub_a), BOLD, UIText.LABEL, 1, Pal.INK1, false)
 
 
 ## "+N" chip for banner effects beyond the room (opens the rest in the shared tooltip).

@@ -13,14 +13,21 @@ extends RefCounted
 ##   - overlaps no label already placed this action and no HUD rect (banners, roster, caption,
 ##     the Crystal's bar), and
 ##   - stays inside the field, and
-##   - is nearer its own unit's body than any other unit's body (centre to box distance).
+##   - is nearer its own unit's body than any other unit's body (centre to box distance), and
+##   - is clearly nearer its own unit's head point than any other unit's (HEAD_RATIO): the eye ties a
+##     number to the face it sits by, so a number above a front-row head that sits beside the face of
+##     the unit one row behind reads as that unit's (critic round 10: Cleave's 103 and 32).
+## Bodies are where the units are DRAWN at the moment of placement (the hit frame, knock-back, a
+## lunging attacker), plus `also`: where a displaced unit will stand while the label is up (its home).
 ## The legal box with the least movement wins (moving up costs more than down, sideways a little
 ## more than down, a little cost for covering a neighbour). When no box is legal the box with the
 ## least overlap wins: the label still never leaves its own unit's span.
 
-## A unit as the solver sees it: {uid: int, body: Rect2, bar: Rect2}. body is the opaque core of the
-## idle sprite (columns at least 30% filled, so a thin blade sticking out doesn't count), from the
-## top of its head to its feet; bar is its HP plate plus the charge diamond.
+## A unit as the solver sees it: {uid: int, body: Rect2, bar: Rect2, head: Vector2, also: Array}.
+## body is the opaque core of the sprite as drawn (columns at least 30% filled, so a thin blade
+## sticking out doesn't count), from the top of its head to its feet; bar is its HP plate plus the
+## charge diamond; head its face point (default head_of(body)); also other rects it occupies while
+## the label is up (a lunging attacker's home slot).
 const RISE_UP := 2.0         # how far above its preferred spot (world px)
 const BELOW := 14.0          # how far under its own HP plate a label may sit (world px)
 const SPAN_SLACK := 3.0      # the core span is the body's thick part: a label centre may reach this
@@ -29,7 +36,14 @@ const GAP := 1.0             # air between a label and another label (world px)
 const W_UP := 3.0            # cost per world px moved up
 const W_DOWN := 1.0          # cost per world px moved down
 const W_SIDE := 1.5          # cost per world px moved sideways
+## Set by place(): true when no legal box existed and the least-bad one was returned.
+static var last_fallback := false
 const W_SPRITE := 0.05       # cost per world px² over a neighbour's sprite or bar (soft)
+const HEAD_RATIO := 0.8      # a label's centre is at most this fraction of the distance to any
+                             # other unit's head point, measured to its own head point
+const KNOCK := 5.0           # neighbours may still be knocked this far sideways (and their hit frame
+                             # shift) while the label is up: others' bodies and heads count this
+                             # much nearer than they are drawn at placement
 
 
 ## Places one label. `size` is the label's box size, `pref` its preferred box bottom-centre,
@@ -75,7 +89,7 @@ static func place(size: Vector2, pref: Vector2, own: Dictionary, units: Array, p
 				continue
 			var box := Rect2(roundf(x - size.x * 0.5), y - size.y, size.x, size.y)
 			var ov := overlap(box, placed, blocked, field)
-			if ov <= 0.0 and nearest_is_own(box, body, others):
+			if ov <= 0.0 and nearest_is_own(box, own, others):
 				# legal; covering a neighbour's sprite or bar is allowed but costs a little, so a
 				# clear spot near the head wins over an equal one on a neighbour
 				cost += sprite_overlap(box, others) * W_SPRITE
@@ -83,11 +97,12 @@ static func place(size: Vector2, pref: Vector2, own: Dictionary, units: Array, p
 					best = box
 					best_cost = cost
 			elif best_cost == INF:
-				var c2 := ov * 100.0 + cost + (0.0 if nearest_is_own(box, body, others) else 5000.0)
+				var c2 := ov * 100.0 + cost + (0.0 if nearest_is_own(box, own, others) else 5000.0 + misattribution(box, own, others) * 50.0)
 				if c2 < fb_cost:
 					fb_cost = c2
 					fb = box
 		y += 1.0
+	last_fallback = best_cost == INF
 	if best_cost < INF:
 		return best
 	return fb
@@ -134,14 +149,42 @@ static func _area(a: Rect2, b: Rect2) -> float:
 	return i.get_area() if i.has_area() else 0.0
 
 
-## The box's centre is nearer its own body than any other unit's body.
-static func nearest_is_own(box: Rect2, body: Rect2, others: Array) -> bool:
+## Head (face) point of a body rect: centred, a little under its top (hats and hoods sit above the face).
+static func head_of(r: Rect2) -> Vector2:
+	return Vector2(r.get_center().x, r.position.y + clampf(r.size.y * 0.28, 3.0, 13.0))
+
+
+static func _head(u: Dictionary) -> Vector2:
+	return u["head"] if u.has("head") else head_of(u.get("body", Rect2()))
+
+
+## The box's centre is nearer its own body than any other unit's body (every rect it occupies), and
+## at most HEAD_RATIO of the way to any other unit's head point compared with its own.
+static func nearest_is_own(box: Rect2, own: Dictionary, others: Array, k := 1.0) -> bool:
+	return misattribution(box, own, others, k) <= 0.0
+
+
+## How far (world px) the box's centre misses the attribution rule (0 = attributed to its own unit).
+## `k` scales the knock-back slack (1 when placing; 0 when checking what is drawn now).
+static func misattribution(box: Rect2, own: Dictionary, others: Array, k := 1.0) -> float:
 	var c := box.get_center()
-	var own := dist(c, body)
+	# its own unit may be knocked away from the label too (and fall in its KO frames)
+	var od := dist(c, own.get("body", Rect2())) + KNOCK * k
+	var oh := c.distance_to(_head(own)) + KNOCK * k
+	var miss := 0.0
 	for u: Dictionary in others:
-		if dist(c, u.get("body", Rect2())) <= own:
-			return false
-	return true
+		var rects: Array = [u.get("body", Rect2())]
+		rects.append_array(u.get("also", []))
+		for r: Rect2 in rects:
+			if not r.has_area():
+				continue
+			var d := dist(c, r.grow_individual(KNOCK * k, KNOCK * k * 0.4, KNOCK * k, 0.0))
+			if d <= od:
+				miss = maxf(miss, od - d + 0.5)
+			var hd := maxf(0.0, c.distance_to(head_of(r) if r != u.get("body", Rect2()) else _head(u)) - KNOCK * k)
+			if oh > hd * HEAD_RATIO:
+				miss = maxf(miss, oh - hd * HEAD_RATIO)
+	return miss
 
 
 ## Distance from a point to a rect (0 inside).
