@@ -263,3 +263,20 @@ func test_camp_detail_hero_format() -> void:
 	check(PartyModel.ready_to_advance(d), "ready in hero detail")
 	eq(PartyModel.advance_target(d), "paladin", "hero detail Awakens into the run's class")
 	eq(String(PartyModel.advanced_copy(d)["class"]), "paladin", "the preview matches the run")
+
+
+## Playtest bug: Awakening from the camp refreshed the hub, and its new hero cards drew over the
+## still-open hero details. The details must stay on top after a refresh.
+func test_camp_details_stay_on_top_after_refresh() -> void:
+	_fresh()
+	var tree := Engine.get_main_loop() as SceneTree
+	var holder := Control.new()
+	tree.root.add_child(holder)
+	var hub := RunHub.open(holder, RunHub.demo_run(21, 3))
+	hub.open_details(0, false)
+	check(hub.detail != null, "details open")
+	hub.refresh()
+	eq(hub.get_child(hub.get_child_count() - 1), hub.detail, "the details stay on top after the camp refreshes")
+	tree.root.remove_child(holder)
+	holder.free()
+	_done()

@@ -49,10 +49,15 @@ var caption_extra := 0          # further units the action hits besides its targ
 var caption_tail_verb := ""
 var caption_tail := -1
 var caption_tail_extra := 0
+## What the action did beyond hits and heals, after the target (round 17): "sealed", "2 blinded".
+var caption_note := ""
+## A target the caption names that has no unit yet (a summon being called): its label.
+var caption_lead_label := ""
 var cutin_uid := -1
 var cutin_name := ""
 var cutin_t := 9.0
 var cutin_hold := 0.9
+var cutin_icon := ""      # the ability's effect icon (abilities.gd "icon"), beside its name
 var intro_t := -1.0
 var intro_len := 2.6
 var sd_banner_t := 9.0
@@ -205,8 +210,10 @@ var caption_stale := false
 
 
 func show_caption(uid: int, text: String, target: int, is_ability: bool, area := "single", extra := 0,
-		tail_verb := "", tail := -1, tail_extra := 0) -> void:
+		tail_verb := "", tail := -1, tail_extra := 0, note := "", lead_label := "") -> void:
 	caption_stale = false
+	caption_note = note
+	caption_lead_label = lead_label
 	caption_extra = extra
 	caption_tail_verb = tail_verb
 	caption_tail = tail
@@ -219,7 +226,8 @@ func show_caption(uid: int, text: String, target: int, is_ability: bool, area :=
 	caption_ability = is_ability
 
 
-func show_cutin(uid: int, ability: String, hold: float) -> void:
+func show_cutin(uid: int, ability: String, hold: float, icon := "") -> void:
+	cutin_icon = icon
 	cutin_uid = uid
 	cutin_name = ability
 	cutin_t = 0.0
@@ -539,10 +547,12 @@ func _draw_timer() -> void:
 
 
 # --- caption bar ------------------------------------------------------------------------------
-func _draw_caption() -> void:
-	caption_drawn = Rect2()
-	if caption_uid < 0 or end_t >= 0.0 or cutin_t < cutin_hold:
-		return
+## The caption's layout (pure: the draw and the label solver's walls both use it, so a test that
+## never draws still sees the caption as drawn). {} when no caption shows; else its "rect" (UI px),
+## "two" (two lines), its strings, widths and colours.
+func caption_layout() -> Dictionary:
+	if b == null or caption_uid < 0 or caption_uid >= b.units.size() or end_t >= 0.0 or cutin_t < cutin_hold:
+		return {}
 	var u = b.units[caption_uid]
 	var sc: Color = b.side_colors[u.side]
 	var r := Rect2(_c - _cap_w / 2.0, 292, _cap_w, 28)
@@ -558,6 +568,11 @@ func _draw_caption() -> void:
 		"all_allies":
 			tgt = "all allies"
 			tc = sc
+	if tgt == "" and caption_lead_label != "":
+		tgt = caption_lead_label
+		tc = sc
+	elif caption_area == "column" and caption_target >= 0 and caption_target < b.units.size():
+		tgt = "%s column" % ("front" if b.units[caption_target].col == 0 else "back")
 	if tgt == "" and caption_target >= 0:
 		if caption_target == caption_uid:
 			tgt = "self"
@@ -576,51 +591,74 @@ func _draw_caption() -> void:
 		if caption_tail_extra > 0:
 			tail += " + %d" % caption_tail_extra
 		tail_col = (b.side_colors[tu.side] as Color).lerp(Pal.INK10, 0.35)
-	var gap := UIText.width(" ", BOLD, sz)
-	var arrow_w := 14.0
-	var room := r.size.x - 16.0
-	var w_who := UIText.width(who, BOLD, sz)
-	var w_what := UIText.width(what, BOLD, sz)
-	var w_tgt := UIText.width(tgt, BOLD, sz) if tgt != "" else 0.0
-	var w_tail := (gap + UIText.width(tail, BOLD, sz)) if tail != "" else 0.0
-	var line1 := w_who + gap * 2.0 + w_what
-	var total := line1 + (arrow_w + w_tgt + w_tail if tgt != "" else 0.0)
-	var who_col: Color = sc.lerp(Pal.INK10, 0.35)
-	var tgt_col: Color = tc.lerp(Pal.INK10, 0.35)
-	if total <= room:
-		caption_drawn = r
-		_panel_bg(r, sc, 1.0)
-		var y := UIText.centered_y(r.position.y, r.size.y, BOLD, sz)
-		var x := roundf(_c - total / 2.0)
-		x = UIText.outlined(self, Vector2(x, y), who, who_col, BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
-		x = UIText.outlined(self, Vector2(x, y), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
-		if tgt != "":
-			x = _caption_target(x, r.get_center().y, y, tgt, tgt_col, arrow_w, sz)
-			if tail != "":
-				UIText.outlined(self, Vector2(x + gap, y), tail, tail_col, BOLD, sz, 0, Pal.INK1, false)
-		_dim_stale(r)
-		return
+	if tgt != "" and caption_note != "":
+		tail = (tail + " · " if tail != "" else "· ") + caption_note
+	var L := {"who": who, "what": what, "tgt": tgt, "tail": tail, "tail_col": tail_col, "sc": sc,
+		"who_col": sc.lerp(Pal.INK10, 0.35), "tgt_col": tc.lerp(Pal.INK10, 0.35), "arrow_w": 14.0}
+	_caption_widths(L, sz)
+	var total: float = L["line1"] + (L["arrow_w"] + L["w_tgt"] + L["w_tail"] if tgt != "" else 0.0)
+	if total <= r.size.x - 16.0:
+		L["rect"] = r
+		L["two"] = false
+		L["total"] = total
+		return L
 	# Too long for one line (long memory names in the Crystal fight, a clause for a second kind of
 	# target): two lines, the panel grows upward and, if it must, wider into the gap between the
 	# party panels. Names are never cut.
-	var lh := UIText.line_h(BOLD, sz)
-	var w_need := maxf(line1, arrow_w + w_tgt + w_tail) + 16.0
 	var w_max := (_r - _l) - 2.0 * (PANEL_W + 4.0)
+	if maxf(L["line1"], L["arrow_w"] + L["w_tgt"] + L["w_tail"]) + 16.0 > w_max:
+		_caption_widths(L, UIText.LABEL)   # still too wide on two lines (several effects): one size down, never cut
+	var lh := UIText.line_h(BOLD, L["sz"])
+	var w_need: float = maxf(L["line1"], L["arrow_w"] + L["w_tgt"] + L["w_tail"]) + 16.0
 	var w := clampf(w_need, r.size.x, w_max)
-	var r2 := Rect2(roundf(_c - w / 2.0), r.end.y - (lh * 2.0 + 10.0), roundf(w), lh * 2.0 + 10.0)
-	caption_drawn = r2
-	_panel_bg(r2, sc, 1.0)
-	var y1 := UIText.centered_y(r2.position.y + 4.0, lh, BOLD, sz)
-	var x1 := roundf(_c - line1 / 2.0)
-	x1 = UIText.outlined(self, Vector2(x1, y1), who, who_col, BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
-	UIText.outlined(self, Vector2(x1, y1), what, Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
+	L["rect"] = Rect2(roundf(_c - w / 2.0), r.end.y - (lh * 2.0 + 10.0), roundf(w), lh * 2.0 + 10.0)
+	L["two"] = true
+	L["lh"] = lh
+	return L
+
+
+func _caption_widths(L: Dictionary, sz: int) -> void:
+	L["sz"] = sz
+	L["gap"] = UIText.width(" ", BOLD, sz)
+	L["w_tgt"] = UIText.width(L["tgt"], BOLD, sz) if L["tgt"] != "" else 0.0
+	L["w_tail"] = (L["gap"] + UIText.width(L["tail"], BOLD, sz)) if L["tail"] != "" else 0.0
+	L["line1"] = UIText.width(L["who"], BOLD, sz) + L["gap"] * 2.0 + UIText.width(L["what"], BOLD, sz)
+
+
+func _draw_caption() -> void:
+	var L := caption_layout()
+	caption_drawn = L.get("rect", Rect2())
+	if L.is_empty():
+		return
+	var sz: int = L["sz"]
+	var gap: float = L["gap"]
+	var tgt: String = L["tgt"]
+	var tail: String = L["tail"]
+	var r: Rect2 = L["rect"]
+	_panel_bg(r, L["sc"], 1.0)
+	if not bool(L["two"]):
+		var y := UIText.centered_y(r.position.y, r.size.y, BOLD, sz)
+		var x := roundf(_c - float(L["total"]) / 2.0)
+		x = UIText.outlined(self, Vector2(x, y), L["who"], L["who_col"], BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
+		x = UIText.outlined(self, Vector2(x, y), L["what"], Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
+		if tgt != "":
+			x = _caption_target(x, r.get_center().y, y, tgt, L["tgt_col"], L["arrow_w"], sz)
+			if tail != "":
+				UIText.outlined(self, Vector2(x + gap, y), tail, L["tail_col"], BOLD, sz, 0, Pal.INK1, false)
+		_dim_stale(r)
+		return
+	var lh: float = L["lh"]
+	var y1 := UIText.centered_y(r.position.y + 4.0, lh, BOLD, sz)
+	var x1 := roundf(_c - float(L["line1"]) / 2.0)
+	x1 = UIText.outlined(self, Vector2(x1, y1), L["who"], L["who_col"], BOLD, sz, 0, Pal.INK1, false) + gap * 2.0
+	UIText.outlined(self, Vector2(x1, y1), L["what"], Pal.INK10, BOLD, sz, 0, Pal.INK1, false)
 	if tgt != "":
 		var y2 := y1 + lh
-		var x2 := roundf(_c - (arrow_w + w_tgt + w_tail) / 2.0)
-		x2 = _caption_target(x2, y2 + UIText.cap(BOLD, sz) * 0.5 + (UIText.ascent(BOLD, sz) - UIText.cap(BOLD, sz)), y2, tgt, tgt_col, arrow_w, sz)
+		var x2 := roundf(_c - (float(L["arrow_w"]) + float(L["w_tgt"]) + float(L["w_tail"])) / 2.0)
+		x2 = _caption_target(x2, y2 + UIText.cap(BOLD, sz) * 0.5 + (UIText.ascent(BOLD, sz) - UIText.cap(BOLD, sz)), y2, tgt, L["tgt_col"], L["arrow_w"], sz)
 		if tail != "":
-			UIText.outlined(self, Vector2(x2 + gap, y2), tail, tail_col, BOLD, sz, 0, Pal.INK1, false)
-	_dim_stale(r2)
+			UIText.outlined(self, Vector2(x2 + gap, y2), tail, L["tail_col"], BOLD, sz, 0, Pal.INK1, false)
+	_dim_stale(r)
 
 
 func _dim_stale(r: Rect2) -> void:
@@ -635,6 +673,20 @@ func _caption_target(x: float, cy: float, y: float, tgt: String, col: Color, arr
 
 
 # --- party panels -----------------------------------------------------------------------------
+## A roster panel with its team-name tab (UI px; pure layout, as drawn), or an empty rect.
+func panel_rect(side: int) -> Rect2:
+	if b == null or b.side_units[side].is_empty():
+		return Rect2()
+	var h := 6.0 + roster_rows(side).size() * ROW_H
+	var x0 := _l + 4.0 if side == 0 else _r - 4.0 - PANEL_W
+	var r := Rect2(x0, 358.0 - h, PANEL_W, h)
+	var tn := team_name(side)
+	if tn != "":
+		var tw := minf(PANEL_W, UIText.width(tn, BOLD, UIText.LABEL) + 12.0)
+		r = r.merge(Rect2(x0 if side == 0 else x0 + PANEL_W - tw, r.position.y - 13.0, tw, 14.0))
+	return r
+
+
 func _draw_panel(side: int) -> void:
 	var ids: Array = b.side_units[side]
 	var n := ids.size()
@@ -692,7 +744,12 @@ const MAX_ROWS := 4
 
 
 func roster_rows(side: int) -> Array:
-	var ids: Array = b.side_units[side]
+	# summons (an echo, a husk) keep their HP on their plate, not a roster row: the roster stays the
+	# party (round 17: an echo pushed a hero off into "+2 more")
+	var ids: Array = []
+	for id: int in b.side_units[side]:
+		if b.units[id].summon == "":
+			ids.append(id)
 	if ids.size() <= MAX_ROWS:
 		return ids.duplicate()
 	var living: Array = []
@@ -977,11 +1034,14 @@ func _draw_intro() -> void:
 func blocked_rects() -> Array:
 	var out: Array = [badge_rect(0), badge_rect(1), Rect2(_c - _cap_w / 2.0, 292, _cap_w, 28),
 		Rect2(_c - 100, 332, 200, 28)]
-	if caption_drawn.has_area():
-		out.append(caption_drawn)
+	# the caption and rosters as laid out now (pure layout: also right before their first draw)
+	var cr: Rect2 = caption_layout().get("rect", Rect2())
+	if cr.has_area():
+		out.append(cr)
 	for side in 2:
-		if panel_drawn[side].has_area():
-			out.append(panel_drawn[side])
+		var pr := panel_rect(side)
+		if pr.has_area():
+			out.append(pr)
 	# banners carry a margin (critic r6: a "20" touched the lore banner's bottom rule)
 	if frag_t <= FRAG_SHOW and frag_n > 0:
 		out.append(fragment_rect().grow(BANNER_MARGIN))
@@ -1114,8 +1174,17 @@ func _draw_cutin() -> void:
 	if band_h < 30.0:
 		return
 	var tx := roundf(_c + dir * (1.0 - minf(1.0, cutin_t / 0.16)) * 60.0)
-	UIText.outlined(self, Vector2(tx, cy - 14.0), u.label.to_upper() + "  ·  ABILITY", Pal.VIOLET4, BOLD, UIText.LABEL, 1, Pal.INK1, false)
+	# the hero's class names who is acting (an advanced class is the ability's identity, round 17)
+	var who: String = u.class_name_.to_upper() if (u.class_name_ != "" and not u.is_monster and not u.is_memory and u.summon == "") else "ABILITY"
+	UIText.outlined(self, Vector2(tx, cy - 14.0), u.label.to_upper() + "  ·  " + who, Pal.VIOLET4, BOLD, UIText.LABEL, 1, Pal.INK1, false)
 	UIText.outlined(self, Vector2(tx, cy - 2.0), cutin_name, sc.lerp(Pal.INK10, 0.35), SERIF, UIText.HEADING, 1, Pal.INK1, false)
+	if cutin_icon != "":
+		# its effect icon on a chip before the name (effects as icons)
+		var nw := UIText.width(cutin_name, SERIF, UIText.HEADING)
+		var ip := Vector2(roundf(tx - nw * 0.5 - 16.0), roundf(cy - 2.0 + UIText.ascent(SERIF, UIText.HEADING) - UIText.cap(SERIF, UIText.HEADING) * 0.5 - 5.5))
+		draw_rect(Rect2(ip, Vector2(11, 11)), Pal.INK1)
+		draw_rect(Rect2(ip, Vector2(11, 11)), Pal.VIOLET3, false, 1.0)
+		draw_texture(EffectIcons.icon(cutin_icon), ip + Vector2(1, 1), Pal.VIOLET4)
 
 
 ## The Fading (sudden death): one line in the game's voice, then a small rising readout.

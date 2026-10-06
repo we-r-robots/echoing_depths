@@ -206,12 +206,13 @@ func _draw_advance(r: Rect2) -> void:
 		var mx := 240.0 if k == "hp" else 40.0
 		var wa := clampi(roundi(float(a[k]) / mx * 66.0), 1, 66)
 		var wb := clampi(roundi(float(b[k]) / mx * 66.0), 1, 66)
+		# kept part neutral; a gain in green and a loss in red, matching the (+N) / (-N) text
 		draw_rect(Rect2(bx, ry, 66, 5), Pal.INK1)
-		draw_rect(Rect2(bx, ry + 1, wb, 3), HeroCard.STAT_COLORS[k])
-		draw_rect(Rect2(bx, ry + 1, mini(wa, wb), 3), HeroCard.STAT_COLORS[k].darkened(0.0) if wb >= wa else Pal.INK5)
+		draw_rect(Rect2(bx, ry + 1, mini(wa, wb), 3), Pal.INK6)
 		if wb > wa:
-			draw_rect(Rect2(bx, ry + 1, wa, 3), Pal.INK6)
-			draw_rect(Rect2(bx + wa, ry + 1, wb - wa, 3), HeroCard.STAT_COLORS[k])
+			draw_rect(Rect2(bx + wa, ry + 1, wb - wa, 3), Pal.LIFE4)
+		elif wb < wa:
+			draw_rect(Rect2(bx + wb, ry + 1, wa - wb, 3), Pal.BLOOD4)
 	# ability swap
 	var ab_y := sy + keys.size() * STAT_PITCH + 3
 	var old_ab := String(PartyModel.ability_of(String(hero["class"])).get("name", "—"))

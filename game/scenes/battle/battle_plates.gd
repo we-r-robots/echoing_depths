@@ -32,8 +32,12 @@ func _draw() -> void:
 		var x0 := roundf(p.x - 11.0)
 		var y0 := roundf(p.y + 3.0)
 		var a := visible_alpha
-		# frame
+		# frame (a branded unit's frame smoulders, a hexed one's turns violet: heals can't help it)
 		draw_rect(Rect2(x0 - 1, y0 - 1, 24, 7), Color(Pal.INK1, 0.92 * a))
+		var brand: bool = u.has_status("heal_block")
+		if brand or u.has_status("heal_invert"):
+			var fc := (Pal.AMBER5 if fmod(_t + u.uid * 0.13, 0.36) < 0.2 else Pal.BLOOD4) if brand else Pal.VIOLET3
+			draw_rect(Rect2(x0 - 2, y0 - 2, 26, 9), Color(fc, a), false, 1.0)
 		var frac: float = clampf(u.hp_shown / float(u.max_hp), 0.0, 1.0)
 		var chip: float = clampf(u.hp_chip / float(u.max_hp), 0.0, 1.0)
 		var hc := Pal.LIFE4 if frac > 0.5 else (Pal.AMBER5 if frac > 0.25 else Pal.BLOOD3)
@@ -44,11 +48,17 @@ func _draw() -> void:
 			var w := maxf(1.0, roundf(22.0 * frac))
 			draw_rect(Rect2(x0, y0, w, 3), Color(hc.lerp(Pal.INK10, u.heal_glow * 0.8), a))
 			draw_rect(Rect2(x0, y0, w, 1), Color(Pal.INK10 if u.heal_glow > 0.2 else hc.lightened(0.35), a))
+		# shield: a bright line over the bar, its length the shield's HP against max HP
+		var sh: Dictionary = u.status_of("shield")
+		if not sh.is_empty():
+			var sw := clampf(roundf(22.0 * float(sh["value"]) / float(u.max_hp)), 2.0, 22.0)
+			draw_rect(Rect2(x0 - 1, y0 - 3, sw + 2, 3), Color(Pal.INK1, 0.92 * a))
+			draw_rect(Rect2(x0, y0 - 2, sw, 1), Color(Pal.CRYSTAL5 if float(sh.get("pop", 0.0)) <= 0.0 else Pal.INK10, a))
 		# ATB gauge
 		var g: float = u.gauge_at(sim_t)
 		var gw := roundf(22.0 * g)
 		draw_rect(Rect2(x0, y0 + 4, 22, 1), Color(Pal.INK4, a))
-		var gc := Pal.INK9
+		var gc := Pal.CRYSTAL4 if u.has_status("slow") else Pal.INK9
 		if g >= 0.999 or u.acting:
 			gc = Pal.AMBER6 if fmod(_t, 0.2) < 0.12 else Pal.INK10
 		if gw > 0:
@@ -57,6 +67,12 @@ func _draw() -> void:
 		var cx := x0 + 27.0 if u.side == 0 else x0 - 5.0
 		var cy := y0 + 2.0
 		var cf: float = clampf(u.charge_shown / float(u.charge_max), 0.0, 1.0)
+		if u.summon != "":
+			# a summon never charges: its gem is a hollow mark of what called it
+			_diamond(cx, cy, 3.0, Color(Pal.INK1, a))
+			_diamond(cx, cy, 2.0, Color(Pal.CRYSTAL4 if u.summon == "echo" else Pal.VIOLET3, a))
+			_diamond(cx, cy, 1.0, Color(Pal.INK1, a))
+			continue
 		if u.charge_pulse > 0.0:
 			# the charge landed: a bright ring bursts out of the gem and the fill sweeps up in white
 			var cp: float = u.charge_pulse / 0.6
@@ -76,6 +92,23 @@ func _draw() -> void:
 				var half := 2.0 - absf(yy - cy)
 				if half >= 0.0:
 					draw_rect(Rect2(cx - half, yy, half * 2.0 + 1.0, 1), Color(Pal.VIOLET3.lerp(Pal.INK10, u.charge_pulse / 0.6), a))
+		if u.has_status("charge_seal"):
+			_seal(cx, cy, a)
+
+
+## Runebinder's seal on a charge gem: a rune ring round it (four rune ticks turning slowly) and a
+## bar across the gem, so the meter reads as locked while the seal lasts.
+func _seal(cx: float, cy: float, a: float) -> void:
+	_diamond(cx, cy, 5.0, Color(Pal.VIOLET4, a))
+	_diamond(cx, cy, 4.0, Color(Pal.INK1, a))
+	_diamond(cx, cy, 3.0, Color(Pal.INK1, a))
+	_diamond(cx, cy, 2.0, Color(Pal.VIOLET1, a))
+	draw_rect(Rect2(cx - 3, cy, 7, 1), Color(Pal.VIOLET4, a))
+	var k := int(_t * 4.0) % 4
+	for i in 4:
+		var ang := (i + k * 0.25) * TAU / 4.0
+		var p := Vector2(roundf(cx + 0.5 + cos(ang) * 6.0), roundf(cy + 0.5 + sin(ang) * 6.0))
+		draw_rect(Rect2(p.x, p.y, 1, 1), Color(Pal.INK10 if i == 0 else Pal.VIOLET4, a))
 
 
 func _diamond(cx: float, cy: float, r: float, c: Color) -> void:
