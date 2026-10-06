@@ -345,17 +345,11 @@ func test_rest_and_guardians() -> void:
 			if v["step"] == "choice":
 				for c: Dictionary in v["choices"]:
 					if c.has("rest"):
-						var mem := _mem_list(run)
-						var hp := int(v["health"])
-						run.choose(int(c["index"]))
-						eq(_mem_list(run), mem, "resting grants no memory")
-						eq(int(run.current_node()["health"]), mini(hp + int(c["rest"]), int(T.RUN["max_health"])), "rest heals")
-						rests += 1
-						break
+						rests += 1   # encounters no longer offer a +health rest (user, 2026-10-06)
 			if v["step"] == "fight" and v["type"] == "guardian":
 				guardians += 1
 			RunBot.step(run, rng, "greedy", 0.2)
-	check(rests > 3 and guardians > 20, "saw %d rests, %d guardian fights" % [rests, guardians])
+	check(rests == 0 and guardians > 20, "saw %d rests (none expected), %d guardian fights" % [rests, guardians])
 
 
 func test_guardians_escalate_and_identity() -> void:

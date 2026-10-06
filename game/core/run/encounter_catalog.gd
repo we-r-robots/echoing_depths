@@ -59,8 +59,8 @@ static func is_rare(choice: Dictionary) -> bool:
 ## (by class, choices for absent classes dropped), except that when the party holds two
 ## heroes of one class the choice goes to the one with fewer memories (lower index on a tie),
 ## so a duplicate-class recruit can still level. Returns [{choice, hero_index}].
-## A hero may get two choices (alignment steering: two directions). An encounter's optional
-## "rest" becomes a party-wide choice (hero_index -1): +health, no memory.
+## A hero may get two choices (alignment steering: two directions). An encounter's "rest" entry
+## is ignored (no +health choice in encounters, user decision 2026-10-06).
 static func bind(e: Dictionary, heroes: Array, limit := 6) -> Array:
 	var out: Array = []
 	for c: Dictionary in e.get("choices", []):
@@ -74,8 +74,6 @@ static func bind(e: Dictionary, heroes: Array, limit := 6) -> Array:
 			out.append({"choice": c, "hero_index": best})
 		if out.size() >= limit:
 			break
-	if e.has("rest") and not out.is_empty():
-		var r: Dictionary = e["rest"]
-		out.append({"hero_index": -1, "choice": {"id": "rest", "class": "", "label": r.get("label", "Rest"),
-			"rest": int(r.get("heal", 1)), "shift": {"good": 0, "law": 0}, "outcome": r.get("outcome", "")}})
+	# Encounters no longer offer "rest" (+health, no memory): user decision 2026-10-06. The pool's
+	# "rest" entries stay in the data but are ignored.
 	return out
