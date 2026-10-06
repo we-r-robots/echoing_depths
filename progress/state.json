@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05 23:01",
+  "updated": "2026-10-06 09:56",
   "bars": [
     {
       "name": "Sea of Stars",
@@ -240,7 +240,13 @@
       "bar": "Sea of Stars",
       "wave": 3,
       "status": "building",
-      "rounds": []
+      "rounds": [
+        {
+          "winner": "bar",
+          "gap": "Lost all 3 blind pairs to Sea of Stars night towns: flat, evenly lit strip of props under an empty sky, dithered painted-on lantern light and static-noise mist. Labels read better than the reference at phone size.",
+          "image": "captures/lanternrest/r1/built/1080/f00090.png"
+        }
+      ]
     },
     {
       "id": "title",
@@ -790,6 +796,10 @@
     {
       "t": "23:05",
       "msg": "battle-scene critic round 11: FAIL 2/5 (up from 1/5). Parked per 'a couple more rounds and move on': the top gap (sprites overlapping on lunges and in the grid) waits for the character redesign. Backlog in docs/tasks/battle-scene-round11.md."
+    },
+    {
+      "t": "10:20",
+      "msg": "lanternrest critic round 1: FAIL 0/3 vs Sea of Stars towns (lighting, mist, depth, plots). Fix list in docs/tasks/lanternrest-critic1.md. Round-2 class verdicts recorded (docs/design/class-verdicts-round2.md)."
     }
   ],
   "questions": [
