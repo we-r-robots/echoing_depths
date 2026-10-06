@@ -15,7 +15,7 @@ enum Row { PHYS, MAGIC, CRIT, HEAL, DEATH, MUTED, SHIELD, TICK, BURN, HEX }
 const ROW_COL := [Pal.INK10, Pal.VIOLET4, Pal.AMBER6, Pal.LIFE4, Pal.BLOOD4, Pal.FADE4, Pal.CRYSTAL5, Pal.INK10, Pal.AMBER5, Pal.VIOLET3]
 ## A status number's glyph before its digits (round 17): the status icon in its colour, so a poison or
 ## burn tick never reads as a hit or a Fading tick (the Fading keeps its grey mote).
-const GLYPH_COL := {"poison": Pal.LIFE4, "burn": Pal.AMBER6, "heal_invert": Pal.VIOLET4, "shield": Pal.CRYSTAL5,
+const GLYPH_COL := {"poison": Pal.LIFE4, "burn": Pal.AMBER6, "heal_invert": Pal.AMBER6, "shield": Pal.CRYSTAL5,
 	"link": Pal.AMBER6, "cost": Pal.BLOOD4, "tithe": Pal.BLOOD4, "regen": Pal.LIFE4}
 const GLYPH_ICON := {"poison": "status_poison", "burn": "status_burn", "heal_invert": "status_heal_invert",
 	"shield": "status_shield", "link": "status_link", "cost": "stat_hp", "tithe": "stat_hp", "regen": "status_regen"}

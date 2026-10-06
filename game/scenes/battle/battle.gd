@@ -2206,8 +2206,10 @@ func _on_status(ev: Dictionary) -> void:
 			fx.ring(c, 3, 14, 0.45, Pal.BLOOD4, 1.0)
 			u.flash(Pal.AMBER5, 0.9)
 		"heal_invert":
-			fx.ring(c, 3, 14, 0.45, Pal.VIOLET4, 1.0)
-			u.flash(Pal.VIOLET3, 0.8)
+			# Retribution Flame (Confessor, classes r3): the flame that turns heals into burns
+			_flame_burst(u)
+			fx.ring(c, 3, 14, 0.45, Pal.BLOOD4, 1.0)
+			u.flash(Pal.AMBER5, 0.9)
 		"charge_seal":
 			status_fx.bind(u.uid)   # runes ring it, chain together and close in
 			u.flash(Pal.VIOLET4, 0.6)
@@ -2387,10 +2389,10 @@ func _on_status_damage(ev: Dictionary, T) -> void:
 		"poison":
 			fx.particles(T.chest(), 5, Pal.LIFE4, 14.0, 6.0, 0.5, 30.0, 1, 3.0)
 		"heal_invert":
-			row = fx.Row.HEX
-			tag = "hexed heal"
-			tag_col = Pal.VIOLET4
-			fx.ring(T.chest(), 3, 12, 0.35, Pal.VIOLET4, 1.0)
+			row = fx.Row.BURN
+			tag = "heal burns"
+			tag_col = Pal.AMBER6
+			_flame_burst(T)
 		"cost", "tithe":
 			row = fx.Row.DEATH
 			tag = "cost" if pid == "cost" else "tithe"

@@ -36,7 +36,10 @@ func _draw() -> void:
 		draw_rect(Rect2(x0 - 1, y0 - 1, 24, 7), Color(Pal.INK1, 0.92 * a))
 		var brand: bool = u.has_status("heal_block")
 		if brand or u.has_status("heal_invert"):
-			var fc := (Pal.AMBER5 if fmod(_t + u.uid * 0.13, 0.36) < 0.2 else Pal.BLOOD4) if brand else Pal.VIOLET3
+			# both are flame-themed (Brand of Flame, Retribution Flame): the brand smoulders amber, the
+			# retribution flame burns blood-red
+			var on := fmod(_t + u.uid * 0.13, 0.36) < 0.2
+			var fc := (Pal.AMBER5 if on else Pal.BLOOD4) if brand else (Pal.BLOOD4 if on else Pal.AMBER6)
 			draw_rect(Rect2(x0 - 2, y0 - 2, 26, 9), Color(fc, a), false, 1.0)
 		var frac: float = clampf(u.hp_shown / float(u.max_hp), 0.0, 1.0)
 		var chip: float = clampf(u.hp_chip / float(u.max_hp), 0.0, 1.0)
